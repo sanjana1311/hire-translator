@@ -8,8 +8,10 @@ import {
   LogOut,
   Plus,
 } from "lucide-react";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
@@ -48,7 +50,11 @@ const AppLayout = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <motion.div
+          className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full"
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+        />
       </div>
     );
   }
@@ -56,12 +62,21 @@ const AppLayout = () => {
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
-      <aside className="w-60 border-r border-border bg-sidebar flex flex-col">
+      <motion.aside
+        initial={{ x: -10, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ duration: 0.3 }}
+        className="w-60 border-r border-border bg-sidebar flex flex-col"
+      >
         <div className="p-4 border-b border-sidebar-border">
           <Link to="/dashboard" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-primary flex items-center justify-center">
+            <motion.div
+              className="w-8 h-8 rounded-xl bg-gradient-primary flex items-center justify-center"
+              whileHover={{ scale: 1.1, rotate: 5 }}
+              transition={{ type: "spring", stiffness: 400 }}
+            >
               <span className="text-sm font-bold text-primary-foreground">H</span>
-            </div>
+            </motion.div>
             <span className="font-semibold text-foreground">HireOS</span>
           </Link>
         </div>
@@ -73,12 +88,20 @@ const AppLayout = () => {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
+                className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
                   active
                     ? "bg-sidebar-accent text-foreground font-medium shadow-sm"
                     : "text-sidebar-foreground hover:bg-sidebar-accent/60"
                 }`}
               >
+                {active && (
+                  <motion.div
+                    layoutId="sidebar-active"
+                    className="absolute inset-0 bg-sidebar-accent rounded-xl"
+                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                    style={{ zIndex: -1 }}
+                  />
+                )}
                 <item.icon className="w-4 h-4" />
                 {item.label}
               </Link>
@@ -87,13 +110,18 @@ const AppLayout = () => {
         </nav>
 
         <div className="p-3 border-t border-sidebar-border space-y-2">
-          <Button
-            size="sm"
-            className="w-full bg-gradient-primary text-primary-foreground hover:opacity-90 rounded-xl"
-            onClick={() => navigate("/dashboard/workspaces/new")}
-          >
-            <Plus className="w-4 h-4 mr-2" /> New Workspace
-          </Button>
+          <div className="flex items-center justify-between px-1 mb-1">
+            <ThemeToggle />
+          </div>
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <Button
+              size="sm"
+              className="w-full bg-gradient-primary text-primary-foreground hover:opacity-90 rounded-xl"
+              onClick={() => navigate("/dashboard/workspaces/new")}
+            >
+              <Plus className="w-4 h-4 mr-2" /> New Workspace
+            </Button>
+          </motion.div>
           <button
             onClick={handleLogout}
             className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full rounded-xl"
@@ -101,7 +129,7 @@ const AppLayout = () => {
             <LogOut className="w-4 h-4" /> Sign out
           </button>
         </div>
-      </aside>
+      </motion.aside>
 
       {/* Main */}
       <main className="flex-1 overflow-y-auto">
