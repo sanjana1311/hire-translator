@@ -14,13 +14,178 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      job_workspaces: {
+        Row: {
+          ats_score: number | null
+          company: string
+          created_at: string
+          id: string
+          jd_analysis: Json | null
+          job_description: string | null
+          profile_id: string
+          rewritten_bullets: Json | null
+          role_title: string
+          selected_projects: Json | null
+          status: string
+          suggested_projects: Json | null
+          updated_at: string
+        }
+        Insert: {
+          ats_score?: number | null
+          company?: string
+          created_at?: string
+          id?: string
+          jd_analysis?: Json | null
+          job_description?: string | null
+          profile_id: string
+          rewritten_bullets?: Json | null
+          role_title?: string
+          selected_projects?: Json | null
+          status?: string
+          suggested_projects?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          ats_score?: number | null
+          company?: string
+          created_at?: string
+          id?: string
+          jd_analysis?: Json | null
+          job_description?: string | null
+          profile_id?: string
+          rewritten_bullets?: Json | null
+          role_title?: string
+          selected_projects?: Json | null
+          status?: string
+          suggested_projects?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_workspaces_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      resumes: {
+        Row: {
+          achievements: Json | null
+          created_at: string
+          education: Json | null
+          experience: Json | null
+          id: string
+          profile_id: string
+          projects: Json | null
+          raw_text: string | null
+          skills: Json | null
+          summary: string | null
+          updated_at: string
+        }
+        Insert: {
+          achievements?: Json | null
+          created_at?: string
+          education?: Json | null
+          experience?: Json | null
+          id?: string
+          profile_id: string
+          projects?: Json | null
+          raw_text?: string | null
+          skills?: Json | null
+          summary?: string | null
+          updated_at?: string
+        }
+        Update: {
+          achievements?: Json | null
+          created_at?: string
+          education?: Json | null
+          experience?: Json | null
+          id?: string
+          profile_id?: string
+          projects?: Json | null
+          raw_text?: string | null
+          skills?: Json | null
+          summary?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resumes_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_versions: {
+        Row: {
+          created_at: string
+          id: string
+          resume_snapshot: Json | null
+          version_number: number
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          resume_snapshot?: Json | null
+          version_number?: number
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          resume_snapshot?: Json | null
+          version_number?: number
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_versions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "job_workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_profile_owner: { Args: { p_profile_id: string }; Returns: boolean }
+      is_workspace_owner: { Args: { p_workspace_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

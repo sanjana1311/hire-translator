@@ -7,25 +7,30 @@ import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { useCreateWorkspace } from "@/hooks/use-workspaces";
 
 const NewWorkspace = () => {
   const navigate = useNavigate();
   const [company, setCompany] = useState("");
   const [role, setRole] = useState("");
   const [jd, setJd] = useState("");
-  const [loading, setLoading] = useState(false);
+  const createWs = useCreateWorkspace();
 
   const handleCreate = () => {
     if (!company || !role || !jd) {
       toast.error("Please fill in all fields");
       return;
     }
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      toast.success("Workspace created! Analyzing JD...");
-      navigate("/dashboard/workspaces/1");
-    }, 1500);
+    createWs.mutate(
+      { company, role_title: role, job_description: jd },
+      {
+        onSuccess: (data) => {
+          toast.success("Workspace created!");
+          navigate(`/dashboard/workspaces/${data.id}`);
+        },
+        onError: (err: any) => toast.error(err.message || "Failed to create workspace"),
+      }
+    );
   };
 
   return (
@@ -68,13 +73,13 @@ const NewWorkspace = () => {
 
           <Button
             onClick={handleCreate}
-            disabled={loading}
+            disabled={createWs.isPending}
             className="bg-gradient-primary text-primary-foreground hover:opacity-90 h-11 px-6"
           >
-            {loading ? (
+            {createWs.isPending ? (
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                Analyzing...
+                Creating...
               </div>
             ) : (
               <>
