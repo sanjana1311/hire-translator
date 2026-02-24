@@ -71,6 +71,8 @@ const JobWorkspace = () => {
   const [compareVersion, setCompareVersion] = useState<WorkspaceVersion | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [versionLabel, setVersionLabel] = useState("");
+  const [showBulkMetrics, setShowBulkMetrics] = useState(false);
+  const [bulkMetrics, setBulkMetrics] = useState<Record<number, { type: string; value: string; context: string }>>({});
 
   const handleAnalyze = async () => {
     if (!ws) return;
@@ -89,6 +91,45 @@ const JobWorkspace = () => {
     } finally {
       setAnalyzing(false);
     }
+  };
+
+  const handleBulkMetricsSave = () => {
+    const entries = Object.entries(bulkMetrics);
+    const filled = entries.filter(([, v]) => v.type && v.value);
+    if (filled.length === 0) {
+      toast.error("Please fill in at least one metric");
+      return;
+    }
+    const updatedBullets = [...bullets];
+    for (const [idxStr, m] of filled) {
+      const idx = Number(idxStr);
+      let metricText = "";
+      switch (m.type) {
+        case "percent": metricText = `${m.value}%`; break;
+        case "cost": case "revenue": metricText = `$${m.value}`; break;
+        case "adoption": metricText = `${m.value} users`; break;
+        default: metricText = m.value;
+      }
+      let text = updatedBullets[idx].rewritten;
+      if (text.includes("[METRIC NEEDED]")) {
+        text = text.replace("[METRIC NEEDED]", metricText);
+      } else {
+        text = text.replace(/\s*$/, ` — achieving ${metricText}`);
+      }
+      if (m.context) text += ` (${m.context})`;
+      updatedBullets[idx] = { ...updatedBullets[idx], rewritten: text, hasMetric: true };
+    }
+    updateWs.mutate(
+      { id: ws!.id, rewritten_bullets: updatedBullets as any },
+      {
+        onSuccess: () => {
+          toast.success(`${filled.length} metric(s) added!`);
+          setShowBulkMetrics(false);
+          setBulkMetrics({});
+        },
+        onError: (err: any) => toast.error(err.message),
+      }
+    );
   };
 
   const toggleProject = (i: number) => {
@@ -310,17 +351,29 @@ const JobWorkspace = () => {
         {/* Metric Gate Banner */}
         {bullets.length > 0 && !allMetricsValid && (
           <div className="mb-6 p-4 rounded-xl border border-warning/30 bg-warning/5">
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-3 flex-1">
               <AlertTriangle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-medium text-warning">
                   {missingMetrics.length} bullet{missingMetrics.length > 1 ? "s" : ""} missing metrics
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  PDF export is blocked until every bullet has a measurable impact metric (%, $, time saved, volume, etc.). Click the warning icon on each bullet to add the missing metric.
+                  PDF export is blocked until every bullet has a measurable impact metric.
                 </p>
               </div>
             </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0 border-warning/30 text-warning hover:bg-warning/10"
+              onClick={() => {
+                setBulkMetrics({});
+                setShowBulkMetrics(true);
+              }}
+            >
+              <Sparkles className="w-4 h-4 mr-1.5" />
+              Bulk Add Metrics
+            </Button>
           </div>
         )}
 
@@ -612,6 +665,90 @@ const JobWorkspace = () => {
                   {updateWs.isPending ? "Saving..." : "Add Metric"}
                 </Button>
               </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Bulk Metrics Modal */}
+      {showBulkMetrics && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-2xl max-h-[80vh] bg-card border border-border rounded-2xl shadow-2xl flex flex-col"
+          >
+            <div className="flex items-center justify-between p-6 pb-4 border-b border-border">
+              <div>
+                <h3 className="font-semibold">Bulk Add Metrics</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {missingMetrics.length} bullet{missingMetrics.length > 1 ? "s" : ""} need metrics. No fabricated numbers — use real data only.
+                </p>
+              </div>
+              <button onClick={() => setShowBulkMetrics(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              {missingMetrics.map((bulletIdx) => {
+                const b = bullets[bulletIdx];
+                const entry = bulkMetrics[bulletIdx] || { type: "", value: "", context: "" };
+                return (
+                  <div key={bulletIdx} className="p-4 rounded-xl bg-secondary/50 border border-border space-y-3">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+                      <p className="text-sm leading-relaxed">{b.rewritten}</p>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <Select
+                        value={entry.type}
+                        onValueChange={(v) =>
+                          setBulkMetrics(prev => ({ ...prev, [bulletIdx]: { ...entry, type: v } }))
+                        }
+                      >
+                        <SelectTrigger className="bg-background border-border text-xs h-9">
+                          <SelectValue placeholder="Metric type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {METRIC_TYPES.map(t => (
+                            <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        value={entry.value}
+                        onChange={(e) =>
+                          setBulkMetrics(prev => ({ ...prev, [bulletIdx]: { ...entry, value: e.target.value } }))
+                        }
+                        placeholder="Value (e.g. 35)"
+                        className="bg-background border-border text-xs h-9"
+                      />
+                      <Input
+                        value={entry.context}
+                        onChange={(e) =>
+                          setBulkMetrics(prev => ({ ...prev, [bulletIdx]: { ...entry, context: e.target.value } }))
+                        }
+                        placeholder="Context (optional)"
+                        className="bg-background border-border text-xs h-9"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="p-6 pt-4 border-t border-border flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setShowBulkMetrics(false)}>
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-gradient-primary text-primary-foreground hover:opacity-90"
+                onClick={handleBulkMetricsSave}
+                disabled={updateWs.isPending}
+              >
+                {updateWs.isPending ? "Saving..." : `Save ${Object.values(bulkMetrics).filter(m => m.type && m.value).length} Metric(s)`}
+              </Button>
             </div>
           </motion.div>
         </div>
