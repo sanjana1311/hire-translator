@@ -79,7 +79,9 @@ IMPORTANT: You MUST respond with ONLY valid JSON, no markdown, no explanation. U
       "original": "original bullet from resume",
       "rewritten": "rewritten in WHAT-HOW-WHO-IMPACT format using JD keywords. If no metric exists, include [METRIC NEEDED] placeholder",
       "keywords": ["jd keywords used in rewrite"],
-      "hasMetric": true/false
+      "hasMetric": true/false,
+      "suggestedMetricType": "percent|time|cost|revenue|volume|adoption - suggest the MOST appropriate metric type for this bullet based on what was done",
+      "metricPrompt": "A specific, friendly question asking the user for the exact number, e.g. 'By what % did automation coverage improve?' or 'How many users adopted the platform?'"
     }
   ],
   "suggestedProjects": [
