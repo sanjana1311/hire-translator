@@ -36,7 +36,7 @@ const NewWorkspace = () => {
   return (
     <div className="p-8 max-w-3xl mx-auto">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-xl font-semibold tracking-tight text-foreground mb-1">New Job Workspace</h1>
+        <h1 className="text-2xl font-bold mb-1 text-foreground">New Job Workspace</h1>
         <p className="text-muted-foreground text-sm mb-8">Paste a job description — we'll extract every signal</p>
 
         <div className="space-y-6">
@@ -74,7 +74,7 @@ const NewWorkspace = () => {
           <Button
             onClick={handleCreate}
             disabled={createWs.isPending}
-            className="h-11 px-6 rounded-xl"
+            className="bg-gradient-primary text-primary-foreground hover:opacity-90 h-11 px-6 rounded-xl"
           >
             {createWs.isPending ? (
               <div className="flex items-center gap-2">
@@ -83,9 +83,9 @@ const NewWorkspace = () => {
               </div>
             ) : (
               <>
-                <Sparkles className="w-4 h-4 mr-1.5" />
+                <Sparkles className="w-4 h-4 mr-2" />
                 Analyze & Create Workspace
-                <ArrowRight className="w-4 h-4 ml-1.5" />
+                <ArrowRight className="w-4 h-4 ml-2" />
               </>
             )}
           </Button>

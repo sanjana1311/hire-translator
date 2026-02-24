@@ -319,8 +319,8 @@ const JobWorkspace = () => {
 
         {/* Job Description */}
         {ws.job_description && (
-          <div className="bg-gradient-card border border-border rounded-xl p-6 shadow-card mb-8">
-            <h2 className="font-semibold mb-3 flex items-center gap-2">
+          <div className="bg-card border border-border rounded-2xl p-6 shadow-card mb-8">
+            <h2 className="font-semibold mb-3 flex items-center gap-2 text-foreground">
               <FileText className="w-5 h-5 text-primary" /> Job Description
             </h2>
             <pre className="text-sm text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed max-h-60 overflow-y-auto">
@@ -331,10 +331,10 @@ const JobWorkspace = () => {
 
         {/* ATS Score */}
         {hasAnalysis && (
-          <div className="bg-gradient-card border border-border rounded-xl p-6 shadow-card mb-8">
+          <div className="bg-card border border-border rounded-2xl p-6 shadow-card mb-8">
             <div className="flex items-center gap-3 mb-4">
               <Target className="w-5 h-5 text-primary" />
-              <h2 className="font-semibold">ATS Quick Score</h2>
+              <h2 className="font-semibold text-foreground">ATS Quick Score</h2>
             </div>
             <div className="flex items-center gap-8 mb-6">
               <div className="relative w-24 h-24">
@@ -392,7 +392,7 @@ const JobWorkspace = () => {
               {bullets.map((b: any, i: number) => {
                 const isMissing = missingMetrics.includes(i);
                 return (
-                  <div key={i} className={`bg-gradient-card border rounded-xl shadow-card overflow-hidden ${isMissing ? "border-warning/40" : "border-border"}`}>
+                  <div key={i} className={`bg-card border rounded-2xl shadow-card overflow-hidden ${isMissing ? "border-warning/40" : "border-border"}`}>
                     <button
                       onClick={() => setExpandedBullet(expandedBullet === i ? null : i)}
                       className="w-full p-4 text-left flex items-start gap-3"
@@ -466,8 +466,8 @@ const JobWorkspace = () => {
                   <button
                     key={i}
                     onClick={() => toggleProject(i)}
-                    className={`w-full text-left bg-gradient-card border rounded-xl p-4 shadow-card transition-colors ${
-                      selected ? "border-primary shadow-glow" : "border-border hover:border-primary/30"
+                    className={`w-full text-left bg-card border rounded-2xl p-4 shadow-card transition-all ${
+                      selected ? "border-primary shadow-warm" : "border-border hover:border-primary/30"
                     }`}
                   >
                     <div className="flex items-center justify-between mb-2">
@@ -499,7 +499,7 @@ const JobWorkspace = () => {
 
         {/* Empty state */}
         {!hasAnalysis && bullets.length === 0 && (
-          <div className="bg-gradient-card border border-border rounded-xl p-8 text-center shadow-card">
+          <div className="bg-card border border-border rounded-2xl p-8 text-center shadow-card">
             <Sparkles className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
             <p className="text-muted-foreground text-sm mb-1">No analysis yet</p>
             <p className="text-xs text-muted-foreground">AI analysis will appear here once you run it.</p>
@@ -513,7 +513,7 @@ const JobWorkspace = () => {
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-md bg-gradient-card border border-border rounded-2xl p-6 shadow-2xl"
+            className="w-full max-w-md bg-card border border-border rounded-2xl p-6 shadow-2xl"
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold">Add Missing Metric</h3>
@@ -617,7 +617,7 @@ const JobWorkspace = () => {
                   const snap = v.resume_snapshot as any;
                   const snapBullets = Array.isArray(snap?.rewritten_bullets) ? snap.rewritten_bullets : [];
                   return (
-                    <div key={v.id} className="bg-gradient-card border border-border rounded-xl p-4 shadow-card">
+                    <div key={v.id} className="bg-card border border-border rounded-2xl p-4 shadow-card">
                       <div className="flex items-center justify-between mb-2">
                         <div>
                           <span className="text-sm font-medium">v{v.version_number}</span>
@@ -669,7 +669,7 @@ const JobWorkspace = () => {
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-sm bg-gradient-card border border-border rounded-2xl p-6 shadow-2xl"
+            className="w-full max-w-sm bg-card border border-border rounded-2xl p-6 shadow-2xl"
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold flex items-center gap-2">
@@ -712,7 +712,7 @@ const JobWorkspace = () => {
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-4xl max-h-[80vh] overflow-y-auto bg-gradient-card border border-border rounded-2xl p-6 shadow-2xl"
+            className="w-full max-w-4xl max-h-[80vh] overflow-y-auto bg-card border border-border rounded-2xl p-6 shadow-2xl"
           >
             <div className="flex items-center justify-between mb-6">
               <h3 className="font-semibold flex items-center gap-2">

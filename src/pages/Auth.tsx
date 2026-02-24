@@ -44,17 +44,18 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Left panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-secondary items-center justify-center p-16">
-        <div className="max-w-sm">
+      {/* Left panel with gradient */}
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-hero items-center justify-center p-16 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,transparent_30%,hsl(var(--background)/0.3)_100%)]" />
+        <div className="relative max-w-md">
           <div className="flex items-center gap-2.5 mb-10">
-            <div className="w-9 h-9 rounded-lg bg-foreground flex items-center justify-center">
-              <span className="font-semibold text-background text-sm">H</span>
+            <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
+              <span className="font-bold text-primary-foreground">H</span>
             </div>
-            <span className="text-xl font-semibold text-foreground">HireOS</span>
+            <span className="text-2xl font-bold text-foreground">HireOS</span>
           </div>
-          <h2 className="text-2xl font-semibold tracking-tight text-foreground mb-3">Your career deserves precision.</h2>
-          <p className="text-muted-foreground leading-relaxed">
+          <h2 className="text-3xl font-bold mb-4 text-foreground">Your career deserves precision.</h2>
+          <p className="text-muted-foreground leading-relaxed text-lg">
             Every bullet rewritten with exact JD keywords. Every metric verified. No hallucinations, no guesswork.
           </p>
         </div>
@@ -63,20 +64,18 @@ const Auth = () => {
       {/* Right panel */}
       <div className="flex-1 flex items-center justify-center p-6">
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-sm"
         >
           <div className="lg:hidden flex items-center gap-2.5 mb-10">
-            <div className="w-7 h-7 rounded-lg bg-foreground flex items-center justify-center">
-              <span className="text-xs font-semibold text-background">H</span>
+            <div className="w-8 h-8 rounded-xl bg-gradient-primary flex items-center justify-center">
+              <span className="text-sm font-bold text-primary-foreground">H</span>
             </div>
-            <span className="text-base font-semibold text-foreground">HireOS</span>
+            <span className="text-lg font-semibold text-foreground">HireOS</span>
           </div>
 
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground mb-1">
-            {isLogin ? "Welcome back" : "Create account"}
-          </h1>
+          <h1 className="text-2xl font-bold mb-1 text-foreground">{isLogin ? "Welcome back" : "Create account"}</h1>
           <p className="text-sm text-muted-foreground mb-8">
             {isLogin ? "Sign in to continue" : "Start tailoring your resume"}
           </p>
@@ -110,7 +109,7 @@ const Auth = () => {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full h-11 rounded-xl"
+              className="w-full bg-foreground text-background hover:bg-foreground/90 h-11 rounded-xl"
             >
               {loading ? "..." : isLogin ? "Sign in" : "Create account"}
             </Button>
