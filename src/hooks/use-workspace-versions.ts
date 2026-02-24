@@ -5,6 +5,7 @@ export interface WorkspaceVersion {
   id: string;
   workspace_id: string;
   version_number: number;
+  label: string;
   resume_snapshot: any;
   created_at: string;
 }
@@ -31,11 +32,12 @@ export function useSaveVersion() {
     mutationFn: async ({
       workspaceId,
       snapshot,
+      label,
     }: {
       workspaceId: string;
       snapshot: any;
+      label?: string;
     }) => {
-      // Get next version number
       const { data: existing } = await supabase
         .from("workspace_versions")
         .select("version_number")
@@ -51,6 +53,7 @@ export function useSaveVersion() {
           workspace_id: workspaceId,
           version_number: nextVersion,
           resume_snapshot: snapshot,
+          label: label || "",
         })
         .select()
         .single();

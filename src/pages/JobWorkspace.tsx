@@ -67,6 +67,8 @@ const JobWorkspace = () => {
   const [exporting, setExporting] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
   const [compareVersion, setCompareVersion] = useState<WorkspaceVersion | null>(null);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [versionLabel, setVersionLabel] = useState("");
 
   const toggleProject = (i: number) => {
     setSelectedProjects(prev =>
@@ -189,9 +191,13 @@ const JobWorkspace = () => {
       ats_score: ws.ats_score,
     };
     saveVersion.mutate(
-      { workspaceId: ws.id, snapshot },
+      { workspaceId: ws.id, snapshot, label: versionLabel.trim() },
       {
-        onSuccess: (v) => toast.success(`Version ${v.version_number} saved`),
+        onSuccess: (v) => {
+          toast.success(`Version ${v.version_number} saved`);
+          setShowSaveModal(false);
+          setVersionLabel("");
+        },
         onError: (err: any) => toast.error(err.message),
       }
     );
@@ -245,7 +251,7 @@ const JobWorkspace = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={handleSaveVersion}
+              onClick={() => setShowSaveModal(true)}
               disabled={saveVersion.isPending}
             >
               <Save className="w-4 h-4 mr-1.5" />
@@ -615,6 +621,9 @@ const JobWorkspace = () => {
                       <div className="flex items-center justify-between mb-2">
                         <div>
                           <span className="text-sm font-medium">v{v.version_number}</span>
+                          {v.label && (
+                            <p className="text-xs font-medium text-primary truncate max-w-[180px]">{v.label}</p>
+                          )}
                           <p className="text-xs text-muted-foreground">
                             {format(new Date(v.created_at), "MMM d, yyyy h:mm a")}
                           </p>
@@ -653,6 +662,49 @@ const JobWorkspace = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Save Version Modal */}
+      {showSaveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-sm bg-gradient-card border border-border rounded-2xl p-6 shadow-2xl"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold flex items-center gap-2">
+                <Save className="w-5 h-5 text-primary" /> Save Version
+              </h3>
+              <button onClick={() => { setShowSaveModal(false); setVersionLabel(""); }} className="text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="mb-4">
+              <Label className="text-sm">Version label (optional)</Label>
+              <Input
+                value={versionLabel}
+                onChange={e => setVersionLabel(e.target.value)}
+                placeholder="e.g. Final draft, Before metric updates"
+                className="mt-1.5 bg-secondary border-border"
+                autoFocus
+                onKeyDown={e => e.key === "Enter" && handleSaveVersion()}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => { setShowSaveModal(false); setVersionLabel(""); }}>
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-gradient-primary text-primary-foreground hover:opacity-90"
+                onClick={handleSaveVersion}
+                disabled={saveVersion.isPending}
+              >
+                {saveVersion.isPending ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Compare Modal */}
       {compareVersion && (
