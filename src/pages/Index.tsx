@@ -5,17 +5,17 @@ import { useNavigate } from "react-router-dom";
 import ThemeToggle from "@/components/ThemeToggle";
 
 const steps = [
-  { icon: Upload, label: "Upload Resume", desc: "Parse once, reuse everywhere" },
-  { icon: FileText, label: "Paste Job Description", desc: "We extract every signal" },
-  { icon: Target, label: "ATS Score + Rewrites", desc: "Keyword-aligned bullets" },
-  { icon: Download, label: "Export PDF", desc: "ATS-ready, metric-verified" },
+  { icon: Upload, label: "Upload Resume", desc: "Upload once. Structured for reuse." },
+  { icon: FileText, label: "Paste Job Description", desc: "We extract keywords, clusters, and hiring signals." },
+  { icon: Target, label: "ATS Score + Smart Rewrites", desc: "Bullet points rebuilt using exact JD language." },
+  { icon: Download, label: "Export PDF", desc: "ATS-safe formatting. Metrics validated." },
 ];
 
 const features = [
   { icon: Sparkles, title: "AI Bullet Rewrites", desc: "What → How → Who → Impact format with exact JD keyword alignment" },
   { icon: Target, title: "ATS Quick Score", desc: "Instant keyword match %, missing clusters, and high-signal verb suggestions" },
   { icon: Lightbulb, title: "Project Suggestions", desc: "AI recommends role-relevant projects based on hiring signals from the JD" },
-  { icon: Shield, title: "Metric Hard Gate", desc: "No fabricated numbers. Missing metrics? We ask before export." },
+  { icon: Shield, title: "Metric Hard Gate", desc: "Missing metrics? We prompt you before export." },
 ];
 
 const staggerContainer = {
@@ -135,8 +135,8 @@ const Index = () => {
             className="text-center mb-16"
           >
             <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">How it works</p>
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-3 text-foreground">Four steps to a perfect resume</h2>
-            <p className="text-muted-foreground text-lg">Upload once. Tailor for every role.</p>
+            <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-3 text-foreground">Four steps to a hiring-ready resume</h2>
+            <p className="text-muted-foreground text-lg">Tailor every application with precision.</p>
           </motion.div>
           <motion.div
             className="grid grid-cols-1 md:grid-cols-4 gap-5"
@@ -223,7 +223,7 @@ const Index = () => {
               Ready to land your next role?
             </h2>
             <p className="text-lg text-muted-foreground mb-8">
-              Join thousands of professionals who trust HireOS to tailor every application.
+              Tailor every application with precision.
             </p>
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }}>
               <Button
