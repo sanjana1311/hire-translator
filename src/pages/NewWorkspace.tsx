@@ -36,45 +36,45 @@ const NewWorkspace = () => {
   return (
     <div className="p-8 max-w-3xl mx-auto">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-2xl font-bold mb-1">New Job Workspace</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground mb-1">New Job Workspace</h1>
         <p className="text-muted-foreground text-sm mb-8">Paste a job description — we'll extract every signal</p>
 
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label className="text-sm">Company</Label>
+              <Label className="text-sm font-medium">Company</Label>
               <Input
                 value={company}
                 onChange={e => setCompany(e.target.value)}
                 placeholder="e.g. Stripe"
-                className="mt-1.5 bg-secondary border-border"
+                className="mt-1.5"
               />
             </div>
             <div>
-              <Label className="text-sm">Role Title</Label>
+              <Label className="text-sm font-medium">Role Title</Label>
               <Input
                 value={role}
                 onChange={e => setRole(e.target.value)}
                 placeholder="e.g. Senior Product Manager"
-                className="mt-1.5 bg-secondary border-border"
+                className="mt-1.5"
               />
             </div>
           </div>
 
           <div>
-            <Label className="text-sm">Job Description</Label>
+            <Label className="text-sm font-medium">Job Description</Label>
             <Textarea
               value={jd}
               onChange={e => setJd(e.target.value)}
               placeholder="Paste the full job description here..."
-              className="mt-1.5 min-h-[300px] bg-secondary border-border text-sm"
+              className="mt-1.5 min-h-[300px] text-sm"
             />
           </div>
 
           <Button
             onClick={handleCreate}
             disabled={createWs.isPending}
-            className="bg-gradient-primary text-primary-foreground hover:opacity-90 h-11 px-6"
+            className="h-11 px-6 rounded-xl"
           >
             {createWs.isPending ? (
               <div className="flex items-center gap-2">
@@ -83,9 +83,9 @@ const NewWorkspace = () => {
               </div>
             ) : (
               <>
-                <Sparkles className="w-4 h-4 mr-2" />
+                <Sparkles className="w-4 h-4 mr-1.5" />
                 Analyze & Create Workspace
-                <ArrowRight className="w-4 h-4 ml-2" />
+                <ArrowRight className="w-4 h-4 ml-1.5" />
               </>
             )}
           </Button>
