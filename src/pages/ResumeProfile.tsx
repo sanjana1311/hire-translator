@@ -1,68 +1,157 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Upload, FileText, CheckCircle, Edit3 } from "lucide-react";
+import { Upload, CheckCircle, Edit3, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { useResume, useUpsertResume } from "@/hooks/use-resume";
 
 const ResumeProfile = () => {
-  const [hasResume, setHasResume] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const { data: resume, isLoading } = useResume();
+  const upsert = useUpsertResume();
+  const [pasteText, setPasteText] = useState("");
+  const [editing, setEditing] = useState(false);
 
-  const handleUpload = () => {
-    setUploading(true);
-    setTimeout(() => {
-      setUploading(false);
-      setHasResume(true);
-      toast.success("Resume parsed and saved!");
-    }, 2000);
+  // Editable state
+  const [summary, setSummary] = useState("");
+  const [skills, setSkills] = useState("");
+  const [experience, setExperience] = useState<any[]>([]);
+
+  const startEdit = () => {
+    if (resume) {
+      setSummary(resume.summary || "");
+      setSkills(Array.isArray(resume.skills) ? resume.skills.join(", ") : "");
+      setExperience(Array.isArray(resume.experience) ? resume.experience : []);
+    }
+    setEditing(true);
   };
 
-  if (!hasResume) {
+  const handleSave = () => {
+    upsert.mutate(
+      {
+        summary,
+        skills: skills.split(",").map(s => s.trim()).filter(Boolean),
+        experience,
+      },
+      {
+        onSuccess: () => {
+          toast.success("Resume saved!");
+          setEditing(false);
+        },
+        onError: (err: any) => toast.error(err.message),
+      }
+    );
+  };
+
+  const handlePasteSubmit = () => {
+    if (!pasteText.trim()) {
+      toast.error("Please paste resume content");
+      return;
+    }
+    // Simple parse: save raw text and summary from first paragraph
+    const lines = pasteText.trim().split("\n").filter(Boolean);
+    upsert.mutate(
+      {
+        raw_text: pasteText,
+        summary: lines[0] || "",
+        experience: [],
+        education: [],
+        skills: [],
+        achievements: [],
+        projects: [],
+      },
+      {
+        onSuccess: () => {
+          toast.success("Resume parsed and saved!");
+          setPasteText("");
+        },
+        onError: (err: any) => toast.error(err.message),
+      }
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-8 flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!resume) {
     return (
       <div className="p-8 max-w-3xl mx-auto">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="text-2xl font-bold mb-1">Resume Profile</h1>
           <p className="text-muted-foreground text-sm mb-8">Upload your master resume — we'll parse it into structured fields</p>
 
-          <div
-            className="border-2 border-dashed border-border rounded-xl p-12 text-center hover:border-primary/50 transition-colors cursor-pointer bg-gradient-card"
-            onClick={handleUpload}
-          >
-            {uploading ? (
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                <p className="text-sm text-muted-foreground">Parsing your resume...</p>
+          <div className="border-2 border-dashed border-border rounded-xl p-12 text-center bg-gradient-card cursor-default">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Upload className="w-7 h-7 text-primary" />
               </div>
-            ) : (
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <Upload className="w-7 h-7 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium mb-1">Drop your resume here or click to upload</p>
-                  <p className="text-sm text-muted-foreground">PDF, DOCX supported • Parsed into structured fields</p>
-                </div>
+              <div>
+                <p className="font-medium mb-1">File upload coming soon</p>
+                <p className="text-sm text-muted-foreground">For now, paste your resume text below</p>
               </div>
-            )}
+            </div>
           </div>
 
           <div className="mt-8">
-            <p className="text-sm text-muted-foreground mb-4">Or paste your resume text below:</p>
+            <p className="text-sm text-muted-foreground mb-4">Paste your resume text below:</p>
             <Textarea
+              value={pasteText}
+              onChange={e => setPasteText(e.target.value)}
               placeholder="Paste resume content here..."
               className="min-h-[200px] bg-secondary border-border font-mono text-sm"
             />
-            <Button className="mt-4 bg-gradient-primary text-primary-foreground hover:opacity-90" onClick={handleUpload}>
-              Parse Resume
+            <Button
+              className="mt-4 bg-gradient-primary text-primary-foreground hover:opacity-90"
+              onClick={handlePasteSubmit}
+              disabled={upsert.isPending}
+            >
+              {upsert.isPending ? "Saving..." : "Parse Resume"}
             </Button>
           </div>
         </motion.div>
       </div>
     );
   }
+
+  if (editing) {
+    return (
+      <div className="p-8 max-w-3xl mx-auto">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="flex items-center justify-between mb-8">
+            <h1 className="text-2xl font-bold">Edit Resume</h1>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setEditing(false)}>Cancel</Button>
+              <Button size="sm" className="bg-gradient-primary text-primary-foreground" onClick={handleSave} disabled={upsert.isPending}>
+                <Save className="w-4 h-4 mr-2" /> {upsert.isPending ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </div>
+          <div className="space-y-6">
+            <div>
+              <Label>Summary</Label>
+              <Textarea value={summary} onChange={e => setSummary(e.target.value)} className="mt-1.5 bg-secondary border-border" />
+            </div>
+            <div>
+              <Label>Skills (comma-separated)</Label>
+              <Input value={skills} onChange={e => setSkills(e.target.value)} className="mt-1.5 bg-secondary border-border" />
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  const expEntries = Array.isArray(resume.experience) ? resume.experience : [];
+  const skillList = Array.isArray(resume.skills) ? resume.skills : [];
+  const eduEntries = Array.isArray(resume.education) ? resume.education : [];
+  const achievementList = Array.isArray(resume.achievements) ? resume.achievements : [];
 
   return (
     <div className="p-8 max-w-3xl mx-auto">
@@ -74,59 +163,63 @@ const ResumeProfile = () => {
               <CheckCircle className="w-3.5 h-3.5 text-success" /> Parsed and saved
             </p>
           </div>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={startEdit}>
             <Edit3 className="w-4 h-4 mr-2" /> Edit
           </Button>
         </div>
 
-        {/* Summary */}
         <Section title="Summary">
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Experienced product leader with 8+ years driving AI-powered platforms from 0→1. Proven track record in cross-functional delivery, data strategy, and enterprise customer growth.
+            {resume.summary || <span className="italic">No summary yet</span>}
           </p>
         </Section>
 
-        {/* Experience */}
-        <Section title="Experience">
-          <ExperienceEntry
-            company="Acme Corp"
-            title="Senior Product Manager"
-            dates="2022 – Present"
-            bullets={[
-              "Led development of AI-powered analytics dashboard serving 50K+ enterprise users across 12 markets",
-              "Drove 35% improvement in customer retention through personalized recommendation engine",
-              "Managed cross-functional team of 8 engineers, 2 designers, and 3 data scientists",
-            ]}
-          />
-          <ExperienceEntry
-            company="StartupXYZ"
-            title="Product Manager"
-            dates="2019 – 2022"
-            bullets={[
-              "Launched automated onboarding workflow reducing time-to-value by 60%",
-              "Built and scaled B2B SaaS platform from $0 to $2M ARR",
-            ]}
-          />
-        </Section>
-
-        {/* Education */}
-        <Section title="Education">
-          <div className="text-sm">
-            <p className="font-medium">M.S. Computer Science — Stanford University</p>
-            <p className="text-muted-foreground">2017 – 2019</p>
-          </div>
-        </Section>
-
-        {/* Skills */}
-        <Section title="Skills">
-          <div className="flex flex-wrap gap-2">
-            {["Python", "SQL", "Tableau", "Product Analytics", "A/B Testing", "Agile", "Jira", "Figma", "TensorFlow", "AWS"].map(s => (
-              <span key={s} className="text-xs px-2.5 py-1 rounded-full bg-secondary text-secondary-foreground font-medium">
-                {s}
-              </span>
+        {expEntries.length > 0 && (
+          <Section title="Experience">
+            {expEntries.map((exp: any, i: number) => (
+              <ExperienceEntry key={i} company={exp.company} title={exp.title} dates={exp.dates} bullets={exp.bullets || []} />
             ))}
-          </div>
-        </Section>
+          </Section>
+        )}
+
+        {eduEntries.length > 0 && (
+          <Section title="Education">
+            {eduEntries.map((edu: any, i: number) => (
+              <div key={i} className="text-sm mb-2">
+                <p className="font-medium">{edu.degree} — {edu.school}</p>
+                <p className="text-muted-foreground">{edu.dates}</p>
+              </div>
+            ))}
+          </Section>
+        )}
+
+        {skillList.length > 0 && (
+          <Section title="Skills">
+            <div className="flex flex-wrap gap-2">
+              {skillList.map((s: string, i: number) => (
+                <span key={i} className="text-xs px-2.5 py-1 rounded-full bg-secondary text-secondary-foreground font-medium">{s}</span>
+              ))}
+            </div>
+          </Section>
+        )}
+
+        {achievementList.length > 0 && (
+          <Section title="Achievements">
+            <ul className="space-y-1.5">
+              {achievementList.map((a: string, i: number) => (
+                <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                  <span className="text-primary mt-1.5 shrink-0">•</span> {a}
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
+
+        {resume.raw_text && !resume.summary && expEntries.length === 0 && (
+          <Section title="Raw Text">
+            <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono">{resume.raw_text.slice(0, 2000)}</pre>
+          </Section>
+        )}
       </motion.div>
     </div>
   );
@@ -149,7 +242,7 @@ const ExperienceEntry = ({ company, title, dates, bullets }: { company: string; 
       <span className="text-xs text-muted-foreground font-mono">{dates}</span>
     </div>
     <ul className="space-y-1.5">
-      {bullets.map((b, i) => (
+      {bullets.map((b: string, i: number) => (
         <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
           <span className="text-primary mt-1.5 shrink-0">•</span>
           {b}
