@@ -488,7 +488,7 @@ const JobWorkspace = () => {
                         {b.keywords && b.keywords.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-2">
                             {b.keywords.map((k: string) => (
-                              <span key={k} className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">{k}</span>
+                              <span key={k} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">{k}</span>
                             ))}
                           </div>
                         )}
