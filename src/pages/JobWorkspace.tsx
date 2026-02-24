@@ -237,7 +237,7 @@ const JobWorkspace = () => {
         <div className="flex items-center justify-between mb-8">
           <div>
             <button onClick={() => navigate("/dashboard/workspaces")} className="text-sm text-muted-foreground hover:text-foreground mb-2 flex items-center gap-1">
-              <ArrowLeft className="w-4 h-4" /> Workspaces
+              <ArrowLeft className="w-5 h-5" /> Workspaces
             </button>
             <h1 className="text-2xl font-bold mb-1">{ws.company} — {ws.role_title}</h1>
             <p className="text-sm text-muted-foreground">
@@ -426,7 +426,7 @@ const JobWorkspace = () => {
                           <div className="mt-3 p-3 rounded-lg bg-warning/5 border border-warning/20">
                             <div className="flex items-center justify-between">
                               <p className="text-xs text-warning font-medium flex items-center gap-1.5">
-                                <AlertTriangle className="w-4 h-4" /> Metric required before PDF export
+                                <AlertTriangle className="w-5 h-5" /> Metric required before PDF export
                               </p>
                               <Button
                                 size="sm"
@@ -518,7 +518,7 @@ const JobWorkspace = () => {
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold">Add Missing Metric</h3>
               <button onClick={() => setMetricModal(null)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-5 h-5" />
+                <X className="w-6 h-6" />
               </button>
             </div>
 
@@ -594,7 +594,7 @@ const JobWorkspace = () => {
                   <History className="w-5 h-5 text-primary" /> Version History
                 </h3>
                 <button onClick={() => setShowVersions(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-5 h-5" />
+                <X className="w-6 h-6" />
               </button>
             </div>
 
@@ -676,7 +676,7 @@ const JobWorkspace = () => {
                 <Save className="w-5 h-5 text-primary" /> Save Version
               </h3>
               <button onClick={() => { setShowSaveModal(false); setVersionLabel(""); }} className="text-muted-foreground hover:text-foreground">
-                <X className="w-5 h-5" />
+                <X className="w-6 h-6" />
               </button>
             </div>
             <div className="mb-4">
@@ -720,7 +720,7 @@ const JobWorkspace = () => {
                 Compare: Current vs Version {compareVersion.version_number}
               </h3>
               <button onClick={() => setCompareVersion(null)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-5 h-5" />
+                <X className="w-6 h-6" />
               </button>
             </div>
 
