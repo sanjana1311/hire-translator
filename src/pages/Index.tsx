@@ -41,10 +41,13 @@ const Index = () => {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4 }}
           >
-            <div className="w-8 h-8 rounded-xl bg-gradient-primary flex items-center justify-center">
-              <span className="text-sm font-bold text-primary-foreground">H</span>
+            <div className="w-9 h-9 rounded-xl bg-gradient-primary flex items-center justify-center">
+              <FileText className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="text-lg font-semibold tracking-tight text-foreground">HireOS</span>
+            <div className="flex flex-col">
+              <span className="text-lg font-semibold tracking-tight text-foreground leading-none">HireOS</span>
+              <span className="text-[10px] font-medium text-muted-foreground tracking-wide">AI-native career OS</span>
+            </div>
           </motion.div>
           <motion.div
             className="flex items-center gap-3"
@@ -149,11 +152,11 @@ const Index = () => {
                 className="bg-card rounded-2xl border border-border p-6 shadow-card hover:shadow-warm transition-shadow cursor-default"
               >
                 <motion.div
-                  className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-4"
+                  className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4"
                   whileHover={{ rotate: 5, scale: 1.1 }}
                   transition={{ type: "spring", stiffness: 300 }}
                 >
-                  <step.icon className="w-7 h-7 text-primary" />
+                  <step.icon className="w-8 h-8 text-primary" />
                 </motion.div>
                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Step {i + 1}</div>
                 <h3 className="font-semibold mb-1 text-foreground">{step.label}</h3>
@@ -192,11 +195,11 @@ const Index = () => {
                 className="bg-card rounded-2xl border border-border p-6 shadow-card hover:shadow-warm transition-shadow cursor-default"
               >
                 <motion.div
-                  className="w-14 h-14 rounded-xl bg-accent/10 flex items-center justify-center mb-4"
+                  className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mb-4"
                   whileHover={{ rotate: -5, scale: 1.1 }}
                   transition={{ type: "spring", stiffness: 300 }}
                 >
-                  <f.icon className="w-7 h-7 text-accent" />
+                  <f.icon className="w-8 h-8 text-accent" />
                 </motion.div>
                 <h3 className="font-semibold mb-2 text-foreground">{f.title}</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">{f.desc}</p>
