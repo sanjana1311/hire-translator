@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -46,26 +47,44 @@ const Auth = () => {
     <div className="min-h-screen bg-background flex">
       {/* Left panel with gradient */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-hero items-center justify-center p-16 relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,transparent_30%,hsl(var(--background)/0.3)_100%)]" />
-        <div className="relative max-w-md">
+        <motion.div
+          className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,transparent_30%,hsl(var(--background)/0.3)_100%)]"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1 }}
+        />
+        <motion.div
+          className="relative max-w-md"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, delay: 0.2 }}
+        >
           <div className="flex items-center gap-2.5 mb-10">
-            <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
+            <motion.div
+              className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center"
+              whileHover={{ scale: 1.1, rotate: 5 }}
+              transition={{ type: "spring", stiffness: 400 }}
+            >
               <span className="font-bold text-primary-foreground">H</span>
-            </div>
+            </motion.div>
             <span className="text-2xl font-bold text-foreground">HireOS</span>
           </div>
           <h2 className="text-3xl font-bold mb-4 text-foreground">Your career deserves precision.</h2>
           <p className="text-muted-foreground leading-relaxed text-lg">
             Every bullet rewritten with exact JD keywords. Every metric verified. No hallucinations, no guesswork.
           </p>
-        </div>
+        </motion.div>
       </div>
 
       {/* Right panel */}
-      <div className="flex-1 flex items-center justify-center p-6">
+      <div className="flex-1 flex items-center justify-center p-6 relative">
+        <div className="absolute top-4 right-4">
+          <ThemeToggle />
+        </div>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
           className="w-full max-w-sm"
         >
           <div className="lg:hidden flex items-center gap-2.5 mb-10">
@@ -75,13 +94,21 @@ const Auth = () => {
             <span className="text-lg font-semibold text-foreground">HireOS</span>
           </div>
 
-          <h1 className="text-2xl font-bold mb-1 text-foreground">{isLogin ? "Welcome back" : "Create account"}</h1>
+          <motion.h1
+            className="text-2xl font-bold mb-1 text-foreground"
+            key={isLogin ? "login" : "signup"}
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            {isLogin ? "Welcome back" : "Create account"}
+          </motion.h1>
           <p className="text-sm text-muted-foreground mb-8">
             {isLogin ? "Sign in to continue" : "Start tailoring your resume"}
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
               <Label htmlFor="email" className="text-sm font-medium">Email</Label>
               <Input
                 id="email"
@@ -92,8 +119,8 @@ const Auth = () => {
                 required
                 className="mt-1.5"
               />
-            </div>
-            <div>
+            </motion.div>
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
               <Label htmlFor="password" className="text-sm font-medium">Password</Label>
               <Input
                 id="password"
@@ -105,14 +132,28 @@ const Auth = () => {
                 minLength={6}
                 className="mt-1.5"
               />
-            </div>
-            <Button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-foreground text-background hover:bg-foreground/90 h-11 rounded-xl"
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
             >
-              {loading ? "..." : isLogin ? "Sign in" : "Create account"}
-            </Button>
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-foreground text-background hover:bg-foreground/90 h-11 rounded-xl"
+              >
+                {loading ? (
+                  <motion.div
+                    className="w-4 h-4 border-2 border-background border-t-transparent rounded-full"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                  />
+                ) : isLogin ? "Sign in" : "Create account"}
+              </Button>
+            </motion.div>
           </form>
 
           <p className="text-center text-sm text-muted-foreground mt-6">
