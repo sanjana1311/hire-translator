@@ -149,11 +149,11 @@ const Index = () => {
                 className="bg-card rounded-2xl border border-border p-6 shadow-card hover:shadow-warm transition-shadow cursor-default"
               >
                 <motion.div
-                  className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center mb-4"
+                  className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-4"
                   whileHover={{ rotate: 5, scale: 1.1 }}
                   transition={{ type: "spring", stiffness: 300 }}
                 >
-                  <step.icon className="w-5 h-5 text-primary" />
+                  <step.icon className="w-7 h-7 text-primary" />
                 </motion.div>
                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Step {i + 1}</div>
                 <h3 className="font-semibold mb-1 text-foreground">{step.label}</h3>
@@ -192,11 +192,11 @@ const Index = () => {
                 className="bg-card rounded-2xl border border-border p-6 shadow-card hover:shadow-warm transition-shadow cursor-default"
               >
                 <motion.div
-                  className="w-11 h-11 rounded-xl bg-accent/10 flex items-center justify-center mb-4"
+                  className="w-14 h-14 rounded-xl bg-accent/10 flex items-center justify-center mb-4"
                   whileHover={{ rotate: -5, scale: 1.1 }}
                   transition={{ type: "spring", stiffness: 300 }}
                 >
-                  <f.icon className="w-5 h-5 text-accent" />
+                  <f.icon className="w-7 h-7 text-accent" />
                 </motion.div>
                 <h3 className="font-semibold mb-2 text-foreground">{f.title}</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">{f.desc}</p>

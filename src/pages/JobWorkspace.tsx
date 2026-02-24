@@ -237,7 +237,7 @@ const JobWorkspace = () => {
         <div className="flex items-center justify-between mb-8">
           <div>
             <button onClick={() => navigate("/dashboard/workspaces")} className="text-sm text-muted-foreground hover:text-foreground mb-2 flex items-center gap-1">
-              <ArrowLeft className="w-5 h-5" /> Workspaces
+              <ArrowLeft className="w-6 h-6" /> Workspaces
             </button>
             <h1 className="text-2xl font-bold mb-1">{ws.company} — {ws.role_title}</h1>
             <p className="text-sm text-muted-foreground">
@@ -321,7 +321,7 @@ const JobWorkspace = () => {
         {ws.job_description && (
           <div className="bg-card border border-border rounded-2xl p-6 shadow-card mb-8">
             <h2 className="font-semibold mb-3 flex items-center gap-2 text-foreground">
-              <FileText className="w-5 h-5 text-primary" /> Job Description
+              <FileText className="w-7 h-7 text-primary" /> Job Description
             </h2>
             <pre className="text-sm text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed max-h-60 overflow-y-auto">
               {ws.job_description}
@@ -333,7 +333,7 @@ const JobWorkspace = () => {
         {hasAnalysis && (
           <div className="bg-card border border-border rounded-2xl p-6 shadow-card mb-8">
             <div className="flex items-center gap-3 mb-4">
-              <Target className="w-5 h-5 text-primary" />
+              <Target className="w-7 h-7 text-primary" />
               <h2 className="font-semibold text-foreground">ATS Quick Score</h2>
             </div>
             <div className="flex items-center gap-8 mb-6">
@@ -380,7 +380,7 @@ const JobWorkspace = () => {
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <Sparkles className="w-5 h-5 text-primary" />
+                <Sparkles className="w-7 h-7 text-primary" />
                 <h2 className="font-semibold">Bullet Rewrites</h2>
               </div>
               <span className="text-xs text-muted-foreground">
@@ -426,7 +426,7 @@ const JobWorkspace = () => {
                           <div className="mt-3 p-3 rounded-lg bg-warning/5 border border-warning/20">
                             <div className="flex items-center justify-between">
                               <p className="text-xs text-warning font-medium flex items-center gap-1.5">
-                                <AlertTriangle className="w-5 h-5" /> Metric required before PDF export
+                                <AlertTriangle className="w-6 h-6" /> Metric required before PDF export
                               </p>
                               <Button
                                 size="sm"
@@ -455,7 +455,7 @@ const JobWorkspace = () => {
         {projects.length > 0 && (
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-2">
-              <FileText className="w-5 h-5 text-primary" />
+              <FileText className="w-7 h-7 text-primary" />
               <h2 className="font-semibold">Suggested Projects</h2>
             </div>
             <p className="text-sm text-muted-foreground mb-4">Pick up to 2 projects to add under your Projects section</p>
@@ -475,7 +475,7 @@ const JobWorkspace = () => {
                       <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
                         selected ? "border-primary bg-primary" : "border-muted-foreground"
                       }`}>
-                        {selected && <CheckCircle className="w-3 h-3 text-primary-foreground" />}
+                        {selected && <CheckCircle className="w-5 h-5 text-primary-foreground" />}
                       </div>
                     </div>
                     <ul className="space-y-1 mb-2">
@@ -518,7 +518,7 @@ const JobWorkspace = () => {
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold">Add Missing Metric</h3>
               <button onClick={() => setMetricModal(null)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-6 h-6" />
+                <X className="w-7 h-7" />
               </button>
             </div>
 
@@ -591,10 +591,10 @@ const JobWorkspace = () => {
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="font-semibold flex items-center gap-2">
-                  <History className="w-5 h-5 text-primary" /> Version History
+                  <History className="w-7 h-7 text-primary" /> Version History
                 </h3>
                 <button onClick={() => setShowVersions(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-6 h-6" />
+                <X className="w-7 h-7" />
               </button>
             </div>
 
@@ -673,10 +673,10 @@ const JobWorkspace = () => {
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold flex items-center gap-2">
-                <Save className="w-5 h-5 text-primary" /> Save Version
+                <Save className="w-7 h-7 text-primary" /> Save Version
               </h3>
               <button onClick={() => { setShowSaveModal(false); setVersionLabel(""); }} className="text-muted-foreground hover:text-foreground">
-                <X className="w-6 h-6" />
+                <X className="w-7 h-7" />
               </button>
             </div>
             <div className="mb-4">
@@ -716,11 +716,11 @@ const JobWorkspace = () => {
           >
             <div className="flex items-center justify-between mb-6">
               <h3 className="font-semibold flex items-center gap-2">
-                <GitCompare className="w-5 h-5 text-primary" />
+                <GitCompare className="w-7 h-7 text-primary" />
                 Compare: Current vs Version {compareVersion.version_number}
               </h3>
               <button onClick={() => setCompareVersion(null)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-6 h-6" />
+                <X className="w-7 h-7" />
               </button>
             </div>
 

@@ -61,7 +61,7 @@ const Auth = () => {
         >
           <div className="flex items-center gap-2.5 mb-10">
             <motion.div
-              className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center"
+              className="w-12 h-12 rounded-xl bg-gradient-primary flex items-center justify-center"
               whileHover={{ scale: 1.1, rotate: 5 }}
               transition={{ type: "spring", stiffness: 400 }}
             >

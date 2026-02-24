@@ -58,7 +58,7 @@ const Workspaces = () => {
             animate={{ opacity: 1, scale: 1 }}
             className="bg-card border border-border rounded-2xl p-12 text-center shadow-card"
           >
-            <Briefcase className="w-10 h-10 text-muted-foreground mx-auto mb-4" />
+            <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground mb-4">No workspaces yet</p>
             <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
               <Button className="bg-gradient-primary text-primary-foreground hover:opacity-90 rounded-xl" onClick={() => navigate("/dashboard/workspaces/new")}>
@@ -84,7 +84,7 @@ const Workspaces = () => {
                 transition={{ duration: 0.2 }}
               >
                 <motion.div
-                  className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center shrink-0"
+                  className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0"
                   whileHover={{ rotate: 5 }}
                   transition={{ type: "spring", stiffness: 300 }}
                 >
@@ -115,9 +115,9 @@ const Workspaces = () => {
                     whileHover={{ scale: 1.15 }}
                     whileTap={{ scale: 0.9 }}
                   >
-                    <Trash2 className="w-6 h-6" />
+                    <Trash2 className="w-7 h-7" />
                   </motion.button>
-                  <ArrowRight className="w-6 h-6 text-muted-foreground" />
+                  <ArrowRight className="w-7 h-7 text-muted-foreground" />
                 </div>
               </motion.button>
             ))}
