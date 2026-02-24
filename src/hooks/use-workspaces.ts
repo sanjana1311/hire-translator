@@ -56,7 +56,7 @@ export function useCreateWorkspace() {
   const qc = useQueryClient();
   const { data: profile } = useProfile();
   return useMutation({
-    mutationFn: async (ws: { company: string; role_title: string; job_description: string }) => {
+    mutationFn: async (ws: { job_description: string }) => {
       if (!profile?.id) throw new Error("No profile");
       const { data, error } = await supabase
         .from("job_workspaces")

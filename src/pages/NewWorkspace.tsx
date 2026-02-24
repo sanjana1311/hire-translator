@@ -2,7 +2,6 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, Sparkles } from "lucide-react";
@@ -11,18 +10,16 @@ import { useCreateWorkspace } from "@/hooks/use-workspaces";
 
 const NewWorkspace = () => {
   const navigate = useNavigate();
-  const [company, setCompany] = useState("");
-  const [role, setRole] = useState("");
   const [jd, setJd] = useState("");
   const createWs = useCreateWorkspace();
 
   const handleCreate = () => {
-    if (!company || !role || !jd) {
-      toast.error("Please fill in all fields");
+    if (!jd) {
+      toast.error("Please paste a job description");
       return;
     }
     createWs.mutate(
-      { company, role_title: role, job_description: jd },
+      { job_description: jd },
       {
         onSuccess: (data) => {
           toast.success("Workspace created!");
@@ -40,27 +37,6 @@ const NewWorkspace = () => {
         <p className="text-muted-foreground text-sm mb-8">Paste a job description — we'll extract every signal</p>
 
         <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-sm font-medium">Company</Label>
-              <Input
-                value={company}
-                onChange={e => setCompany(e.target.value)}
-                placeholder="e.g. Stripe"
-                className="mt-1.5"
-              />
-            </div>
-            <div>
-              <Label className="text-sm font-medium">Role Title</Label>
-              <Input
-                value={role}
-                onChange={e => setRole(e.target.value)}
-                placeholder="e.g. Senior Product Manager"
-                className="mt-1.5"
-              />
-            </div>
-          </div>
-
           <div>
             <Label className="text-sm font-medium">Job Description</Label>
             <Textarea
