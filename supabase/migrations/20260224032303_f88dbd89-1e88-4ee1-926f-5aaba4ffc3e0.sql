@@ -1,0 +1,1 @@
+ALTER TABLE public.workspace_versions ADD COLUMN label text DEFAULT '';
