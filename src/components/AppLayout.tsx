@@ -102,7 +102,7 @@ const AppLayout = () => {
                     style={{ zIndex: -1 }}
                   />
                 )}
-                <item.icon className="w-4 h-4" />
+                <item.icon className="w-5 h-5" />
                 {item.label}
               </Link>
             );
@@ -119,14 +119,14 @@ const AppLayout = () => {
               className="w-full bg-gradient-primary text-primary-foreground hover:opacity-90 rounded-xl"
               onClick={() => navigate("/dashboard/workspaces/new")}
             >
-              <Plus className="w-4 h-4 mr-2" /> New Workspace
+              <Plus className="w-5 h-5 mr-2" /> New Workspace
             </Button>
           </motion.div>
           <button
             onClick={handleLogout}
             className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full rounded-xl"
           >
-            <LogOut className="w-4 h-4" /> Sign out
+            <LogOut className="w-5 h-5" /> Sign out
           </button>
         </div>
       </motion.aside>

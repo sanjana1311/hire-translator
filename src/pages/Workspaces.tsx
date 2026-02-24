@@ -115,9 +115,9 @@ const Workspaces = () => {
                     whileHover={{ scale: 1.15 }}
                     whileTap={{ scale: 0.9 }}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-5 h-5" />
                   </motion.button>
-                  <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                  <ArrowRight className="w-5 h-5 text-muted-foreground" />
                 </div>
               </motion.button>
             ))}
