@@ -95,8 +95,10 @@ IMPORTANT: You MUST respond with ONLY valid JSON, no markdown, no explanation. U
 
 Rules for bullet rewrites:
 - Follow WHAT→HOW→WHO→IMPACT format strictly
-- Use exact keywords and phrases from the JD
+- Naturally incorporate relevant JD keywords into the bullet — do NOT copy-paste JD phrases verbatim or append them awkwardly. The bullet must read as the candidate's authentic accomplishment, not a mirror of the job posting.
+- Keep the candidate's original voice, action verbs, and context. Only adjust wording to align with the JD's terminology where it fits organically.
 - Every bullet MUST have a measurable metric. If the original has one, keep it. If not, add [METRIC NEEDED]
+- Do NOT add filler phrases like "demonstrating effective program management" or "contributing to continuous improvement" — every word must convey specific, concrete information.
 - Rewrite ALL experience bullets from the resume
 
 Rules for project suggestions:
