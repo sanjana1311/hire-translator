@@ -45,15 +45,15 @@ const Auth = () => {
   return (
     <div className="min-h-screen bg-background flex">
       {/* Left panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-card border-r border-border items-center justify-center p-12">
-        <div className="max-w-md">
-          <div className="flex items-center gap-2 mb-8">
-            <div className="w-10 h-10 rounded-lg bg-gradient-primary flex items-center justify-center">
-              <span className="font-bold text-primary-foreground">H</span>
+      <div className="hidden lg:flex lg:w-1/2 bg-secondary items-center justify-center p-16">
+        <div className="max-w-sm">
+          <div className="flex items-center gap-2.5 mb-10">
+            <div className="w-9 h-9 rounded-lg bg-foreground flex items-center justify-center">
+              <span className="font-semibold text-background text-sm">H</span>
             </div>
-            <span className="text-2xl font-semibold">HireOS</span>
+            <span className="text-xl font-semibold text-foreground">HireOS</span>
           </div>
-          <h2 className="text-3xl font-bold mb-4">Your career deserves precision.</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-foreground mb-3">Your career deserves precision.</h2>
           <p className="text-muted-foreground leading-relaxed">
             Every bullet rewritten with exact JD keywords. Every metric verified. No hallucinations, no guesswork.
           </p>
@@ -63,25 +63,27 @@ const Auth = () => {
       {/* Right panel */}
       <div className="flex-1 flex items-center justify-center p-6">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-sm"
         >
-          <div className="lg:hidden flex items-center gap-2 mb-8">
-            <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center">
-              <span className="text-sm font-bold text-primary-foreground">H</span>
+          <div className="lg:hidden flex items-center gap-2.5 mb-10">
+            <div className="w-7 h-7 rounded-lg bg-foreground flex items-center justify-center">
+              <span className="text-xs font-semibold text-background">H</span>
             </div>
-            <span className="text-lg font-semibold">HireOS</span>
+            <span className="text-base font-semibold text-foreground">HireOS</span>
           </div>
 
-          <h1 className="text-2xl font-bold mb-1">{isLogin ? "Welcome back" : "Create account"}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground mb-1">
+            {isLogin ? "Welcome back" : "Create account"}
+          </h1>
           <p className="text-sm text-muted-foreground mb-8">
             {isLogin ? "Sign in to continue" : "Start tailoring your resume"}
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <Label htmlFor="email" className="text-sm">Email</Label>
+              <Label htmlFor="email" className="text-sm font-medium">Email</Label>
               <Input
                 id="email"
                 type="email"
@@ -89,11 +91,11 @@ const Auth = () => {
                 onChange={e => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 required
-                className="mt-1.5 bg-secondary border-border"
+                className="mt-1.5"
               />
             </div>
             <div>
-              <Label htmlFor="password" className="text-sm">Password</Label>
+              <Label htmlFor="password" className="text-sm font-medium">Password</Label>
               <Input
                 id="password"
                 type="password"
@@ -102,13 +104,13 @@ const Auth = () => {
                 placeholder="••••••••"
                 required
                 minLength={6}
-                className="mt-1.5 bg-secondary border-border"
+                className="mt-1.5"
               />
             </div>
             <Button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-primary text-primary-foreground hover:opacity-90 h-11"
+              className="w-full h-11 rounded-xl"
             >
               {loading ? "..." : isLogin ? "Sign in" : "Create account"}
             </Button>

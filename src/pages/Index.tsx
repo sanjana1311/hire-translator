@@ -22,19 +22,19 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Nav */}
-      <nav className="fixed top-0 w-full z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center">
-              <span className="text-sm font-bold text-primary-foreground">H</span>
+      <nav className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-xl border-b border-border">
+        <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-foreground flex items-center justify-center">
+              <span className="text-xs font-bold text-background">H</span>
             </div>
-            <span className="text-lg font-semibold tracking-tight">HireOS</span>
+            <span className="text-base font-semibold tracking-tight text-foreground">HireOS</span>
           </div>
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/auth")}>
-              Log in
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => navigate("/auth")}>
+              Sign in
             </Button>
-            <Button size="sm" className="bg-gradient-primary text-primary-foreground hover:opacity-90" onClick={() => navigate("/auth")}>
+            <Button size="sm" onClick={() => navigate("/auth")}>
               Get Started
             </Button>
           </div>
@@ -42,32 +42,40 @@ const Index = () => {
       </nav>
 
       {/* Hero */}
-      <section className="pt-32 pb-20 px-6">
-        <div className="max-w-4xl mx-auto text-center">
+      <section className="pt-36 pb-24 px-6">
+        <div className="max-w-3xl mx-auto text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.5 }}
           >
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-border bg-secondary/50 text-xs text-muted-foreground mb-6">
-              <Sparkles className="w-3 h-3 text-primary" />
-              AI-Powered Career Operating System
-            </div>
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.1] mb-6">
-              Stop guessing.
-              <br />
-              <span className="text-gradient-primary">Start matching.</span>
-            </h1>
-            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
-              HireOS rewrites your resume for each job — using the exact keywords, phrases, and signals from the job description. Every bullet verified. Every metric real.
+            <p className="text-sm font-medium text-primary mb-4 tracking-wide">
+              AI-Powered Career Tools
             </p>
-            <div className="flex items-center justify-center gap-4">
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-semibold tracking-tight leading-[1.08] mb-5 text-foreground">
+              Resumes that match.
+              <br />
+              <span className="text-muted-foreground">Careers that launch.</span>
+            </h1>
+            <p className="text-lg text-muted-foreground max-w-xl mx-auto mb-10 leading-relaxed">
+              HireOS rewrites your resume for each job — using exact keywords and signals from the job description. Every bullet verified. Every metric real.
+            </p>
+            <div className="flex items-center justify-center gap-3">
               <Button
                 size="lg"
-                className="bg-gradient-primary text-primary-foreground hover:opacity-90 px-8 h-12 text-base"
+                className="h-12 px-8 text-base rounded-full"
                 onClick={() => navigate("/auth")}
               >
-                Start for free <ArrowRight className="ml-2 w-4 h-4" />
+                Start for free
+                <ArrowRight className="ml-1.5 w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="lg"
+                className="h-12 px-8 text-base rounded-full"
+                onClick={() => navigate("/auth")}
+              >
+                Learn more
               </Button>
             </div>
           </motion.div>
@@ -75,32 +83,32 @@ const Index = () => {
       </section>
 
       {/* Steps */}
-      <section className="py-20 px-6 border-t border-border/50">
-        <div className="max-w-5xl mx-auto">
+      <section className="py-20 px-6">
+        <div className="max-w-4xl mx-auto">
           <motion.div
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
-            className="text-center mb-16"
+            className="text-center mb-14"
           >
-            <h2 className="text-3xl font-bold mb-3">Four steps to a perfect resume</h2>
-            <p className="text-muted-foreground">Upload once. Tailor for every role.</p>
+            <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-2 text-foreground">How it works</h2>
+            <p className="text-muted-foreground">Four steps to a perfectly tailored resume.</p>
           </motion.div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
             {steps.map((step, i) => (
               <motion.div
                 key={step.label}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 16 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="relative bg-gradient-card rounded-xl border border-border p-6 shadow-card"
+                transition={{ delay: i * 0.08 }}
+                className="bg-card rounded-2xl border border-border p-6"
               >
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                  <step.icon className="w-5 h-5 text-primary" />
+                <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center mb-4">
+                  <step.icon className="w-5 h-5 text-muted-foreground" />
                 </div>
-                <div className="text-xs font-mono text-muted-foreground mb-2">STEP {i + 1}</div>
-                <h3 className="font-semibold mb-1">{step.label}</h3>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Step {i + 1}</p>
+                <h3 className="font-medium text-foreground mb-1">{step.label}</h3>
                 <p className="text-sm text-muted-foreground">{step.desc}</p>
               </motion.div>
             ))}
@@ -109,20 +117,22 @@ const Index = () => {
       </section>
 
       {/* Features */}
-      <section className="py-20 px-6 border-t border-border/50">
-        <div className="max-w-5xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <section className="py-20 px-6 border-t border-border">
+        <div className="max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {features.map((f, i) => (
               <motion.div
                 key={f.title}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 16 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="bg-gradient-card rounded-xl border border-border p-6 shadow-card"
+                transition={{ delay: i * 0.08 }}
+                className="bg-card rounded-2xl border border-border p-6"
               >
-                <f.icon className="w-6 h-6 text-primary mb-4" />
-                <h3 className="font-semibold mb-2">{f.title}</h3>
+                <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center mb-4">
+                  <f.icon className="w-5 h-5 text-muted-foreground" />
+                </div>
+                <h3 className="font-medium text-foreground mb-2">{f.title}</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">{f.desc}</p>
               </motion.div>
             ))}
@@ -131,10 +141,10 @@ const Index = () => {
       </section>
 
       {/* Footer */}
-      <footer className="py-10 px-6 border-t border-border/50">
-        <div className="max-w-5xl mx-auto flex items-center justify-between text-sm text-muted-foreground">
+      <footer className="py-8 px-6 border-t border-border">
+        <div className="max-w-4xl mx-auto flex items-center justify-between text-sm text-muted-foreground">
           <span>© 2026 HireOS</span>
-          <span className="font-mono text-xs">No fabricated metrics. Ever.</span>
+          <span className="text-xs">No fabricated metrics. Ever.</span>
         </div>
       </footer>
     </div>
