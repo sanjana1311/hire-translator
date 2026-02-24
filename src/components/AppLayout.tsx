@@ -48,7 +48,7 @@ const AppLayout = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -56,26 +56,26 @@ const AppLayout = () => {
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
-      <aside className="w-56 border-r border-border bg-sidebar flex flex-col">
+      <aside className="w-60 border-r border-border bg-sidebar flex flex-col">
         <div className="p-4 border-b border-sidebar-border">
           <Link to="/dashboard" className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-foreground flex items-center justify-center">
-              <span className="text-xs font-semibold text-background">H</span>
+            <div className="w-8 h-8 rounded-xl bg-gradient-primary flex items-center justify-center">
+              <span className="text-sm font-bold text-primary-foreground">H</span>
             </div>
-            <span className="text-sm font-semibold text-foreground">HireOS</span>
+            <span className="font-semibold text-foreground">HireOS</span>
           </Link>
         </div>
 
-        <nav className="flex-1 p-2.5 space-y-0.5">
+        <nav className="flex-1 p-3 space-y-1">
           {navItems.map((item) => {
             const active = location.pathname === item.path;
             return (
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
                   active
-                    ? "bg-sidebar-accent text-foreground font-medium"
+                    ? "bg-sidebar-accent text-foreground font-medium shadow-sm"
                     : "text-sidebar-foreground hover:bg-sidebar-accent/60"
                 }`}
               >
@@ -89,14 +89,14 @@ const AppLayout = () => {
         <div className="p-3 border-t border-sidebar-border space-y-2">
           <Button
             size="sm"
-            className="w-full rounded-lg"
+            className="w-full bg-gradient-primary text-primary-foreground hover:opacity-90 rounded-xl"
             onClick={() => navigate("/dashboard/workspaces/new")}
           >
-            <Plus className="w-4 h-4 mr-1.5" /> New Workspace
+            <Plus className="w-4 h-4 mr-2" /> New Workspace
           </Button>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full rounded-lg"
+            className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full rounded-xl"
           >
             <LogOut className="w-4 h-4" /> Sign out
           </button>

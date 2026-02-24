@@ -50,7 +50,6 @@ const ResumeProfile = () => {
       toast.error("Please paste resume content");
       return;
     }
-    // Simple parse: save raw text and summary from first paragraph
     const lines = pasteText.trim().split("\n").filter(Boolean);
     upsert.mutate(
       {
@@ -84,16 +83,16 @@ const ResumeProfile = () => {
     return (
       <div className="p-8 max-w-3xl mx-auto">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-2xl font-bold mb-1">Resume Profile</h1>
+          <h1 className="text-2xl font-bold mb-1 text-foreground">Resume Profile</h1>
           <p className="text-muted-foreground text-sm mb-8">Upload your master resume — we'll parse it into structured fields</p>
 
-          <div className="border-2 border-dashed border-border rounded-xl p-12 text-center bg-gradient-card cursor-default">
+          <div className="border-2 border-dashed border-border rounded-2xl p-12 text-center bg-card cursor-default">
             <div className="flex flex-col items-center gap-3">
               <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center">
                 <Upload className="w-7 h-7 text-primary" />
               </div>
               <div>
-                <p className="font-medium mb-1">File upload coming soon</p>
+                <p className="font-medium mb-1 text-foreground">File upload coming soon</p>
                 <p className="text-sm text-muted-foreground">For now, paste your resume text below</p>
               </div>
             </div>
@@ -105,10 +104,10 @@ const ResumeProfile = () => {
               value={pasteText}
               onChange={e => setPasteText(e.target.value)}
               placeholder="Paste resume content here..."
-              className="min-h-[200px] bg-secondary border-border font-mono text-sm"
+              className="min-h-[200px] text-sm"
             />
             <Button
-              className="mt-4 bg-gradient-primary text-primary-foreground hover:opacity-90"
+              className="mt-4 bg-gradient-primary text-primary-foreground hover:opacity-90 rounded-xl"
               onClick={handlePasteSubmit}
               disabled={upsert.isPending}
             >
@@ -125,10 +124,10 @@ const ResumeProfile = () => {
       <div className="p-8 max-w-3xl mx-auto">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
           <div className="flex items-center justify-between mb-8">
-            <h1 className="text-2xl font-bold">Edit Resume</h1>
+            <h1 className="text-2xl font-bold text-foreground">Edit Resume</h1>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setEditing(false)}>Cancel</Button>
-              <Button size="sm" className="bg-gradient-primary text-primary-foreground" onClick={handleSave} disabled={upsert.isPending}>
+              <Button variant="outline" size="sm" className="rounded-xl" onClick={() => setEditing(false)}>Cancel</Button>
+              <Button size="sm" className="bg-gradient-primary text-primary-foreground rounded-xl" onClick={handleSave} disabled={upsert.isPending}>
                 <Save className="w-4 h-4 mr-2" /> {upsert.isPending ? "Saving..." : "Save"}
               </Button>
             </div>
@@ -136,11 +135,11 @@ const ResumeProfile = () => {
           <div className="space-y-6">
             <div>
               <Label>Summary</Label>
-              <Textarea value={summary} onChange={e => setSummary(e.target.value)} className="mt-1.5 bg-secondary border-border" />
+              <Textarea value={summary} onChange={e => setSummary(e.target.value)} className="mt-1.5" />
             </div>
             <div>
               <Label>Skills (comma-separated)</Label>
-              <Input value={skills} onChange={e => setSkills(e.target.value)} className="mt-1.5 bg-secondary border-border" />
+              <Input value={skills} onChange={e => setSkills(e.target.value)} className="mt-1.5" />
             </div>
           </div>
         </motion.div>
@@ -158,12 +157,12 @@ const ResumeProfile = () => {
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-bold mb-1">Resume Profile</h1>
+            <h1 className="text-2xl font-bold mb-1 text-foreground">Resume Profile</h1>
             <p className="text-sm text-muted-foreground flex items-center gap-1">
-              <CheckCircle className="w-3.5 h-3.5 text-success" /> Parsed and saved
+              <CheckCircle className="w-3.5 h-3.5 text-green-600" /> Parsed and saved
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={startEdit}>
+          <Button variant="outline" size="sm" className="rounded-xl" onClick={startEdit}>
             <Edit3 className="w-4 h-4 mr-2" /> Edit
           </Button>
         </div>
@@ -186,7 +185,7 @@ const ResumeProfile = () => {
           <Section title="Education">
             {eduEntries.map((edu: any, i: number) => (
               <div key={i} className="text-sm mb-2">
-                <p className="font-medium">{edu.degree} — {edu.school}</p>
+                <p className="font-medium text-foreground">{edu.degree} — {edu.school}</p>
                 <p className="text-muted-foreground">{edu.dates}</p>
               </div>
             ))}
@@ -228,7 +227,7 @@ const ResumeProfile = () => {
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
   <div className="mb-8">
     <h2 className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">{title}</h2>
-    <div className="bg-gradient-card border border-border rounded-xl p-5 shadow-card">{children}</div>
+    <div className="bg-card border border-border rounded-2xl p-5 shadow-card">{children}</div>
   </div>
 );
 
@@ -236,10 +235,10 @@ const ExperienceEntry = ({ company, title, dates, bullets }: { company: string; 
   <div className="mb-5 last:mb-0">
     <div className="flex items-center justify-between mb-2">
       <div>
-        <p className="font-medium">{title}</p>
+        <p className="font-medium text-foreground">{title}</p>
         <p className="text-sm text-muted-foreground">{company}</p>
       </div>
-      <span className="text-xs text-muted-foreground font-mono">{dates}</span>
+      <span className="text-xs text-muted-foreground">{dates}</span>
     </div>
     <ul className="space-y-1.5">
       {bullets.map((b: string, i: number) => (
