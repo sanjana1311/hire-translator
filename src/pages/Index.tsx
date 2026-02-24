@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { ArrowRight, Upload, FileText, Target, Download, Sparkles, Shield } from "lucide-react";
+import { ArrowRight, Upload, FileText, Target, Download, Sparkles, Shield, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -14,6 +14,7 @@ const steps = [
 const features = [
   { icon: Sparkles, title: "AI Bullet Rewrites", desc: "What → How → Who → Impact format with exact JD keyword alignment" },
   { icon: Target, title: "ATS Quick Score", desc: "Instant keyword match %, missing clusters, and high-signal verb suggestions" },
+  { icon: Lightbulb, title: "Project Suggestions", desc: "AI recommends role-relevant projects based on hiring signals from the JD" },
   { icon: Shield, title: "Metric Hard Gate", desc: "No fabricated numbers. Missing metrics? We ask before export." },
 ];
 
@@ -181,7 +182,7 @@ const Index = () => {
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">Built for precision</h2>
           </motion.div>
           <motion.div
-            className="grid grid-cols-1 md:grid-cols-3 gap-5"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5"
             variants={staggerContainer}
             initial="hidden"
             whileInView="show"
