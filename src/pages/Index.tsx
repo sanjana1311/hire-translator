@@ -242,7 +242,7 @@ const Index = () => {
       <footer className="py-10 px-6 border-t border-border">
         <div className="max-w-5xl mx-auto flex items-center justify-between text-sm text-muted-foreground">
           <span>© 2026 HireOS</span>
-          <span className="text-xs">No fabricated metrics. Ever.</span>
+          <span className="text-xs">Helping you land your dream interview.</span>
         </div>
       </footer>
     </div>
