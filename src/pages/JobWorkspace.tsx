@@ -367,7 +367,12 @@ const JobWorkspace = () => {
               variant="outline"
               className="shrink-0 border-warning/30 text-warning hover:bg-warning/10"
               onClick={() => {
-                setBulkMetrics({});
+                const init: Record<number, { type: string; value: string; context: string }> = {};
+                missingMetrics.forEach(idx => {
+                  const b = bullets[idx];
+                  init[idx] = { type: b.suggestedMetricType || "", value: "", context: "" };
+                });
+                setBulkMetrics(init);
                 setShowBulkMetrics(true);
               }}
             >
@@ -693,13 +698,17 @@ const JobWorkspace = () => {
             <div className="flex-1 overflow-y-auto p-6 space-y-5">
               {missingMetrics.map((bulletIdx) => {
                 const b = bullets[bulletIdx];
-                const entry = bulkMetrics[bulletIdx] || { type: "", value: "", context: "" };
+                const suggested = b.suggestedMetricType || "";
+                const prompt = b.metricPrompt || "";
+                const entry = bulkMetrics[bulletIdx] ?? { type: suggested, value: "", context: "" };
                 return (
                   <div key={bulletIdx} className="p-4 rounded-xl bg-secondary/50 border border-border space-y-3">
-                    <div className="flex items-start gap-2">
-                      <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
-                      <p className="text-sm leading-relaxed">{b.rewritten}</p>
-                    </div>
+                    <p className="text-sm leading-relaxed text-muted-foreground">{b.rewritten}</p>
+                    {prompt && (
+                      <p className="text-sm font-medium text-primary">
+                        👉 {prompt}
+                      </p>
+                    )}
                     <div className="grid grid-cols-3 gap-3">
                       <Select
                         value={entry.type}
@@ -721,8 +730,9 @@ const JobWorkspace = () => {
                         onChange={(e) =>
                           setBulkMetrics(prev => ({ ...prev, [bulletIdx]: { ...entry, value: e.target.value } }))
                         }
-                        placeholder="Value (e.g. 35)"
+                        placeholder="Enter number..."
                         className="bg-background border-border text-xs h-9"
+                        autoFocus={bulletIdx === missingMetrics[0]}
                       />
                       <Input
                         value={entry.context}
