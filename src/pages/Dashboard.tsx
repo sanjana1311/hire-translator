@@ -37,13 +37,13 @@ const Dashboard = () => {
           >
             <div className="flex items-center justify-between mb-4">
               <motion.div
-                className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center"
+                className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center"
                 whileHover={{ rotate: 5, scale: 1.1 }}
                 transition={{ type: "spring", stiffness: 300 }}
               >
-                <FileText className="w-5 h-5 text-primary" />
+                <FileText className="w-7 h-7 text-primary" />
               </motion.div>
-              <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+              <ArrowRight className="w-6 h-6 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
             </div>
             <h3 className="font-semibold mb-1 text-foreground">Resume Profile</h3>
             <p className="text-sm text-muted-foreground">Upload or edit your master resume</p>
@@ -57,13 +57,13 @@ const Dashboard = () => {
           >
             <div className="flex items-center justify-between mb-4">
               <motion.div
-                className="w-11 h-11 rounded-xl bg-accent/10 flex items-center justify-center"
+                className="w-14 h-14 rounded-xl bg-accent/10 flex items-center justify-center"
                 whileHover={{ rotate: -5, scale: 1.1 }}
                 transition={{ type: "spring", stiffness: 300 }}
               >
-                <Upload className="w-5 h-5 text-accent" />
+                <Upload className="w-7 h-7 text-accent" />
               </motion.div>
-              <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-accent group-hover:translate-x-1 transition-all" />
+              <ArrowRight className="w-6 h-6 text-muted-foreground group-hover:text-accent group-hover:translate-x-1 transition-all" />
             </div>
             <h3 className="font-semibold mb-1 text-foreground">New Job Workspace</h3>
             <p className="text-sm text-muted-foreground">Paste a JD and start tailoring</p>

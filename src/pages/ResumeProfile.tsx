@@ -88,8 +88,8 @@ const ResumeProfile = () => {
 
           <div className="border-2 border-dashed border-border rounded-2xl p-12 text-center bg-card cursor-default">
             <div className="flex flex-col items-center gap-3">
-              <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center">
-                <Upload className="w-7 h-7 text-primary" />
+              <div className="w-16 h-16 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Upload className="w-8 h-8 text-primary" />
               </div>
               <div>
                 <p className="font-medium mb-1 text-foreground">File upload coming soon</p>

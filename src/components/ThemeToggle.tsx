@@ -35,7 +35,7 @@ const ThemeToggle = () => {
   return (
     <motion.button
       onClick={() => setDark(!dark)}
-      className="relative w-9 h-9 rounded-xl bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+      className="relative w-12 h-12 rounded-xl bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
       whileHover={{ scale: 1.1 }}
       whileTap={{ scale: 0.9 }}
       aria-label="Toggle dark mode"
@@ -49,7 +49,7 @@ const ThemeToggle = () => {
             exit={{ rotate: 90, opacity: 0 }}
             transition={{ duration: 0.2 }}
           >
-            <Sun className="w-6 h-6" />
+            <Sun className="w-7 h-7" />
           </motion.div>
         ) : (
           <motion.div
@@ -59,7 +59,7 @@ const ThemeToggle = () => {
             exit={{ rotate: -90, opacity: 0 }}
             transition={{ duration: 0.2 }}
           >
-            <Moon className="w-6 h-6" />
+            <Moon className="w-7 h-7" />
           </motion.div>
         )}
       </AnimatePresence>
