@@ -70,7 +70,7 @@ const Auth = () => {
             </motion.div>
             <div className="flex flex-col">
               <span className="text-2xl font-bold text-foreground leading-none">HireOS</span>
-              <span className="text-xs font-medium text-muted-foreground tracking-wide">AI-native career OS</span>
+              <span className="text-xs font-medium text-muted-foreground tracking-wide">AI-native career platform</span>
             </div>
           </div>
           <h2 className="text-3xl font-bold mb-4 text-foreground">Your career deserves precision.</h2>
@@ -97,7 +97,7 @@ const Auth = () => {
             </div>
             <div className="flex flex-col">
               <span className="text-lg font-semibold text-foreground leading-none">HireOS</span>
-              <span className="text-[10px] font-medium text-muted-foreground tracking-wide">AI-native career OS</span>
+              <span className="text-[10px] font-medium text-muted-foreground tracking-wide">AI-native career platform</span>
             </div>
           </div>
 

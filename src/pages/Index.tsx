@@ -46,7 +46,7 @@ const Index = () => {
             </div>
             <div className="flex flex-col">
               <span className="text-lg font-semibold tracking-tight text-foreground leading-none">HireOS</span>
-              <span className="text-[10px] font-medium text-muted-foreground tracking-wide">AI-native career OS</span>
+              <span className="text-[10px] font-medium text-muted-foreground tracking-wide">AI-native career platform</span>
             </div>
           </motion.div>
           <motion.div
@@ -56,11 +56,11 @@ const Index = () => {
             transition={{ duration: 0.4 }}
           >
             <ThemeToggle />
-            <Button variant="ghost" size="sm" className="link-underline" onClick={() => navigate("/auth")}>
+            <Button variant="ghost" size="lg" className="link-underline text-base font-semibold" onClick={() => navigate("/auth")}>
               Log in
             </Button>
             <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-              <Button size="sm" className="bg-foreground text-background hover:bg-foreground/90 rounded-full px-5" onClick={() => navigate("/auth")}>
+              <Button size="lg" className="bg-foreground text-background hover:bg-foreground/90 rounded-full px-8 h-12 text-base font-bold shadow-warm" onClick={() => navigate("/auth")}>
                 Get started
               </Button>
             </motion.div>
@@ -111,10 +111,10 @@ const Index = () => {
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }}>
                   <Button
                     size="lg"
-                    className="bg-foreground text-background hover:bg-foreground/90 rounded-full px-8 h-13 text-base shadow-warm"
+                    className="bg-foreground text-background hover:bg-foreground/90 rounded-full px-12 h-14 text-lg font-bold shadow-warm"
                     onClick={() => navigate("/auth")}
                   >
-                    Start for free <ArrowRight className="ml-2 w-4 h-4" />
+                    Start for free <ArrowRight className="ml-2 w-5 h-5" />
                   </Button>
                 </motion.div>
               </motion.div>
@@ -227,10 +227,10 @@ const Index = () => {
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }}>
               <Button
                 size="lg"
-                className="bg-gradient-primary text-primary-foreground hover:opacity-90 rounded-full px-10 h-13 text-base shadow-warm"
+                className="bg-gradient-primary text-primary-foreground hover:opacity-90 rounded-full px-12 h-14 text-lg font-bold shadow-warm"
                 onClick={() => navigate("/auth")}
               >
-                Get started — it's free <ArrowRight className="ml-2 w-4 h-4" />
+                Get started — it's free <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
             </motion.div>
           </motion.div>

@@ -79,7 +79,7 @@ const AppLayout = () => {
             </motion.div>
             <div className="flex flex-col">
               <span className="font-semibold text-foreground leading-none">HireOS</span>
-              <span className="text-[10px] font-medium text-muted-foreground tracking-wide">AI-native career OS</span>
+              <span className="text-[10px] font-medium text-muted-foreground tracking-wide">AI-native career platform</span>
             </div>
           </Link>
         </div>
