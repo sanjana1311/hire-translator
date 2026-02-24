@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Target,
   FileText,
@@ -12,6 +12,10 @@ import {
   ChevronUp,
   ArrowLeft,
   X,
+  History,
+  Save,
+  RotateCcw,
+  GitCompare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +33,12 @@ import { useWorkspace, useUpdateWorkspace } from "@/hooks/use-workspaces";
 import { useResume } from "@/hooks/use-resume";
 import { generateResumePDF, validateBulletMetrics } from "@/lib/pdf-export";
 import { format } from "date-fns";
+import {
+  useWorkspaceVersions,
+  useSaveVersion,
+  useDeleteVersion,
+  WorkspaceVersion,
+} from "@/hooks/use-workspace-versions";
 
 const METRIC_TYPES = [
   { value: "percent", label: "% improvement" },
@@ -45,6 +55,9 @@ const JobWorkspace = () => {
   const { data: ws, isLoading } = useWorkspace(id);
   const { data: resume } = useResume();
   const updateWs = useUpdateWorkspace();
+  const { data: versions = [], isLoading: versionsLoading } = useWorkspaceVersions(id);
+  const saveVersion = useSaveVersion();
+  const deleteVersion = useDeleteVersion();
   const [expandedBullet, setExpandedBullet] = useState<number | null>(null);
   const [selectedProjects, setSelectedProjects] = useState<number[]>([]);
   const [metricModal, setMetricModal] = useState<number | null>(null);
@@ -52,6 +65,8 @@ const JobWorkspace = () => {
   const [metricValue, setMetricValue] = useState("");
   const [metricContext, setMetricContext] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [showVersions, setShowVersions] = useState(false);
+  const [compareVersion, setCompareVersion] = useState<WorkspaceVersion | null>(null);
 
   const toggleProject = (i: number) => {
     setSelectedProjects(prev =>
@@ -164,6 +179,51 @@ const JobWorkspace = () => {
     }
   };
 
+  const handleSaveVersion = () => {
+    if (!ws) return;
+    const snapshot = {
+      rewritten_bullets: ws.rewritten_bullets,
+      suggested_projects: ws.suggested_projects,
+      selected_projects: ws.selected_projects,
+      jd_analysis: ws.jd_analysis,
+      ats_score: ws.ats_score,
+    };
+    saveVersion.mutate(
+      { workspaceId: ws.id, snapshot },
+      {
+        onSuccess: (v) => toast.success(`Version ${v.version_number} saved`),
+        onError: (err: any) => toast.error(err.message),
+      }
+    );
+  };
+
+  const handleRevert = (version: WorkspaceVersion) => {
+    if (!ws) return;
+    const snap = version.resume_snapshot as any;
+    if (!snap) {
+      toast.error("Empty snapshot — nothing to revert");
+      return;
+    }
+    updateWs.mutate(
+      {
+        id: ws.id,
+        rewritten_bullets: snap.rewritten_bullets ?? [],
+        suggested_projects: snap.suggested_projects ?? [],
+        selected_projects: snap.selected_projects ?? [],
+        jd_analysis: snap.jd_analysis ?? {},
+        ats_score: snap.ats_score ?? 0,
+      },
+      {
+        onSuccess: () => {
+          toast.success(`Reverted to version ${version.version_number}`);
+          setCompareVersion(null);
+          setShowVersions(false);
+        },
+        onError: (err: any) => toast.error(err.message),
+      }
+    );
+  };
+
   return (
     <div className="p-8 max-w-4xl mx-auto">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
@@ -178,13 +238,31 @@ const JobWorkspace = () => {
               Created {format(new Date(ws.created_at), "MMM d, yyyy")}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <Badge variant="outline" className={`capitalize ${ws.status === 'ready' ? 'text-success border-success/30' : ws.status === 'applied' ? 'text-primary border-primary/30' : ''}`}>
               {statusLabel[ws.status] || ws.status}
             </Badge>
             <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSaveVersion}
+              disabled={saveVersion.isPending}
+            >
+              <Save className="w-4 h-4 mr-1.5" />
+              {saveVersion.isPending ? "Saving..." : "Save Version"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowVersions(!showVersions)}
+            >
+              <History className="w-4 h-4 mr-1.5" />
+              History{versions.length > 0 && ` (${versions.length})`}
+            </Button>
+            <Button
               disabled={!allMetricsValid || exporting}
               className="bg-gradient-primary text-primary-foreground hover:opacity-90"
+              size="sm"
               onClick={handleExport}
               title={!allMetricsValid ? `${missingMetrics.length} bullet(s) need metrics` : "Export PDF"}
             >
@@ -195,7 +273,7 @@ const JobWorkspace = () => {
                 </div>
               ) : (
                 <>
-                  <Download className="w-4 h-4 mr-2" /> Export PDF
+                  <Download className="w-4 h-4 mr-1.5" /> Export PDF
                 </>
               )}
             </Button>
@@ -490,6 +568,156 @@ const JobWorkspace = () => {
                   {updateWs.isPending ? "Saving..." : "Add Metric"}
                 </Button>
               </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Version History Panel */}
+      <AnimatePresence>
+        {showVersions && (
+          <motion.div
+            initial={{ opacity: 0, x: 300 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 300 }}
+            className="fixed top-0 right-0 h-full w-96 bg-background border-l border-border shadow-2xl z-40 overflow-y-auto"
+          >
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <History className="w-5 h-5 text-primary" /> Version History
+                </h3>
+                <button onClick={() => setShowVersions(false)} className="text-muted-foreground hover:text-foreground">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {versionsLoading && (
+                <div className="flex justify-center py-8">
+                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+
+              {!versionsLoading && versions.length === 0 && (
+                <div className="text-center py-8">
+                  <History className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">No versions saved yet</p>
+                  <p className="text-xs text-muted-foreground mt-1">Click "Save Version" to create a snapshot</p>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                {versions.map((v) => {
+                  const snap = v.resume_snapshot as any;
+                  const snapBullets = Array.isArray(snap?.rewritten_bullets) ? snap.rewritten_bullets : [];
+                  return (
+                    <div key={v.id} className="bg-gradient-card border border-border rounded-xl p-4 shadow-card">
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <span className="text-sm font-medium">v{v.version_number}</span>
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(v.created_at), "MMM d, yyyy h:mm a")}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          {snapBullets.length} bullet{snapBullets.length !== 1 ? "s" : ""}
+                        </Badge>
+                      </div>
+                      {snap?.ats_score !== undefined && (
+                        <p className="text-xs text-muted-foreground mb-3">ATS: {snap.ats_score}%</p>
+                      )}
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-xs h-7"
+                          onClick={() => setCompareVersion(v)}
+                        >
+                          <GitCompare className="w-3 h-3 mr-1" /> Compare
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-xs h-7"
+                          onClick={() => handleRevert(v)}
+                          disabled={updateWs.isPending}
+                        >
+                          <RotateCcw className="w-3 h-3 mr-1" /> Revert
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Compare Modal */}
+      {compareVersion && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-4xl max-h-[80vh] overflow-y-auto bg-gradient-card border border-border rounded-2xl p-6 shadow-2xl"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-semibold flex items-center gap-2">
+                <GitCompare className="w-5 h-5 text-primary" />
+                Compare: Current vs Version {compareVersion.version_number}
+              </h3>
+              <button onClick={() => setCompareVersion(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-6">
+              {/* Current */}
+              <div>
+                <h4 className="text-sm font-medium mb-3 text-primary">Current</h4>
+                <div className="space-y-2">
+                  {bullets.length === 0 && <p className="text-xs text-muted-foreground">No bullets</p>}
+                  {bullets.map((b: any, i: number) => (
+                    <div key={i} className="text-xs p-2.5 rounded-lg bg-secondary border border-border leading-relaxed">
+                      {b.rewritten}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Version snapshot */}
+              <div>
+                <h4 className="text-sm font-medium mb-3 text-muted-foreground">
+                  Version {compareVersion.version_number}
+                </h4>
+                <div className="space-y-2">
+                  {(() => {
+                    const snap = compareVersion.resume_snapshot as any;
+                    const snapBullets = Array.isArray(snap?.rewritten_bullets) ? snap.rewritten_bullets : [];
+                    if (snapBullets.length === 0) return <p className="text-xs text-muted-foreground">No bullets</p>;
+                    return snapBullets.map((b: any, i: number) => (
+                      <div key={i} className="text-xs p-2.5 rounded-lg bg-secondary border border-border leading-relaxed">
+                        {b.rewritten}
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-border">
+              <Button variant="outline" onClick={() => setCompareVersion(null)}>
+                Close
+              </Button>
+              <Button
+                onClick={() => handleRevert(compareVersion)}
+                disabled={updateWs.isPending}
+                className="bg-gradient-primary text-primary-foreground hover:opacity-90"
+              >
+                <RotateCcw className="w-4 h-4 mr-1.5" />
+                Revert to v{compareVersion.version_number}
+              </Button>
             </div>
           </motion.div>
         </div>
