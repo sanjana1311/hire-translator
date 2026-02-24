@@ -71,13 +71,16 @@ const AppLayout = () => {
         <div className="p-4 border-b border-sidebar-border">
           <Link to="/dashboard" className="flex items-center gap-2.5">
             <motion.div
-              className="w-8 h-8 rounded-xl bg-gradient-primary flex items-center justify-center"
+              className="w-9 h-9 rounded-xl bg-gradient-primary flex items-center justify-center"
               whileHover={{ scale: 1.1, rotate: 5 }}
               transition={{ type: "spring", stiffness: 400 }}
             >
-              <span className="text-sm font-bold text-primary-foreground">H</span>
+              <FileText className="w-5 h-5 text-primary-foreground" />
             </motion.div>
-            <span className="font-semibold text-foreground">HireOS</span>
+            <div className="flex flex-col">
+              <span className="font-semibold text-foreground leading-none">HireOS</span>
+              <span className="text-[10px] font-medium text-muted-foreground tracking-wide">AI-native career OS</span>
+            </div>
           </Link>
         </div>
 

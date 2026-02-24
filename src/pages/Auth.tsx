@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { FileText } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,9 +66,12 @@ const Auth = () => {
               whileHover={{ scale: 1.1, rotate: 5 }}
               transition={{ type: "spring", stiffness: 400 }}
             >
-              <span className="font-bold text-primary-foreground">H</span>
+              <FileText className="w-6 h-6 text-primary-foreground" />
             </motion.div>
-            <span className="text-2xl font-bold text-foreground">HireOS</span>
+            <div className="flex flex-col">
+              <span className="text-2xl font-bold text-foreground leading-none">HireOS</span>
+              <span className="text-xs font-medium text-muted-foreground tracking-wide">AI-native career OS</span>
+            </div>
           </div>
           <h2 className="text-3xl font-bold mb-4 text-foreground">Your career deserves precision.</h2>
           <p className="text-muted-foreground leading-relaxed text-lg">
@@ -88,10 +92,13 @@ const Auth = () => {
           className="w-full max-w-sm"
         >
           <div className="lg:hidden flex items-center gap-2.5 mb-10">
-            <div className="w-8 h-8 rounded-xl bg-gradient-primary flex items-center justify-center">
-              <span className="text-sm font-bold text-primary-foreground">H</span>
+            <div className="w-9 h-9 rounded-xl bg-gradient-primary flex items-center justify-center">
+              <FileText className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="text-lg font-semibold text-foreground">HireOS</span>
+            <div className="flex flex-col">
+              <span className="text-lg font-semibold text-foreground leading-none">HireOS</span>
+              <span className="text-[10px] font-medium text-muted-foreground tracking-wide">AI-native career OS</span>
+            </div>
           </div>
 
           <motion.h1
