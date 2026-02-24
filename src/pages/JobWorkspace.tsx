@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Target,
@@ -65,10 +66,30 @@ const JobWorkspace = () => {
   const [metricValue, setMetricValue] = useState("");
   const [metricContext, setMetricContext] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
   const [compareVersion, setCompareVersion] = useState<WorkspaceVersion | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [versionLabel, setVersionLabel] = useState("");
+
+  const handleAnalyze = async () => {
+    if (!ws) return;
+    setAnalyzing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("analyze-jd", {
+        body: { workspaceId: ws.id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success("Analysis complete!");
+      // Refetch workspace data
+      window.location.reload();
+    } catch (err: any) {
+      toast.error(err.message || "Analysis failed");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
 
   const toggleProject = (i: number) => {
     setSelectedProjects(prev =>
@@ -502,7 +523,24 @@ const JobWorkspace = () => {
           <div className="bg-card border border-border rounded-2xl p-8 text-center shadow-card">
             <Sparkles className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
             <p className="text-muted-foreground text-sm mb-1">No analysis yet</p>
-            <p className="text-xs text-muted-foreground">AI analysis will appear here once you run it.</p>
+            <p className="text-xs text-muted-foreground mb-4">AI will analyze the JD against your resume, rewrite bullets, calculate ATS score, and suggest projects.</p>
+            <Button
+              onClick={handleAnalyze}
+              disabled={analyzing || !ws.job_description}
+              className="bg-gradient-primary text-primary-foreground hover:opacity-90"
+            >
+              {analyzing ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                  Analyzing... (this may take ~30s)
+                </div>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Run AI Analysis
+                </>
+              )}
+            </Button>
           </div>
         )}
       </motion.div>
