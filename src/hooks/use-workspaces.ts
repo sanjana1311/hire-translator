@@ -14,6 +14,9 @@ export interface Workspace {
   suggested_projects: any[];
   selected_projects: any[];
   ats_score: number;
+  baseline_score: number;
+  score_delta: number;
+  gap_analysis: any;
   created_at: string;
   updated_at: string;
 }

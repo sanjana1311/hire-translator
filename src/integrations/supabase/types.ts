@@ -17,14 +17,17 @@ export type Database = {
       job_workspaces: {
         Row: {
           ats_score: number | null
+          baseline_score: number | null
           company: string
           created_at: string
+          gap_analysis: Json | null
           id: string
           jd_analysis: Json | null
           job_description: string | null
           profile_id: string
           rewritten_bullets: Json | null
           role_title: string
+          score_delta: number | null
           selected_projects: Json | null
           status: string
           suggested_projects: Json | null
@@ -32,14 +35,17 @@ export type Database = {
         }
         Insert: {
           ats_score?: number | null
+          baseline_score?: number | null
           company?: string
           created_at?: string
+          gap_analysis?: Json | null
           id?: string
           jd_analysis?: Json | null
           job_description?: string | null
           profile_id: string
           rewritten_bullets?: Json | null
           role_title?: string
+          score_delta?: number | null
           selected_projects?: Json | null
           status?: string
           suggested_projects?: Json | null
@@ -47,14 +53,17 @@ export type Database = {
         }
         Update: {
           ats_score?: number | null
+          baseline_score?: number | null
           company?: string
           created_at?: string
+          gap_analysis?: Json | null
           id?: string
           jd_analysis?: Json | null
           job_description?: string | null
           profile_id?: string
           rewritten_bullets?: Json | null
           role_title?: string
+          score_delta?: number | null
           selected_projects?: Json | null
           status?: string
           suggested_projects?: Json | null
