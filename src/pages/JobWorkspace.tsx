@@ -158,6 +158,7 @@ const JobWorkspace = () => {
   }
 
   const analysis = ws.jd_analysis as any || {};
+  const gapAnalysis = ws.gap_analysis as any || {};
   const bullets = Array.isArray(ws.rewritten_bullets) ? ws.rewritten_bullets : [];
   const projects = Array.isArray(ws.suggested_projects) ? ws.suggested_projects : [];
   const missingMetrics = validateBulletMetrics(bullets);
@@ -408,26 +409,59 @@ const JobWorkspace = () => {
           </div>
         )}
 
-        {/* ATS Score */}
+        {/* ATS Score — Baseline vs Final with Delta */}
         {hasAnalysis && (
           <div className="bg-card border border-border rounded-2xl p-6 shadow-card mb-8">
             <div className="flex items-center gap-3 mb-4">
               <Target className="w-7 h-7 text-primary" />
-              <h2 className="font-semibold text-foreground">ATS Quick Score</h2>
+              <h2 className="font-semibold text-foreground">ATS Score</h2>
             </div>
-            <div className="flex items-center gap-8 mb-6">
-              <div className="relative w-24 h-24">
-                <svg className="w-24 h-24 -rotate-90" viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(var(--border))" strokeWidth="8" />
-                  <circle cx="50" cy="50" r="42" fill="none"
-                    stroke={ws.ats_score >= 80 ? "hsl(var(--score-high))" : ws.ats_score >= 60 ? "hsl(var(--score-mid))" : "hsl(var(--score-low))"}
-                    strokeWidth="8" strokeDasharray={`${ws.ats_score * 2.64} 264`} strokeLinecap="round"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-2xl font-bold font-mono">{ws.ats_score}%</span>
+            <div className="flex items-center gap-6 mb-6">
+              {/* Baseline Score */}
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground mb-2">Baseline</p>
+                <div className="relative w-20 h-20">
+                  <svg className="w-20 h-20 -rotate-90" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(var(--border))" strokeWidth="8" />
+                    <circle cx="50" cy="50" r="42" fill="none"
+                      stroke="hsl(var(--muted-foreground))"
+                      strokeWidth="8" strokeDasharray={`${(ws.baseline_score || 0) * 2.64} 264`} strokeLinecap="round" opacity="0.5"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-lg font-bold font-mono text-muted-foreground">{ws.baseline_score || 0}%</span>
+                  </div>
                 </div>
               </div>
+
+              {/* Arrow + Delta */}
+              {ws.score_delta !== undefined && ws.score_delta !== 0 && (
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-xs text-muted-foreground">→</span>
+                  <Badge className={`font-mono text-sm ${ws.score_delta > 0 ? 'bg-success/10 text-success border-success/30' : 'bg-destructive/10 text-destructive border-destructive/30'}`}>
+                    {ws.score_delta > 0 ? '+' : ''}{ws.score_delta}
+                  </Badge>
+                </div>
+              )}
+
+              {/* Final Score */}
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground mb-2">After Rewrite</p>
+                <div className="relative w-24 h-24">
+                  <svg className="w-24 h-24 -rotate-90" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(var(--border))" strokeWidth="8" />
+                    <circle cx="50" cy="50" r="42" fill="none"
+                      stroke={ws.ats_score >= 80 ? "hsl(var(--score-high))" : ws.ats_score >= 60 ? "hsl(var(--score-mid))" : "hsl(var(--score-low))"}
+                      strokeWidth="8" strokeDasharray={`${ws.ats_score * 2.64} 264`} strokeLinecap="round"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-2xl font-bold font-mono">{ws.ats_score}%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Keywords + Gap Analysis */}
               <div className="flex-1 space-y-3">
                 {analysis.keywords?.length > 0 && (
                   <div>
@@ -445,6 +479,28 @@ const JobWorkspace = () => {
                     <div className="flex flex-wrap gap-1.5">
                       {analysis.missingKeywords.map((k: string) => (
                         <span key={k} className="text-xs px-2 py-0.5 rounded-full bg-destructive/10 text-destructive font-medium">{k}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Gap Analysis Details */}
+                {gapAnalysis?.weakAreas?.length > 0 && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1.5">Weak Areas</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {gapAnalysis.weakAreas.map((a: string) => (
+                        <span key={a} className="text-xs px-2 py-0.5 rounded-full bg-warning/10 text-warning font-medium">{a}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Improvement Breakdown */}
+                {gapAnalysis?.improvementBreakdown && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1.5">Improvement Breakdown</p>
+                    <div className="space-y-1">
+                      {Object.entries(gapAnalysis.improvementBreakdown).map(([key, val]: [string, any]) => (
+                        <p key={key} className="text-xs text-success">{val}</p>
                       ))}
                     </div>
                   </div>
