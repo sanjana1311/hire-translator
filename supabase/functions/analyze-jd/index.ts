@@ -121,6 +121,7 @@ ATS Score calculation:
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
+        temperature: 0.2, // Low temp: prioritizes deterministic keyword extraction + ATS scoring; acceptable for controlled bullet rewrites. Ideal split: extraction=0.0, rewrite=0.3, projects=0.6, scoring=0.0
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
