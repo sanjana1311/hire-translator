@@ -54,272 +54,177 @@ async function callAI(opts: AICallOpts): Promise<any> {
   }
 
   const data = await res.json();
-
-  // Handle tool call responses
   const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-  if (toolCall) {
-    return JSON.parse(toolCall.function.arguments);
-  }
-
-  // Handle plain text JSON responses
+  if (toolCall) return JSON.parse(toolCall.function.arguments);
   const raw = data.choices?.[0]?.message?.content || "";
   const jsonStr = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
   return JSON.parse(jsonStr);
 }
 
-// ─── Tool schemas for structured output ─────────────────────────────
+// ─── Tool schemas ───────────────────────────────────────────────────
 
-const STAGE1_TOOL = {
+const STEP1_TOOL = {
   type: "function",
   function: {
     name: "extract_jd_signals",
-    description: "Extract hiring signals from a job description.",
+    description: "Extract structured hiring signals from a job description.",
     parameters: {
       type: "object",
       properties: {
+        job_title: { type: "string" },
         company: { type: "string" },
-        role_title: { type: "string" },
-        mustHaveKeywords: { type: "array", items: { type: "string" } },
-        niceToHaveKeywords: { type: "array", items: { type: "string" } },
-        exactPhrases: { type: "array", items: { type: "string" } },
-        mustIncludePhrases: { type: "array", items: { type: "string" } },
-        keywordClusters: {
+        seniority_level: { type: "string" },
+        must_have_skills: { type: "array", items: { type: "string" } },
+        nice_to_have_skills: { type: "array", items: { type: "string" } },
+        tools_and_technologies: { type: "array", items: { type: "string" } },
+        core_responsibilities: { type: "array", items: { type: "string" } },
+        domain_signals: { type: "array", items: { type: "string" } },
+        seniority_signals: {
           type: "object",
-          additionalProperties: { type: "array", items: { type: "string" } },
+          properties: {
+            years_experience_mentioned: { type: ["number", "null"] },
+            ownership_level: { type: "string" },
+            leadership_expected: { type: "boolean" },
+          },
+          required: ["years_experience_mentioned", "ownership_level", "leadership_expected"],
+          additionalProperties: false,
         },
-        hiringSignals: { type: "array", items: { type: "string" } },
-        senioritySignals: { type: "array", items: { type: "string" } },
+        red_flags: { type: "array", items: { type: "string" } },
+        keywords_for_ats: { type: "array", items: { type: "string" } },
       },
-      required: ["mustHaveKeywords", "niceToHaveKeywords", "exactPhrases", "mustIncludePhrases", "keywordClusters", "hiringSignals", "senioritySignals", "company", "role_title"],
+      required: [
+        "job_title", "company", "seniority_level", "must_have_skills",
+        "nice_to_have_skills", "tools_and_technologies", "core_responsibilities",
+        "domain_signals", "seniority_signals", "red_flags", "keywords_for_ats",
+      ],
       additionalProperties: false,
     },
   },
 };
 
-const STAGE2_BULLET_TOOL = {
+const STEP2_TOOL = {
   type: "function",
   function: {
-    name: "rewrite_bullet",
-    description: "Rewrite a single resume bullet aligned to JD signals.",
+    name: "score_match",
+    description: "Score the user's resume fit against JD signals.",
     parameters: {
       type: "object",
       properties: {
-        original: { type: "string" },
-        rewritten: { type: "string" },
-        insertedPhrases: { type: "array", items: { type: "string" } },
-        matchedKeywords: { type: "array", items: { type: "string" } },
-        ownershipVerb: { type: "string" },
-        hasMetric: { type: "boolean" },
-        suggestedMetricType: { type: "string" },
-        metricPrompt: { type: "string" },
-        truthfulnessFlags: { type: "array", items: { type: "string" } },
+        overall_score: { type: "number" },
+        bucket: { type: "string", enum: ["A", "B", "C", "D"] },
+        must_have_coverage: {
+          type: "object",
+          properties: {
+            matched: { type: "array", items: { type: "string" } },
+            missing: { type: "array", items: { type: "string" } },
+            partial: { type: "array", items: { type: "string" } },
+          },
+          required: ["matched", "missing", "partial"],
+          additionalProperties: false,
+        },
+        tools_coverage: {
+          type: "object",
+          properties: {
+            matched: { type: "array", items: { type: "string" } },
+            missing: { type: "array", items: { type: "string" } },
+          },
+          required: ["matched", "missing"],
+          additionalProperties: false,
+        },
+        dealbreaker_missing: { type: "array", items: { type: "string" } },
+        top_strengths: { type: "array", items: { type: "string" } },
+        top_gaps: { type: "array", items: { type: "string" } },
+        recommendation: { type: "string" },
       },
-      required: ["original", "rewritten", "insertedPhrases", "matchedKeywords", "ownershipVerb", "hasMetric", "suggestedMetricType", "metricPrompt", "truthfulnessFlags"],
+      required: [
+        "overall_score", "bucket", "must_have_coverage", "tools_coverage",
+        "dealbreaker_missing", "top_strengths", "top_gaps", "recommendation",
+      ],
       additionalProperties: false,
     },
   },
 };
 
-const STAGE3_METRIC_TOOL = {
+const STEP3_TOOL = {
   type: "function",
   function: {
-    name: "generate_metric_questions",
-    description: "Generate metric questions for bullets missing metrics.",
+    name: "suggest_projects",
+    description: "Suggest portfolio projects to close skill gaps.",
     parameters: {
       type: "object",
       properties: {
-        metricQuestions: {
+        projects: {
           type: "array",
           items: {
             type: "object",
             properties: {
-              bulletIndex: { type: "number" },
-              questions: { type: "array", items: { type: "string" } },
-              suggestedMetricFormats: { type: "array", items: { type: "string" } },
-              suggestedMetricSources: { type: "array", items: { type: "string" } },
+              title: { type: "string" },
+              what_to_build: { type: "string" },
+              tech_stack: { type: "array", items: { type: "string" } },
+              resume_bullets_it_generates: { type: "array", items: { type: "string" } },
+              difficulty: { type: "string", enum: ["S", "M", "L"] },
+              estimated_hours: { type: "number" },
+              closes_gap: { type: "string" },
+              signal_it_addresses: { type: "string" },
             },
-            required: ["bulletIndex", "questions", "suggestedMetricFormats", "suggestedMetricSources"],
+            required: [
+              "title", "what_to_build", "tech_stack", "resume_bullets_it_generates",
+              "difficulty", "estimated_hours", "closes_gap", "signal_it_addresses",
+            ],
             additionalProperties: false,
           },
         },
       },
-      required: ["metricQuestions"],
+      required: ["projects"],
       additionalProperties: false,
     },
   },
 };
 
-const STAGE4_SCORE_TOOL = {
+const STEP4_TOOL = {
   type: "function",
   function: {
-    name: "compute_scores",
-    description: "Compute baseline and final alignment scores.",
+    name: "tailor_resume",
+    description: "Produce a tailored resume draft optimized for a specific role.",
     parameters: {
       type: "object",
       properties: {
-        baselineScore: { type: "number" },
-        finalScore: { type: "number" },
-        delta: { type: "number" },
-        breakdown: {
-          type: "object",
-          properties: {
-            keywordCoverage: { type: "object", properties: { before: { type: "number" }, after: { type: "number" } }, required: ["before", "after"], additionalProperties: false },
-            phraseCoverage: { type: "object", properties: { before: { type: "number" }, after: { type: "number" } }, required: ["before", "after"], additionalProperties: false },
-            ownershipDensity: { type: "object", properties: { before: { type: "number" }, after: { type: "number" } }, required: ["before", "after"], additionalProperties: false },
-            metricCoverage: { type: "object", properties: { before: { type: "number" }, after: { type: "number" } }, required: ["before", "after"], additionalProperties: false },
-            clarity: { type: "object", properties: { before: { type: "number" }, after: { type: "number" } }, required: ["before", "after"], additionalProperties: false },
+        summary: { type: "string" },
+        experience: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              company: { type: "string" },
+              dates: { type: "string" },
+              bullets: { type: "array", items: { type: "string" } },
+            },
+            required: ["title", "company", "dates", "bullets"],
+            additionalProperties: false,
           },
-          required: ["keywordCoverage", "phraseCoverage", "ownershipDensity", "metricCoverage", "clarity"],
-          additionalProperties: false,
         },
-        missingAfterRewrite: {
-          type: "object",
-          properties: {
-            phrases: { type: "array", items: { type: "string" } },
-            keywords: { type: "array", items: { type: "string" } },
+        skills: { type: "array", items: { type: "string" } },
+        projects: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              bullets: { type: "array", items: { type: "string" } },
+              status: { type: "string" },
+            },
+            required: ["title", "bullets", "status"],
+            additionalProperties: false,
           },
-          required: ["phrases", "keywords"],
-          additionalProperties: false,
         },
-        stuffingWarnings: { type: "array", items: { type: "string" } },
+        changes_made: { type: "array", items: { type: "string" } },
       },
-      required: ["baselineScore", "finalScore", "delta", "breakdown", "missingAfterRewrite", "stuffingWarnings"],
+      required: ["summary", "experience", "skills", "projects", "changes_made"],
       additionalProperties: false,
     },
   },
 };
-
-// ─── Phrase assignment logic ────────────────────────────────────────
-// Assigns mustIncludePhrases to bullets based on cluster affinity.
-// Each phrase can be used at most 2 times across all bullets.
-
-interface BulletWithContext {
-  text: string;
-  roleContext?: string;
-  index: number;
-}
-
-function assignPhrasesToBullets(
-  phrases: string[],
-  clusters: Record<string, string[]>,
-  bullets: BulletWithContext[]
-): Map<number, string[]> {
-  const assignment = new Map<number, string[]>();
-  const phraseUsage = new Map<string, number>();
-
-  // Build reverse map: keyword → cluster name
-  const keywordToCluster = new Map<string, string>();
-  for (const [cluster, keywords] of Object.entries(clusters)) {
-    for (const kw of keywords) {
-      keywordToCluster.set(kw.toLowerCase(), cluster.toLowerCase());
-    }
-  }
-
-  // For each phrase, find which cluster it belongs to
-  const phraseToCluster = new Map<string, string>();
-  for (const phrase of phrases) {
-    const phraseLower = phrase.toLowerCase();
-    for (const [cluster, keywords] of Object.entries(clusters)) {
-      if (keywords.some(kw => phraseLower.includes(kw.toLowerCase()) || kw.toLowerCase().includes(phraseLower))) {
-        phraseToCluster.set(phrase, cluster.toLowerCase());
-        break;
-      }
-    }
-  }
-
-  // Score each bullet for each phrase by cluster match
-  for (const phrase of phrases) {
-    const phraseCluster = phraseToCluster.get(phrase);
-
-    // Rank bullets by relevance to this phrase
-    const scored = bullets.map(b => {
-      let score = 0;
-      const textLower = b.text.toLowerCase();
-      // Direct text overlap
-      if (textLower.includes(phrase.toLowerCase().split(" ")[0])) score += 2;
-      // Cluster match
-      if (phraseCluster) {
-        for (const [cluster, keywords] of Object.entries(clusters)) {
-          if (cluster.toLowerCase() === phraseCluster) {
-            if (keywords.some(kw => textLower.includes(kw.toLowerCase()))) score += 3;
-          }
-        }
-      }
-      return { bullet: b, score };
-    }).sort((a, b) => b.score - a.score);
-
-    // Assign to best matching bullet(s), max 2 uses per phrase
-    for (const { bullet } of scored) {
-      const used = phraseUsage.get(phrase) || 0;
-      if (used >= 2) break;
-
-      const existing = assignment.get(bullet.index) || [];
-      if (existing.length < 2) { // max 2 phrases per bullet too
-        assignment.set(bullet.index, [...existing, phrase]);
-        phraseUsage.set(phrase, used + 1);
-      }
-    }
-  }
-
-  return assignment;
-}
-
-// ─── Extract bullets from resume text ───────────────────────────────
-
-function extractBullets(resumeText: string): BulletWithContext[] {
-  const lines = resumeText.split("\n").map(l => l.trim()).filter(l => l.length > 10);
-  const bullets: BulletWithContext[] = [];
-  let currentRole = "";
-
-  for (const line of lines) {
-    // Heuristic: lines starting with bullet chars or that look like achievements
-    if (/^[-•▪◦*]/.test(line) || /^(Led|Built|Designed|Developed|Managed|Created|Implemented|Optimized|Drove|Launched|Reduced|Increased|Improved|Architected|Delivered|Spearheaded|Orchestrated)/i.test(line)) {
-      const clean = line.replace(/^[-•▪◦*]\s*/, "").trim();
-      if (clean.length > 15) {
-        bullets.push({ text: clean, roleContext: currentRole, index: bullets.length });
-      }
-    } else if (line.length < 80 && !line.startsWith("-")) {
-      // Could be a role/company header
-      currentRole = line;
-    }
-  }
-
-  return bullets;
-}
-
-// ─── Truthfulness filter ────────────────────────────────────────────
-// Checks if rewrite introduced numbers/tools not in original context
-
-function checkTruthfulness(original: string, rewritten: string, flags: string[]): string[] {
-  const newFlags = [...flags];
-
-  // Extract numbers from rewritten that aren't in original
-  const origNumbers = new Set(original.match(/\d+[\d,.]*/g) || []);
-  const rewriteNumbers = rewritten.match(/\d+[\d,.]*/g) || [];
-  for (const num of rewriteNumbers) {
-    if (!origNumbers.has(num) && !rewritten.includes("[METRIC NEEDED]")) {
-      // Allow if it's a reasonable small number (like "3 microservices")
-      const n = parseFloat(num.replace(/,/g, ""));
-      if (n > 10 && !newFlags.includes("FABRICATED_NUMBER")) {
-        newFlags.push("FABRICATED_NUMBER");
-      }
-    }
-  }
-
-  // Check for common tool names introduced that aren't in original
-  const commonTools = ["kubernetes", "terraform", "docker", "kafka", "redis", "graphql", "mongodb", "postgresql", "dynamodb", "elasticsearch"];
-  const origLower = original.toLowerCase();
-  const rewriteLower = rewritten.toLowerCase();
-  for (const tool of commonTools) {
-    if (rewriteLower.includes(tool) && !origLower.includes(tool)) {
-      if (!newFlags.includes("FABRICATED_TOOL")) {
-        newFlags.push("FABRICATED_TOOL");
-      }
-    }
-  }
-
-  return newFlags;
-}
 
 // ─── Main handler ───────────────────────────────────────────────────
 
@@ -327,7 +232,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { workspaceId } = await req.json();
+    const { workspaceId, step } = await req.json();
     if (!workspaceId) throw new Error("workspaceId required");
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -359,275 +264,254 @@ serve(async (req) => {
 
     const resumeText = resume?.raw_text || "";
     const jobDescription = ws.job_description || "";
-    if (!jobDescription.trim()) throw new Error("No job description to analyze");
-
     const MODEL = "google/gemini-2.5-flash";
 
+    // Determine which step to run
+    const requestedStep = step || "analyze"; // "analyze" = Steps 1+2 auto, "projects", "tailor"
+
     // ═══════════════════════════════════════════════════════════════════
-    // PIPELINE 1 — JD Signal Mining (exact phrases + clusters)
-    // Temp: 0.0 | top_p: 0.4
+    // STEP 1 — JD Signal Mining
     // ═══════════════════════════════════════════════════════════════════
-    console.log("Pipeline 1: JD Signal Mining...");
-    const jdSignals = await callAI({
-      apiKey: LOVABLE_API_KEY, model: MODEL, temperature: 0.0, topP: 0.4,
-      system: `You are a hiring manager signal extractor. Return ONLY valid JSON. No prose. Do not hallucinate.`,
-      user: `Extract hiring signals from this Job Description.
+    if (requestedStep === "analyze") {
+      if (!jobDescription.trim()) throw new Error("No job description to analyze");
+
+      console.log("Step 1: JD Signal Mining...");
+      const jdSignals = await callAI({
+        apiKey: LOVABLE_API_KEY, model: MODEL, temperature: 0.0, topP: 0.4,
+        system: `You are a hiring manager signal extractor. Return ONLY valid JSON. No prose. Do not hallucinate.`,
+        user: `Extract structured hiring signals from this Job Description.
 
 Rules:
-- Extract exact phrases verbatim from the JD (2–6 words each). No paraphrasing.
-- Prefer phrases from Role Overview and Responsibilities.
-- Provide mustIncludePhrases (8–12) that are the highest-signal phrases to mirror in a resume, if truthful.
-- Extract keywords and group them into keywordClusters (themes).
-- Normalize keywords (e.g., "AWS" not "Amazon Web Services (AWS)").
-- Also extract company name and role_title from the JD.
+- Extract only what is explicitly stated or strongly implied in the JD
+- Do not infer skills that are not present
+- Red flags = unrealistic requirements, vague scope, contradictory signals
+- ATS keywords = exact phrasing from the JD, not synonyms
+- Normalize tool names (e.g., "AWS" not "Amazon Web Services (AWS)")
+- seniority_level should be one of: IC3, IC4, Senior, Staff, Manager, or similar
+- ownership_level should be one of: feature, product, org
 
 Job Description:
 ${jobDescription}`,
-      tools: [STAGE1_TOOL],
-      toolChoice: { type: "function", function: { name: "extract_jd_signals" } },
-    });
-    console.log("Pipeline 1 complete:", JSON.stringify({
-      mustHave: jdSignals.mustHaveKeywords?.length,
-      phrases: jdSignals.mustIncludePhrases?.length,
-      clusters: Object.keys(jdSignals.keywordClusters || {}).length,
-    }));
-
-    // Save intermediate: JD signals + status
-    await supabaseClient.from("job_workspaces").update({
-      company: jdSignals.company || ws.company || "",
-      role_title: jdSignals.role_title || ws.role_title || "",
-      jd_analysis: {
-        mustHaveKeywords: jdSignals.mustHaveKeywords || [],
-        niceToHaveKeywords: jdSignals.niceToHaveKeywords || [],
-        exactPhrases: jdSignals.exactPhrases || [],
-        mustIncludePhrases: jdSignals.mustIncludePhrases || [],
-        keywordClusters: jdSignals.keywordClusters || {},
-        hiringSignals: jdSignals.hiringSignals || [],
-        senioritySignals: jdSignals.senioritySignals || [],
-      },
-      status: "analyzing",
-    }).eq("id", workspaceId);
-
-    // ═══════════════════════════════════════════════════════════════════
-    // PIPELINE 2 — Bullet Rewrite (phrase-aware, per bullet)
-    // Temp: 0.3 | top_p: 0.85
-    // ═══════════════════════════════════════════════════════════════════
-    console.log("Pipeline 2: Bullet Rewrite...");
-    const bullets = extractBullets(resumeText);
-    console.log(`Extracted ${bullets.length} bullets from resume`);
-
-    // Pre-assign phrases to bullets by cluster affinity
-    const phraseAssignments = assignPhrasesToBullets(
-      jdSignals.mustIncludePhrases || [],
-      jdSignals.keywordClusters || {},
-      bullets
-    );
-
-    const rewrittenBullets: any[] = [];
-
-    // Rewrite each bullet individually
-    for (const bullet of bullets) {
-      const assignedPhrases = phraseAssignments.get(bullet.index) || [];
-      const jdSignalsForBullet = {
-        ...jdSignals,
-        mustIncludePhrases: assignedPhrases, // scoped to this bullet
-      };
-
-      try {
-        const result = await callAI({
-          apiKey: LOVABLE_API_KEY, model: MODEL, temperature: 0.3, topP: 0.85,
-          system: `You are a precision resume bullet rewriting engine. You MUST preserve factual accuracy.
-Never invent numbers, team size, scope, tools, or outcomes that are not explicitly supported by the original bullet or provided context.
-Return ONLY valid JSON.`,
-          user: `Rewrite ONE resume bullet to align to the JD signals, using exact JD phrases safely.
-
-Inputs:
-Original bullet:
-${bullet.text}
-
-Role context (if provided):
-${bullet.roleContext || "Not provided"}
-
-JD signals:
-${JSON.stringify(jdSignalsForBullet)}
-
-Rules:
-- Output must follow WHAT → HOW → WHO → IMPACT.
-- Insert exactly 1 JD phrase verbatim from jdSignals.mustIncludePhrases if it fits truthfully.
-- If none fit truthfully, insert 0 phrases and set truthfulnessFlags=["NO_PHRASE_FIT"].
-- Also incorporate relevant keywords naturally (do not keyword-stuff, do not copy full JD sentences).
-- Sentence count: Prefer 1 sentence. Use 2 sentences only if it makes the bullet significantly clearer and more truthful.
-- Metrics: If the original bullet includes a metric, preserve it. If missing, include "[METRIC NEEDED]" and set hasMetric=false.
-- Provide a specific metricPrompt question that a user can answer.
-- Never add specific numbers (team size, counts, %, $) unless present in the original bullet or role context.`,
-          tools: [STAGE2_BULLET_TOOL],
-          toolChoice: { type: "function", function: { name: "rewrite_bullet" } },
-        });
-
-        // Truthfulness filter: check for fabricated content
-        const flags = checkTruthfulness(bullet.text, result.rewritten, result.truthfulnessFlags || []);
-
-        if (flags.includes("FABRICATED_NUMBER") || flags.includes("FABRICATED_TOOL")) {
-          console.log(`Truthfulness issue on bullet ${bullet.index}, re-running with stricter prompt...`);
-          // Re-run with stricter instruction
-          const strictResult = await callAI({
-            apiKey: LOVABLE_API_KEY, model: MODEL, temperature: 0.1, topP: 0.5,
-            system: `You are a precision resume bullet rewriting engine. STRICT MODE.
-ABSOLUTELY DO NOT add any numbers, percentages, dollar amounts, team sizes, tool names, or technologies that are not EXPLICITLY present in the original bullet.
-If the original says nothing about a tool, do NOT mention it.
-If the original has no metric, use [METRIC NEEDED] — never fabricate.
-Return ONLY valid JSON.`,
-            user: `Rewrite ONE resume bullet. STRICT: preserve only facts from the original.
-
-Original bullet:
-${bullet.text}
-
-Role context:
-${bullet.roleContext || "Not provided"}
-
-JD signals (use for keyword alignment ONLY, not for inventing facts):
-${JSON.stringify(jdSignalsForBullet)}
-
-Previous attempt had these issues: ${flags.join(", ")}
-Fix them.`,
-            tools: [STAGE2_BULLET_TOOL],
-            toolChoice: { type: "function", function: { name: "rewrite_bullet" } },
-          });
-          strictResult.truthfulnessFlags = checkTruthfulness(bullet.text, strictResult.rewritten, strictResult.truthfulnessFlags || []);
-          rewrittenBullets.push(strictResult);
-        } else {
-          result.truthfulnessFlags = flags;
-          rewrittenBullets.push(result);
-        }
-      } catch (e) {
-        console.error(`Failed to rewrite bullet ${bullet.index}:`, e);
-        // Keep original if rewrite fails
-        rewrittenBullets.push({
-          original: bullet.text,
-          rewritten: bullet.text,
-          insertedPhrases: [],
-          matchedKeywords: [],
-          ownershipVerb: "",
-          hasMetric: false,
-          suggestedMetricType: "",
-          metricPrompt: "",
-          truthfulnessFlags: ["REWRITE_FAILED"],
-        });
-      }
-    }
-    console.log(`Pipeline 2 complete: ${rewrittenBullets.length} bullets rewritten`);
-
-    // ═══════════════════════════════════════════════════════════════════
-    // PIPELINE 3 — Metric Recovery (hard gate questions)
-    // Temp: 0.25 | top_p: 0.8
-    // ═══════════════════════════════════════════════════════════════════
-    console.log("Pipeline 3: Metric Recovery...");
-    const bulletsNeedingMetrics = rewrittenBullets.filter(b => !b.hasMetric);
-
-    let metricQuestions: any[] = [];
-    if (bulletsNeedingMetrics.length > 0) {
-      const metricResult = await callAI({
-        apiKey: LOVABLE_API_KEY, model: MODEL, temperature: 0.25, topP: 0.8,
-        system: `You are a metrics assistant for resumes. Do not fabricate numbers. Return ONLY valid JSON.`,
-        user: `Generate metric questions for bullets missing metrics.
-
-You will receive rewritten bullets where some contain "[METRIC NEEDED]".
-For each bullet with hasMetric=false:
-- Generate 2–4 high-quality questions that help the user recall real metrics.
-- Suggest 2–3 metric formats (%, time saved, $, volume, error rate, conversion).
-- Keep questions specific to the bullet content.
-
-Input JSON:
-${JSON.stringify(rewrittenBullets.map((b, i) => ({ index: i, ...b })))}`,
-        tools: [STAGE3_METRIC_TOOL],
-        toolChoice: { type: "function", function: { name: "generate_metric_questions" } },
+        tools: [STEP1_TOOL],
+        toolChoice: { type: "function", function: { name: "extract_jd_signals" } },
       });
-      metricQuestions = metricResult.metricQuestions || [];
-    }
-    console.log(`Pipeline 3 complete: ${metricQuestions.length} bullets need metrics`);
 
-    // Merge metric questions back into bullets
-    for (const mq of metricQuestions) {
-      if (rewrittenBullets[mq.bulletIndex]) {
-        rewrittenBullets[mq.bulletIndex].metricQuestions = mq.questions;
-        rewrittenBullets[mq.bulletIndex].suggestedMetricFormats = mq.suggestedMetricFormats;
-        rewrittenBullets[mq.bulletIndex].suggestedMetricSources = mq.suggestedMetricSources;
+      console.log("Step 1 complete:", JSON.stringify({
+        mustHave: jdSignals.must_have_skills?.length,
+        tools: jdSignals.tools_and_technologies?.length,
+        atsKeywords: jdSignals.keywords_for_ats?.length,
+      }));
+
+      // Save JD signals + update company/role
+      await supabaseClient.from("job_workspaces").update({
+        company: jdSignals.company || ws.company || "",
+        role_title: jdSignals.job_title || ws.role_title || "",
+        jd_analysis: jdSignals,
+        status: "analyzing",
+      }).eq("id", workspaceId);
+
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP 2 — Match Scoring (auto-runs after Step 1)
+      // ═══════════════════════════════════════════════════════════════════
+      if (!resumeText.trim()) {
+        // No resume uploaded yet — save signals only
+        await supabaseClient.from("job_workspaces").update({
+          status: "signals_ready",
+          gap_analysis: { message: "Upload your resume to get a match score" },
+        }).eq("id", workspaceId);
+
+        return new Response(JSON.stringify({ success: true, step: "signals_ready" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
-    }
 
-    // ═══════════════════════════════════════════════════════════════════
-    // PIPELINE 4 — Final Score + Delta (baseline + post)
-    // Temp: 0.0 | top_p: 0.3
-    // ═══════════════════════════════════════════════════════════════════
-    console.log("Pipeline 4: Scoring...");
-    const baselineBullets = rewrittenBullets.map(b => b.original);
-    const finalBullets = rewrittenBullets.map(b => b.rewritten);
+      console.log("Step 2: Match Scoring...");
+      const matchScore = await callAI({
+        apiKey: LOVABLE_API_KEY, model: MODEL, temperature: 0.0, topP: 0.4,
+        system: `You are a deterministic resume-job match scoring engine. Be honest. Do not inflate scores. Return ONLY valid JSON.
 
-    const scores = await callAI({
-      apiKey: LOVABLE_API_KEY, model: MODEL, temperature: 0.0, topP: 0.3,
-      system: `You are a deterministic scoring engine. Return ONLY valid JSON. No prose. No randomness.`,
-      user: `Compute baseline and final alignment scores against the JD signals.
+Scoring rubric:
+- A (80–100): Strong match, minor tweaks only
+- B (60–79): Good match, resume needs reframing
+- C (40–59): Gap exists, a project addition would close it
+- D (<40): Significant mismatch, skip or major pivot needed
 
-You will score:
-A) Baseline resume bullets (original)
-B) Final resume bullets (rewritten)
+If score is D, say so clearly with specific reasons. Do not soften it.
+Dealbreakers = must-have skills where zero evidence exists in resume.`,
+        user: `Score the user's fit against the JD signals and explain the gaps.
 
-Scoring dimensions:
-- keywordCoverage (0–1)
-- phraseCoverage (0–1) based on mustIncludePhrases present verbatim
-- ownershipDensity (0–1): strong ownership verbs + clear scope
-- metricCoverage (0–1): bullets with real metrics (not [METRIC NEEDED])
-- clarity (0–1): specificity, no fluff, readable
-
-Rules:
-- Penalize keyword stuffing and awkward phrase insertion (add stuffingWarnings).
-- Phrase coverage counts only if phrase appears verbatim.
-- Output scores must be stable across runs.
-- baselineScore and finalScore should be 0–100 integers.
-
-Inputs:
-JD signals:
+JD Signal JSON:
 ${JSON.stringify(jdSignals)}
 
-Baseline bullets:
-${JSON.stringify(baselineBullets)}
+User's Base Resume Text:
+${resumeText}`,
+        tools: [STEP2_TOOL],
+        toolChoice: { type: "function", function: { name: "score_match" } },
+      });
 
-Final bullets:
-${JSON.stringify(finalBullets)}`,
-      tools: [STAGE4_SCORE_TOOL],
-      toolChoice: { type: "function", function: { name: "compute_scores" } },
-    });
-    console.log(`Pipeline 4 complete: baseline=${scores.baselineScore}, final=${scores.finalScore}, delta=${scores.delta}`);
+      console.log(`Step 2 complete: score=${matchScore.overall_score}, bucket=${matchScore.bucket}`);
 
-    // ═══════════════════════════════════════════════════════════════════
-    // Final DB update
-    // ═══════════════════════════════════════════════════════════════════
-    const { error: updateErr } = await supabaseClient
-      .from("job_workspaces")
-      .update({
-        ats_score: scores.finalScore || 0,
-        baseline_score: scores.baselineScore || 0,
-        score_delta: scores.delta || 0,
-        gap_analysis: {
-          breakdown: scores.breakdown || {},
-          missingAfterRewrite: scores.missingAfterRewrite || { phrases: [], keywords: [] },
-          stuffingWarnings: scores.stuffingWarnings || [],
-          metricQuestions: metricQuestions,
-        },
-        rewritten_bullets: rewrittenBullets,
-        suggested_projects: [], // projects separated out in future
-        status: "ready",
-      })
-      .eq("id", workspaceId);
+      // Determine status based on bucket
+      const newStatus = matchScore.bucket === "D" ? "weak_match" : "scored";
 
-    if (updateErr) {
-      console.error("Update error:", updateErr);
-      throw new Error("Failed to save analysis");
+      await supabaseClient.from("job_workspaces").update({
+        ats_score: matchScore.overall_score || 0,
+        baseline_score: matchScore.overall_score || 0,
+        match_bucket: matchScore.bucket || "",
+        gap_analysis: matchScore,
+        status: newStatus,
+      }).eq("id", workspaceId);
+
+      return new Response(JSON.stringify({
+        success: true,
+        step: "scored",
+        score: matchScore.overall_score,
+        bucket: matchScore.bucket,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    return new Response(JSON.stringify({ success: true }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP 3 — Project Suggestions (user-triggered, bucket B & C)
+    // ═══════════════════════════════════════════════════════════════════
+    if (requestedStep === "projects") {
+      const gapAnalysis = ws.gap_analysis as any;
+      if (!gapAnalysis?.top_gaps?.length) {
+        return new Response(JSON.stringify({ success: true, projects: [] }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      console.log("Step 3: Project Suggestions...");
+      const jdSignals = ws.jd_analysis as any;
+
+      const projectResult = await callAI({
+        apiKey: LOVABLE_API_KEY, model: MODEL, temperature: 0.6, topP: 0.9,
+        system: `You are a portfolio project advisor for software engineers. Suggest realistic, completable projects.
+
+Rules:
+- Projects must be realistic and completable
+- Resume bullets are hypothetical — label them as "Planned / In Progress" until user confirms completion
+- Never suggest a project that fabricates past employment or credentials
+- Tech stack must match what the JD actually requires
+- Suggest 1-3 projects only`,
+        user: `Suggest portfolio projects to close these skill gaps.
+
+Top gaps from match scoring:
+${JSON.stringify(gapAnalysis.top_gaps)}
+
+Missing must-have skills:
+${JSON.stringify(gapAnalysis.must_have_coverage?.missing || [])}
+
+Missing tools:
+${JSON.stringify(gapAnalysis.tools_coverage?.missing || [])}
+
+JD signals for context:
+${JSON.stringify({
+  job_title: jdSignals?.job_title,
+  tools_and_technologies: jdSignals?.tools_and_technologies,
+  core_responsibilities: jdSignals?.core_responsibilities,
+})}`,
+        tools: [STEP3_TOOL],
+        toolChoice: { type: "function", function: { name: "suggest_projects" } },
+      });
+
+      console.log(`Step 3 complete: ${projectResult.projects?.length || 0} projects suggested`);
+
+      await supabaseClient.from("job_workspaces").update({
+        suggested_projects: projectResult.projects || [],
+      }).eq("id", workspaceId);
+
+      return new Response(JSON.stringify({
+        success: true,
+        step: "projects",
+        projects: projectResult.projects,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP 4 — Resume Tailoring (user-triggered)
+    // ═══════════════════════════════════════════════════════════════════
+    if (requestedStep === "tailor") {
+      if (!resumeText.trim()) throw new Error("No resume to tailor");
+
+      const jdSignals = ws.jd_analysis as any;
+      const gapAnalysis = ws.gap_analysis as any;
+      const selectedProjects = (ws.selected_projects as any[]) || [];
+
+      console.log("Step 4: Resume Tailoring...");
+      const tailored = await callAI({
+        apiKey: LOVABLE_API_KEY, model: MODEL, temperature: 0.3, topP: 0.85,
+        system: `You are a precision resume tailoring engine. You operate under strict truth boundaries.
+
+The base resume is canonical truth. You cannot expand it — only reshape it.
+
+You may: rewrite, reframe, reorder, emphasize, de-emphasize
+You may NOT: add metrics that don't exist, add tools not mentioned in base resume, invent job titles, change employment dates, fabricate outcomes
+
+Every bullet must be traceable to the base resume.
+If a skill is in the JD but not in the base resume → do NOT add it to skills.
+ATS keywords from the JD must appear naturally in the text — no keyword stuffing.
+Summary must be 3–4 sentences max, role-specific, no generic filler.
+Bullets should follow WHAT → HOW → WHO → IMPACT structure.
+Prefer 1 sentence per bullet. Use 2 only if significantly clearer.`,
+        user: `Produce a tailored resume draft optimized for this specific role.
+
+Base Resume Text:
+${resumeText}
+
+JD Signal JSON:
+${JSON.stringify(jdSignals)}
+
+Match Score & Gaps:
+${JSON.stringify({
+  score: gapAnalysis?.overall_score,
+  bucket: gapAnalysis?.bucket,
+  top_strengths: gapAnalysis?.top_strengths,
+  top_gaps: gapAnalysis?.top_gaps,
+  recommendation: gapAnalysis?.recommendation,
+})}
+
+User-confirmed projects to include (mark as "In Progress" or "Planned"):
+${selectedProjects.length > 0 ? JSON.stringify(selectedProjects) : "None"}
+
+Return the full tailored resume with:
+- summary: rewritten for this role (3-4 sentences)
+- experience: array of roles with rewritten bullets (only from base resume facts)
+- skills: reordered and filtered to match JD keywords (only skills present in base resume)
+- projects: only if user confirmed projects above
+- changes_made: list of what was changed and why`,
+        tools: [STEP4_TOOL],
+        toolChoice: { type: "function", function: { name: "tailor_resume" } },
+      });
+
+      console.log(`Step 4 complete: ${tailored.experience?.length || 0} roles, ${tailored.changes_made?.length || 0} changes`);
+
+      // Calculate final score delta
+      const baselineScore = ws.baseline_score || ws.ats_score || 0;
+
+      await supabaseClient.from("job_workspaces").update({
+        tailored_resume: tailored,
+        rewritten_bullets: tailored.experience?.flatMap((e: any) =>
+          (e.bullets || []).map((b: string) => ({ rewritten: b, company: e.company, title: e.title }))
+        ) || [],
+        status: "ready",
+      }).eq("id", workspaceId);
+
+      return new Response(JSON.stringify({
+        success: true,
+        step: "tailored",
+        changes: tailored.changes_made,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    throw new Error(`Unknown step: ${requestedStep}`);
+
   } catch (e: any) {
     console.error("analyze-jd error:", e);
     const status = e?.status || 500;

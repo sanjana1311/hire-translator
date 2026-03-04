@@ -3,138 +3,158 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Target,
-  FileText,
-  Sparkles,
-  AlertTriangle,
-  CheckCircle,
-  Download,
-  ChevronDown,
-  ChevronUp,
-  ArrowLeft,
-  X,
-  History,
-  Save,
-  RotateCcw,
-  GitCompare,
+  Target, FileText, Sparkles, AlertTriangle, CheckCircle, Download,
+  ChevronDown, ChevronUp, ArrowLeft, X, History, Save, RotateCcw,
+  GitCompare, Lightbulb, Wand2, BarChart3, Clock, Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { toast } from "sonner";
 import { useWorkspace, useUpdateWorkspace } from "@/hooks/use-workspaces";
 import { useResume } from "@/hooks/use-resume";
-import { generateResumePDF, validateBulletMetrics } from "@/lib/pdf-export";
+import { generateResumePDF } from "@/lib/pdf-export";
 import { format } from "date-fns";
 import {
-  useWorkspaceVersions,
-  useSaveVersion,
-  useDeleteVersion,
-  WorkspaceVersion,
+  useWorkspaceVersions, useSaveVersion, useDeleteVersion, WorkspaceVersion,
 } from "@/hooks/use-workspace-versions";
 
-const METRIC_TYPES = [
-  { value: "percent", label: "% improvement" },
-  { value: "time", label: "Time saved" },
-  { value: "cost", label: "Cost saved ($)" },
-  { value: "revenue", label: "Revenue ($)" },
-  { value: "volume", label: "Volume / throughput" },
-  { value: "adoption", label: "Adoption / users" },
+const BUCKET_CONFIG: Record<string, { label: string; color: string; desc: string }> = {
+  A: { label: "Strong Match", color: "text-success", desc: "Minor tweaks only" },
+  B: { label: "Good Match", color: "text-primary", desc: "Resume needs reframing" },
+  C: { label: "Gap Exists", color: "text-warning", desc: "A project could close it" },
+  D: { label: "Weak Match", color: "text-destructive", desc: "Significant mismatch" },
+};
+
+const STEP_LABELS = [
+  { num: 1, label: "Signal Mining", icon: Target },
+  { num: 2, label: "Match Score", icon: BarChart3 },
+  { num: 3, label: "Projects", icon: Lightbulb },
+  { num: 4, label: "Tailor Resume", icon: Wand2 },
 ];
+
+function getActiveStep(ws: any): number {
+  const status = ws?.status || "draft";
+  if (status === "draft") return 0;
+  if (status === "analyzing" || status === "signals_ready") return 1;
+  if (status === "scored" || status === "weak_match") return 2;
+  if (status === "ready") return 4;
+  return 2; // default to scored
+}
 
 const JobWorkspace = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data: ws, isLoading } = useWorkspace(id);
+  const { data: ws, isLoading, refetch } = useWorkspace(id);
   const { data: resume } = useResume();
   const updateWs = useUpdateWorkspace();
   const { data: versions = [], isLoading: versionsLoading } = useWorkspaceVersions(id);
   const saveVersion = useSaveVersion();
   const deleteVersion = useDeleteVersion();
-  const [expandedBullet, setExpandedBullet] = useState<number | null>(null);
-  const [selectedProjects, setSelectedProjects] = useState<number[]>([]);
-  const [metricModal, setMetricModal] = useState<number | null>(null);
-  const [metricType, setMetricType] = useState("");
-  const [metricValue, setMetricValue] = useState("");
-  const [metricContext, setMetricContext] = useState("");
-  const [exporting, setExporting] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [currentAction, setCurrentAction] = useState("");
   const [showVersions, setShowVersions] = useState(false);
   const [compareVersion, setCompareVersion] = useState<WorkspaceVersion | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [versionLabel, setVersionLabel] = useState("");
-  const [showBulkMetrics, setShowBulkMetrics] = useState(false);
-  const [bulkMetrics, setBulkMetrics] = useState<Record<number, { type: string; value: string; context: string }>>({});
+  const [selectedProjects, setSelectedProjects] = useState<number[]>([]);
+  const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
-  const handleAnalyze = async () => {
+  const runStep = async (step: string, label: string) => {
     if (!ws) return;
     setAnalyzing(true);
+    setCurrentAction(label);
     try {
       const { data, error } = await supabase.functions.invoke("analyze-jd", {
-        body: { workspaceId: ws.id },
+        body: { workspaceId: ws.id, step },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      toast.success("Analysis complete!");
-      // Refetch workspace data
-      window.location.reload();
+      toast.success(`${label} complete!`);
+      await refetch();
     } catch (err: any) {
-      toast.error(err.message || "Analysis failed");
+      toast.error(err.message || `${label} failed`);
     } finally {
       setAnalyzing(false);
+      setCurrentAction("");
     }
   };
 
-  const handleBulkMetricsSave = () => {
-    const entries = Object.entries(bulkMetrics);
-    const filled = entries.filter(([, v]) => v.type && v.value);
-    if (filled.length === 0) {
-      toast.error("Please fill in at least one metric");
-      return;
-    }
-    const updatedBullets = [...bullets];
-    for (const [idxStr, m] of filled) {
-      const idx = Number(idxStr);
-      let metricText = "";
-      switch (m.type) {
-        case "percent": metricText = `${m.value}%`; break;
-        case "cost": case "revenue": metricText = `$${m.value}`; break;
-        case "adoption": metricText = `${m.value} users`; break;
-        default: metricText = m.value;
-      }
-      let text = updatedBullets[idx].rewritten;
-      if (text.includes("[METRIC NEEDED]")) {
-        text = text.replace("[METRIC NEEDED]", metricText);
-      } else {
-        text = text.replace(/\s*$/, ` — achieving ${metricText}`);
-      }
-      if (m.context) text += ` (${m.context})`;
-      updatedBullets[idx] = { ...updatedBullets[idx], rewritten: text, hasMetric: true };
-    }
+  const handleSaveSelectedProjects = async () => {
+    if (!ws) return;
+    const projects = (ws.suggested_projects as any[]) || [];
+    const selected = selectedProjects.map(i => projects[i]).filter(Boolean);
     updateWs.mutate(
-      { id: ws!.id, rewritten_bullets: updatedBullets as any },
+      { id: ws.id, selected_projects: selected as any },
       {
-        onSuccess: () => {
-          toast.success(`${filled.length} metric(s) added!`);
-          setShowBulkMetrics(false);
-          setBulkMetrics({});
+        onSuccess: () => toast.success("Projects saved!"),
+        onError: (err: any) => toast.error(err.message),
+      }
+    );
+  };
+
+  const handleExport = () => {
+    if (!resume || !ws) return;
+    setExporting(true);
+    try {
+      const selProjects = (ws.selected_projects as any[]) || [];
+      generateResumePDF({ resume, workspace: ws, selectedProjects: selProjects });
+      toast.success("PDF exported!");
+    } catch (err: any) {
+      toast.error("Failed to generate PDF: " + (err.message || "Unknown error"));
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleSaveVersion = () => {
+    if (!ws) return;
+    const snapshot = {
+      tailored_resume: ws.tailored_resume,
+      jd_analysis: ws.jd_analysis,
+      gap_analysis: ws.gap_analysis,
+      ats_score: ws.ats_score,
+      match_bucket: ws.match_bucket,
+      suggested_projects: ws.suggested_projects,
+      selected_projects: ws.selected_projects,
+    };
+    saveVersion.mutate(
+      { workspaceId: ws.id, snapshot, label: versionLabel.trim() },
+      {
+        onSuccess: (v) => {
+          toast.success(`Version ${v.version_number} saved`);
+          setShowSaveModal(false);
+          setVersionLabel("");
         },
         onError: (err: any) => toast.error(err.message),
       }
     );
   };
 
-  const toggleProject = (i: number) => {
-    setSelectedProjects(prev =>
-      prev.includes(i) ? prev.filter(x => x !== i) : prev.length < 2 ? [...prev, i] : prev
+  const handleRevert = (version: WorkspaceVersion) => {
+    if (!ws) return;
+    const snap = version.resume_snapshot as any;
+    if (!snap) { toast.error("Empty snapshot"); return; }
+    updateWs.mutate(
+      {
+        id: ws.id,
+        tailored_resume: snap.tailored_resume ?? {},
+        jd_analysis: snap.jd_analysis ?? {},
+        gap_analysis: snap.gap_analysis ?? {},
+        ats_score: snap.ats_score ?? 0,
+        suggested_projects: snap.suggested_projects ?? [],
+        selected_projects: snap.selected_projects ?? [],
+      },
+      {
+        onSuccess: () => {
+          toast.success(`Reverted to version ${version.version_number}`);
+          setCompareVersion(null);
+          setShowVersions(false);
+        },
+        onError: (err: any) => toast.error(err.message),
+      }
     );
   };
 
@@ -157,141 +177,16 @@ const JobWorkspace = () => {
     );
   }
 
-  const analysis = ws.jd_analysis as any || {};
+  const activeStep = getActiveStep(ws);
+  const jdAnalysis = ws.jd_analysis as any || {};
   const gapAnalysis = ws.gap_analysis as any || {};
-  const bullets = Array.isArray(ws.rewritten_bullets) ? ws.rewritten_bullets : [];
-  const projects = Array.isArray(ws.suggested_projects) ? ws.suggested_projects : [];
-  const missingMetrics = validateBulletMetrics(bullets);
-  const allMetricsValid = bullets.length > 0 && missingMetrics.length === 0;
-  const hasAnalysis = analysis.keywords && analysis.keywords.length > 0;
-
-  const statusLabel: Record<string, string> = {
-    draft: "Draft",
-    ready: "Ready",
-    applied: "Applied",
-  };
-
-  const handleAddMetric = () => {
-    if (metricModal === null || !metricType || !metricValue) {
-      toast.error("Please select a metric type and enter a value");
-      return;
-    }
-
-    const bullet = bullets[metricModal];
-    let metricText = "";
-    switch (metricType) {
-      case "percent": metricText = `${metricValue}%`; break;
-      case "time": metricText = `${metricValue}`; break;
-      case "cost": metricText = `$${metricValue}`; break;
-      case "revenue": metricText = `$${metricValue}`; break;
-      case "volume": metricText = `${metricValue}`; break;
-      case "adoption": metricText = `${metricValue} users`; break;
-      default: metricText = metricValue;
-    }
-
-    // Replace [METRIC NEEDED] or append metric to bullet
-    let updatedText = bullet.rewritten;
-    if (updatedText.includes("[METRIC NEEDED]")) {
-      updatedText = updatedText.replace("[METRIC NEEDED]", metricText);
-    } else {
-      updatedText = updatedText.replace(/\s*$/, ` — achieving ${metricText}`);
-    }
-    if (metricContext) {
-      updatedText += ` (${metricContext})`;
-    }
-
-    const updatedBullets = [...bullets];
-    updatedBullets[metricModal] = {
-      ...bullet,
-      rewritten: updatedText,
-      hasMetric: true,
-    };
-
-    updateWs.mutate(
-      { id: ws.id, rewritten_bullets: updatedBullets as any },
-      {
-        onSuccess: () => {
-          toast.success("Metric added!");
-          setMetricModal(null);
-          setMetricType("");
-          setMetricValue("");
-          setMetricContext("");
-        },
-        onError: (err: any) => toast.error(err.message),
-      }
-    );
-  };
-
-  const handleExport = () => {
-    if (!allMetricsValid) {
-      toast.error(`${missingMetrics.length} bullet(s) still need metrics before export`);
-      return;
-    }
-    if (!resume) {
-      toast.error("No resume found. Please upload your resume first.");
-      return;
-    }
-
-    setExporting(true);
-    try {
-      const selProjects = selectedProjects.map(i => projects[i]).filter(Boolean);
-      generateResumePDF({ resume, workspace: ws, selectedProjects: selProjects });
-      toast.success("PDF exported!");
-    } catch (err: any) {
-      toast.error("Failed to generate PDF: " + (err.message || "Unknown error"));
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  const handleSaveVersion = () => {
-    if (!ws) return;
-    const snapshot = {
-      rewritten_bullets: ws.rewritten_bullets,
-      suggested_projects: ws.suggested_projects,
-      selected_projects: ws.selected_projects,
-      jd_analysis: ws.jd_analysis,
-      ats_score: ws.ats_score,
-    };
-    saveVersion.mutate(
-      { workspaceId: ws.id, snapshot, label: versionLabel.trim() },
-      {
-        onSuccess: (v) => {
-          toast.success(`Version ${v.version_number} saved`);
-          setShowSaveModal(false);
-          setVersionLabel("");
-        },
-        onError: (err: any) => toast.error(err.message),
-      }
-    );
-  };
-
-  const handleRevert = (version: WorkspaceVersion) => {
-    if (!ws) return;
-    const snap = version.resume_snapshot as any;
-    if (!snap) {
-      toast.error("Empty snapshot — nothing to revert");
-      return;
-    }
-    updateWs.mutate(
-      {
-        id: ws.id,
-        rewritten_bullets: snap.rewritten_bullets ?? [],
-        suggested_projects: snap.suggested_projects ?? [],
-        selected_projects: snap.selected_projects ?? [],
-        jd_analysis: snap.jd_analysis ?? {},
-        ats_score: snap.ats_score ?? 0,
-      },
-      {
-        onSuccess: () => {
-          toast.success(`Reverted to version ${version.version_number}`);
-          setCompareVersion(null);
-          setShowVersions(false);
-        },
-        onError: (err: any) => toast.error(err.message),
-      }
-    );
-  };
+  const tailoredResume = ws.tailored_resume as any || {};
+  const suggestedProjects = Array.isArray(ws.suggested_projects) ? ws.suggested_projects : [];
+  const bucket = ws.match_bucket || gapAnalysis?.bucket || "";
+  const bucketConfig = BUCKET_CONFIG[bucket];
+  const hasJdSignals = !!jdAnalysis?.must_have_skills?.length;
+  const hasScore = !!gapAnalysis?.overall_score;
+  const hasTailoredResume = !!tailoredResume?.summary;
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
@@ -300,525 +195,521 @@ const JobWorkspace = () => {
         <div className="flex items-center justify-between mb-8">
           <div>
             <button onClick={() => navigate("/dashboard/workspaces")} className="text-sm text-muted-foreground hover:text-foreground mb-2 flex items-center gap-1">
-              <ArrowLeft className="w-6 h-6" /> Workspaces
+              <ArrowLeft className="w-4 h-4" /> Workspaces
             </button>
-            <h1 className="text-2xl font-bold mb-1">{ws.company} — {ws.role_title}</h1>
+            <h1 className="text-2xl font-bold mb-1">
+              {ws.company || "New Workspace"} {ws.role_title ? `— ${ws.role_title}` : ""}
+            </h1>
             <p className="text-sm text-muted-foreground">
               Created {format(new Date(ws.created_at), "MMM d, yyyy")}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className={`capitalize ${ws.status === 'ready' ? 'text-success border-success/30' : ws.status === 'applied' ? 'text-primary border-primary/30' : ''}`}>
-              {statusLabel[ws.status] || ws.status}
-            </Badge>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowSaveModal(true)}
-              disabled={saveVersion.isPending}
-            >
-              <Save className="w-4 h-4 mr-1.5" />
-              {saveVersion.isPending ? "Saving..." : "Save Version"}
+            {bucket && bucketConfig && (
+              <Badge variant="outline" className={`${bucketConfig.color} border-current/30 font-mono`}>
+                {bucket} — {bucketConfig.label}
+              </Badge>
+            )}
+            <Button variant="outline" size="sm" onClick={() => setShowSaveModal(true)} disabled={saveVersion.isPending}>
+              <Save className="w-4 h-4 mr-1.5" /> Save
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowVersions(!showVersions)}
-            >
-              <History className="w-4 h-4 mr-1.5" />
-              History{versions.length > 0 && ` (${versions.length})`}
+            <Button variant="outline" size="sm" onClick={() => setShowVersions(!showVersions)}>
+              <History className="w-4 h-4 mr-1.5" /> History{versions.length > 0 && ` (${versions.length})`}
             </Button>
-            <Button
-              disabled={!allMetricsValid || exporting}
-              className="bg-gradient-primary text-primary-foreground hover:opacity-90"
-              size="sm"
-              onClick={handleExport}
-              title={!allMetricsValid ? `${missingMetrics.length} bullet(s) need metrics` : "Export PDF"}
-            >
-              {exporting ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                  Exporting...
-                </div>
-              ) : (
-                <>
-                  <Download className="w-4 h-4 mr-1.5" /> Export PDF
-                </>
-              )}
-            </Button>
+            {hasTailoredResume && (
+              <Button
+                className="bg-gradient-primary text-primary-foreground hover:opacity-90"
+                size="sm"
+                onClick={handleExport}
+                disabled={exporting}
+              >
+                <Download className="w-4 h-4 mr-1.5" /> {exporting ? "Exporting..." : "Export PDF"}
+              </Button>
+            )}
           </div>
         </div>
 
-        {/* Metric Gate Banner */}
-        {bullets.length > 0 && !allMetricsValid && (
-          <div className="mb-6 p-4 rounded-xl border border-warning/30 bg-warning/5">
-            <div className="flex items-start gap-3 flex-1">
-              <AlertTriangle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-warning">
-                  {missingMetrics.length} bullet{missingMetrics.length > 1 ? "s" : ""} missing metrics
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  PDF export is blocked until every bullet has a measurable impact metric.
-                </p>
+        {/* Step Progress Bar */}
+        <div className="flex items-center gap-2 mb-8 bg-card border border-border rounded-2xl p-4 shadow-card">
+          {STEP_LABELS.map((s, i) => {
+            const Icon = s.icon;
+            const completed = activeStep > s.num;
+            const active = activeStep === s.num;
+            return (
+              <div key={s.num} className="flex items-center gap-2 flex-1">
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                  completed ? "bg-success/10 text-success" :
+                  active ? "bg-primary/10 text-primary" :
+                  "bg-muted text-muted-foreground"
+                }`}>
+                  {completed ? <CheckCircle className="w-3.5 h-3.5" /> : <Icon className="w-3.5 h-3.5" />}
+                  <span className="hidden sm:inline">{s.label}</span>
+                </div>
+                {i < STEP_LABELS.length - 1 && (
+                  <div className={`flex-1 h-px ${completed ? "bg-success/30" : "bg-border"}`} />
+                )}
               </div>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="shrink-0 border-warning/30 text-warning hover:bg-warning/10"
-              onClick={() => {
-                const init: Record<number, { type: string; value: string; context: string }> = {};
-                missingMetrics.forEach(idx => {
-                  const b = bullets[idx];
-                  init[idx] = { type: b.suggestedMetricType || "", value: "", context: "" };
-                });
-                setBulkMetrics(init);
-                setShowBulkMetrics(true);
-              }}
-            >
-              <Sparkles className="w-4 h-4 mr-1.5" />
-              Bulk Add Metrics
-            </Button>
-          </div>
-        )}
-
-        {bullets.length > 0 && allMetricsValid && (
-          <div className="mb-6 p-4 rounded-xl border border-success/30 bg-success/5">
-            <div className="flex items-start gap-3">
-              <CheckCircle className="w-5 h-5 text-success shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-success">All metrics verified — ready to export!</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Every bullet has a verified metric. You can now export your ATS-friendly PDF.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+            );
+          })}
+        </div>
 
         {/* Job Description */}
         {ws.job_description && (
-          <div className="bg-card border border-border rounded-2xl p-6 shadow-card mb-8">
-            <h2 className="font-semibold mb-3 flex items-center gap-2 text-foreground">
-              <FileText className="w-7 h-7 text-primary" /> Job Description
-            </h2>
-            <pre className="text-sm text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed max-h-60 overflow-y-auto">
-              {ws.job_description}
-            </pre>
+          <div className="bg-card border border-border rounded-2xl shadow-card mb-6 overflow-hidden">
+            <button
+              className="w-full p-5 text-left flex items-center justify-between"
+              onClick={() => setExpandedSection(expandedSection === "jd" ? null : "jd")}
+            >
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-primary" />
+                <span className="font-semibold text-sm">Job Description</span>
+              </div>
+              {expandedSection === "jd" ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+            </button>
+            {expandedSection === "jd" && (
+              <div className="px-5 pb-5 border-t border-border pt-3">
+                <pre className="text-sm text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed max-h-60 overflow-y-auto">
+                  {ws.job_description}
+                </pre>
+              </div>
+            )}
           </div>
         )}
 
-        {/* ATS Score — Baseline vs Final with Delta */}
-        {hasAnalysis && (
-          <div className="bg-card border border-border rounded-2xl p-6 shadow-card mb-8">
-            <div className="flex items-center gap-3 mb-4">
-              <Target className="w-7 h-7 text-primary" />
-              <h2 className="font-semibold text-foreground">ATS Score</h2>
-            </div>
-            <div className="flex items-center gap-6 mb-6">
-              {/* Baseline Score */}
-              <div className="text-center">
-                <p className="text-xs text-muted-foreground mb-2">Baseline</p>
-                <div className="relative w-20 h-20">
-                  <svg className="w-20 h-20 -rotate-90" viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(var(--border))" strokeWidth="8" />
-                    <circle cx="50" cy="50" r="42" fill="none"
-                      stroke="hsl(var(--muted-foreground))"
-                      strokeWidth="8" strokeDasharray={`${(ws.baseline_score || 0) * 2.64} 264`} strokeLinecap="round" opacity="0.5"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-lg font-bold font-mono text-muted-foreground">{ws.baseline_score || 0}%</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Arrow + Delta */}
-              {ws.score_delta !== undefined && ws.score_delta !== 0 && (
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-xs text-muted-foreground">→</span>
-                  <Badge className={`font-mono text-sm ${ws.score_delta > 0 ? 'bg-success/10 text-success border-success/30' : 'bg-destructive/10 text-destructive border-destructive/30'}`}>
-                    {ws.score_delta > 0 ? '+' : ''}{ws.score_delta}
-                  </Badge>
-                </div>
-              )}
-
-              {/* Final Score */}
-              <div className="text-center">
-                <p className="text-xs text-muted-foreground mb-2">After Rewrite</p>
-                <div className="relative w-24 h-24">
-                  <svg className="w-24 h-24 -rotate-90" viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(var(--border))" strokeWidth="8" />
-                    <circle cx="50" cy="50" r="42" fill="none"
-                      stroke={ws.ats_score >= 80 ? "hsl(var(--score-high))" : ws.ats_score >= 60 ? "hsl(var(--score-mid))" : "hsl(var(--score-low))"}
-                      strokeWidth="8" strokeDasharray={`${ws.ats_score * 2.64} 264`} strokeLinecap="round"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-2xl font-bold font-mono">{ws.ats_score}%</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Keywords + Gap Analysis */}
-              <div className="flex-1 space-y-3">
-                {analysis.keywords?.length > 0 && (
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1.5">Matched Keywords</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {analysis.keywords.map((k: string) => (
-                        <span key={k} className="text-xs px-2 py-0.5 rounded-full bg-success/10 text-success font-medium">{k}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {analysis.missingKeywords?.length > 0 && (
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1.5">Missing Keywords</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {analysis.missingKeywords.map((k: string) => (
-                        <span key={k} className="text-xs px-2 py-0.5 rounded-full bg-destructive/10 text-destructive font-medium">{k}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {/* Gap Analysis Details */}
-                {gapAnalysis?.weakAreas?.length > 0 && (
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1.5">Weak Areas</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {gapAnalysis.weakAreas.map((a: string) => (
-                        <span key={a} className="text-xs px-2 py-0.5 rounded-full bg-warning/10 text-warning font-medium">{a}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {/* Improvement Breakdown */}
-                {gapAnalysis?.improvementBreakdown && (
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1.5">Improvement Breakdown</p>
-                    <div className="space-y-1">
-                      {Object.entries(gapAnalysis.improvementBreakdown).map(([key, val]: [string, any]) => (
-                        <p key={key} className="text-xs text-success">{val}</p>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Bullet Rewrites */}
-        {bullets.length > 0 && (
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <Sparkles className="w-7 h-7 text-primary" />
-                <h2 className="font-semibold">Bullet Rewrites</h2>
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {bullets.length - missingMetrics.length}/{bullets.length} verified
-              </span>
-            </div>
-
-            <div className="space-y-3">
-              {bullets.map((b: any, i: number) => {
-                const isMissing = missingMetrics.includes(i);
-                return (
-                  <div key={i} className={`bg-card border rounded-2xl shadow-card overflow-hidden ${isMissing ? "border-warning/40" : "border-border"}`}>
-                    <button
-                      onClick={() => setExpandedBullet(expandedBullet === i ? null : i)}
-                      className="w-full p-4 text-left flex items-start gap-3"
-                    >
-                      <div className="mt-0.5 shrink-0">
-                        {!isMissing ? (
-                          <CheckCircle className="w-4 h-4 text-success" />
-                        ) : (
-                          <AlertTriangle className="w-4 h-4 text-warning" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm leading-relaxed">{b.rewritten}</p>
-                        {b.keywords && b.keywords.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {b.keywords.map((k: string) => (
-                              <span key={k} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">{k}</span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <div className="shrink-0">
-                        {expandedBullet === i ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-                      </div>
-                    </button>
-                    {expandedBullet === i && (
-                      <div className="px-4 pb-4 border-t border-border pt-3">
-                        <p className="text-xs text-muted-foreground mb-1">Original bullet:</p>
-                        <p className="text-sm text-muted-foreground italic">{b.original}</p>
-                        {isMissing && (
-                          <div className="mt-3 p-3 rounded-lg bg-warning/5 border border-warning/20">
-                            <div className="flex items-center justify-between">
-                              <p className="text-xs text-warning font-medium flex items-center gap-1.5">
-                                <AlertTriangle className="w-6 h-6" /> Metric required before PDF export
-                              </p>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-xs h-7 border-warning/30 text-warning hover:bg-warning/10"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setMetricModal(i);
-                                }}
-                              >
-                                Add Metric
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Project Suggestions */}
-        {projects.length > 0 && (
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-2">
-              <FileText className="w-7 h-7 text-primary" />
-              <h2 className="font-semibold">Suggested Projects</h2>
-            </div>
-            <p className="text-sm text-muted-foreground mb-4">Pick up to 2 projects to add under your Projects section</p>
-            <div className="space-y-3">
-              {projects.map((p: any, i: number) => {
-                const selected = selectedProjects.includes(i);
-                return (
-                  <button
-                    key={i}
-                    onClick={() => toggleProject(i)}
-                    className={`w-full text-left bg-card border rounded-2xl p-4 shadow-card transition-all ${
-                      selected ? "border-primary shadow-warm" : "border-border hover:border-primary/30"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-medium text-sm">{p.title}</h3>
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                        selected ? "border-primary bg-primary" : "border-muted-foreground"
-                      }`}>
-                        {selected && <CheckCircle className="w-5 h-5 text-primary-foreground" />}
-                      </div>
-                    </div>
-                    <ul className="space-y-1 mb-2">
-                      {(p.bullets || []).map((b: string, j: number) => (
-                        <li key={j} className="text-xs text-muted-foreground flex items-start gap-1.5">
-                          <span className="text-primary mt-0.5">•</span> {b}
-                        </li>
-                      ))}
-                    </ul>
-                    {p.signal && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground font-medium">
-                        {p.signal}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!hasAnalysis && bullets.length === 0 && (
-          <div className="bg-card border border-border rounded-2xl p-8 text-center shadow-card">
+        {/* ═══ STEP 1+2: Analyze (empty state) ═══ */}
+        {activeStep === 0 && (
+          <div className="bg-card border border-border rounded-2xl p-8 text-center shadow-card mb-6">
             <Sparkles className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
-            <p className="text-muted-foreground text-sm mb-1">No analysis yet</p>
-            <p className="text-xs text-muted-foreground mb-4">AI will analyze the JD against your resume, rewrite bullets, calculate ATS score, and suggest projects.</p>
+            <p className="text-muted-foreground text-sm mb-1">Ready to analyze</p>
+            <p className="text-xs text-muted-foreground mb-4">
+              AI will mine the JD for signals and score your resume fit.
+            </p>
             <Button
-              onClick={handleAnalyze}
+              onClick={() => runStep("analyze", "Analysis")}
               disabled={analyzing || !ws.job_description}
               className="bg-gradient-primary text-primary-foreground hover:opacity-90"
             >
               {analyzing ? (
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                  Analyzing... (this may take ~30s)
+                  {currentAction}... (this may take ~30s)
                 </div>
               ) : (
-                <>
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Run AI Analysis
-                </>
+                <><Sparkles className="w-4 h-4 mr-2" /> Run Analysis</>
               )}
             </Button>
           </div>
         )}
-      </motion.div>
 
-      {/* Metric Input Modal */}
-      {metricModal !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-md bg-card border border-border rounded-2xl p-6 shadow-2xl"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">Add Missing Metric</h3>
-              <button onClick={() => setMetricModal(null)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-7 h-7" />
-              </button>
-            </div>
-
-            <div className="mb-4 p-3 rounded-lg bg-secondary">
-              <p className="text-xs text-muted-foreground mb-1">Bullet:</p>
-              <p className="text-sm leading-relaxed">{bullets[metricModal]?.rewritten}</p>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <Label className="text-sm">Impact metric type</Label>
-                <Select value={metricType} onValueChange={setMetricType}>
-                  <SelectTrigger className="mt-1.5 bg-secondary border-border">
-                    <SelectValue placeholder="Select type..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {METRIC_TYPES.map(t => (
-                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+        {/* ═══ JD Signals (after Step 1) ═══ */}
+        {hasJdSignals && (
+          <div className="bg-card border border-border rounded-2xl shadow-card mb-6 overflow-hidden">
+            <button
+              className="w-full p-5 text-left flex items-center justify-between"
+              onClick={() => setExpandedSection(expandedSection === "signals" ? null : "signals")}
+            >
+              <div className="flex items-center gap-2">
+                <Target className="w-5 h-5 text-primary" />
+                <span className="font-semibold text-sm">JD Signals</span>
+                <Badge variant="outline" className="text-xs ml-2">
+                  {jdAnalysis.must_have_skills?.length || 0} must-haves
+                </Badge>
               </div>
-
-              <div>
-                <Label className="text-sm">Metric value</Label>
-                <Input
-                  value={metricValue}
-                  onChange={e => setMetricValue(e.target.value)}
-                  placeholder={metricType === "percent" ? "e.g. 35" : metricType === "cost" || metricType === "revenue" ? "e.g. 500K" : "e.g. 2M+ records/day"}
-                  className="mt-1.5 bg-secondary border-border"
-                />
-              </div>
-
-              <div>
-                <Label className="text-sm">Context (optional)</Label>
-                <Input
-                  value={metricContext}
-                  onChange={e => setMetricContext(e.target.value)}
-                  placeholder="e.g. YoY, across 12 markets"
-                  className="mt-1.5 bg-secondary border-border"
-                />
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <Button variant="outline" className="flex-1" onClick={() => setMetricModal(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1 bg-gradient-primary text-primary-foreground hover:opacity-90"
-                  onClick={handleAddMetric}
-                  disabled={updateWs.isPending}
-                >
-                  {updateWs.isPending ? "Saving..." : "Add Metric"}
-                </Button>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Bulk Metrics Modal */}
-      {showBulkMetrics && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-2xl max-h-[80vh] bg-card border border-border rounded-2xl shadow-2xl flex flex-col"
-          >
-            <div className="flex items-center justify-between p-6 pb-4 border-b border-border">
-              <div>
-                <h3 className="font-semibold">Bulk Add Metrics</h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {missingMetrics.length} bullet{missingMetrics.length > 1 ? "s" : ""} need metrics. No fabricated numbers — use real data only.
-                </p>
-              </div>
-              <button onClick={() => setShowBulkMetrics(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6 space-y-5">
-              {missingMetrics.map((bulletIdx) => {
-                const b = bullets[bulletIdx];
-                const suggested = b.suggestedMetricType || "";
-                const prompt = b.metricPrompt || "";
-                const entry = bulkMetrics[bulletIdx] ?? { type: suggested, value: "", context: "" };
-                return (
-                  <div key={bulletIdx} className="p-4 rounded-xl bg-secondary/50 border border-border space-y-3">
-                    <p className="text-sm leading-relaxed text-muted-foreground">{b.rewritten}</p>
-                    {prompt && (
-                      <p className="text-sm font-medium text-primary">
-                        👉 {prompt}
-                      </p>
+              {expandedSection === "signals" ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+            </button>
+            {expandedSection === "signals" && (
+              <div className="px-5 pb-5 border-t border-border pt-4 space-y-4">
+                {jdAnalysis.seniority_level && (
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-primary/10 text-primary border-primary/20">{jdAnalysis.seniority_level}</Badge>
+                    {jdAnalysis.seniority_signals?.leadership_expected && (
+                      <Badge variant="outline" className="text-xs">Leadership expected</Badge>
                     )}
-                    <div className="grid grid-cols-3 gap-3">
-                      <Select
-                        value={entry.type}
-                        onValueChange={(v) =>
-                          setBulkMetrics(prev => ({ ...prev, [bulletIdx]: { ...entry, type: v } }))
-                        }
-                      >
-                        <SelectTrigger className="bg-background border-border text-xs h-9">
-                          <SelectValue placeholder="Metric type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {METRIC_TYPES.map(t => (
-                            <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Input
-                        value={entry.value}
-                        onChange={(e) =>
-                          setBulkMetrics(prev => ({ ...prev, [bulletIdx]: { ...entry, value: e.target.value } }))
-                        }
-                        placeholder="Enter number..."
-                        className="bg-background border-border text-xs h-9"
-                        autoFocus={bulletIdx === missingMetrics[0]}
-                      />
-                      <Input
-                        value={entry.context}
-                        onChange={(e) =>
-                          setBulkMetrics(prev => ({ ...prev, [bulletIdx]: { ...entry, context: e.target.value } }))
-                        }
-                        placeholder="Context (optional)"
-                        className="bg-background border-border text-xs h-9"
-                      />
+                    {jdAnalysis.seniority_signals?.years_experience_mentioned && (
+                      <Badge variant="outline" className="text-xs">{jdAnalysis.seniority_signals.years_experience_mentioned}+ years</Badge>
+                    )}
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1.5 font-medium">Must-Have Skills</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(jdAnalysis.must_have_skills || []).map((s: string) => (
+                      <span key={s} className="text-xs px-2 py-0.5 rounded-full bg-destructive/10 text-destructive font-medium">{s}</span>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1.5 font-medium">Nice-to-Have</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(jdAnalysis.nice_to_have_skills || []).map((s: string) => (
+                      <span key={s} className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">{s}</span>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1.5 font-medium">Tools & Technologies</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(jdAnalysis.tools_and_technologies || []).map((t: string) => (
+                      <span key={t} className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">{t}</span>
+                    ))}
+                  </div>
+                </div>
+                {jdAnalysis.red_flags?.length > 0 && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1.5 font-medium">🚩 Red Flags</p>
+                    <ul className="space-y-1">
+                      {jdAnalysis.red_flags.map((f: string, i: number) => (
+                        <li key={i} className="text-xs text-destructive">{f}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1.5 font-medium">ATS Keywords</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(jdAnalysis.keywords_for_ats || []).map((k: string) => (
+                      <span key={k} className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground font-medium">{k}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══ Match Score (after Step 2) ═══ */}
+        {hasScore && (
+          <div className="bg-card border border-border rounded-2xl p-6 shadow-card mb-6">
+            <div className="flex items-start gap-6">
+              {/* Score Circle */}
+              <div className="text-center shrink-0">
+                <div className="relative w-24 h-24">
+                  <svg className="w-24 h-24 -rotate-90" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(var(--border))" strokeWidth="8" />
+                    <circle cx="50" cy="50" r="42" fill="none"
+                      stroke={gapAnalysis.overall_score >= 80 ? "hsl(var(--score-high))" :
+                              gapAnalysis.overall_score >= 60 ? "hsl(var(--score-mid))" :
+                              gapAnalysis.overall_score >= 40 ? "hsl(var(--warning))" : "hsl(var(--score-low))"}
+                      strokeWidth="8"
+                      strokeDasharray={`${(gapAnalysis.overall_score || 0) * 2.64} 264`}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-2xl font-bold font-mono">{gapAnalysis.overall_score}</span>
+                  </div>
+                </div>
+                {bucketConfig && (
+                  <p className={`text-xs font-medium mt-2 ${bucketConfig.color}`}>{bucketConfig.desc}</p>
+                )}
+              </div>
+
+              {/* Coverage Details */}
+              <div className="flex-1 space-y-3">
+                {/* Strengths */}
+                {gapAnalysis.top_strengths?.length > 0 && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1.5 font-medium">Top Strengths</p>
+                    <ul className="space-y-0.5">
+                      {gapAnalysis.top_strengths.map((s: string, i: number) => (
+                        <li key={i} className="text-xs text-success flex items-start gap-1.5">
+                          <CheckCircle className="w-3 h-3 mt-0.5 shrink-0" /> {s}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Gaps */}
+                {gapAnalysis.top_gaps?.length > 0 && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1.5 font-medium">Top Gaps</p>
+                    <ul className="space-y-0.5">
+                      {gapAnalysis.top_gaps.map((g: string, i: number) => (
+                        <li key={i} className="text-xs text-warning flex items-start gap-1.5">
+                          <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" /> {g}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Dealbreakers */}
+                {gapAnalysis.dealbreaker_missing?.length > 0 && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1.5 font-medium">⚠️ Dealbreakers</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {gapAnalysis.dealbreaker_missing.map((d: string) => (
+                        <span key={d} className="text-xs px-2 py-0.5 rounded-full bg-destructive/10 text-destructive font-medium">{d}</span>
+                      ))}
                     </div>
                   </div>
-                );
-              })}
+                )}
+
+                {/* Skill Coverage */}
+                <div className="grid grid-cols-2 gap-3">
+                  {gapAnalysis.must_have_coverage?.matched?.length > 0 && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-1">Skills Matched</p>
+                      <div className="flex flex-wrap gap-1">
+                        {gapAnalysis.must_have_coverage.matched.map((s: string) => (
+                          <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-success/10 text-success">{s}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {gapAnalysis.must_have_coverage?.missing?.length > 0 && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-1">Skills Missing</p>
+                      <div className="flex flex-wrap gap-1">
+                        {gapAnalysis.must_have_coverage.missing.map((s: string) => (
+                          <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">{s}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Recommendation */}
+                {gapAnalysis.recommendation && (
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-border">
+                    <p className="text-xs text-foreground leading-relaxed">{gapAnalysis.recommendation}</p>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="p-6 pt-4 border-t border-border flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setShowBulkMetrics(false)}>
-                Cancel
-              </Button>
-              <Button
-                className="flex-1 bg-gradient-primary text-primary-foreground hover:opacity-90"
-                onClick={handleBulkMetricsSave}
-                disabled={updateWs.isPending}
-              >
-                {updateWs.isPending ? "Saving..." : `Save ${Object.values(bulkMetrics).filter(m => m.type && m.value).length} Metric(s)`}
-              </Button>
+            {/* Action buttons after scoring */}
+            {activeStep === 2 && (
+              <div className="flex gap-2 mt-5 pt-4 border-t border-border">
+                {(bucket === "B" || bucket === "C") && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => runStep("projects", "Project Suggestions")}
+                    disabled={analyzing}
+                  >
+                    {analyzing && currentAction === "Project Suggestions" ? (
+                      <><div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin mr-1.5" /> Suggesting...</>
+                    ) : (
+                      <><Lightbulb className="w-4 h-4 mr-1.5" /> Suggest Projects</>
+                    )}
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  className="bg-gradient-primary text-primary-foreground hover:opacity-90"
+                  onClick={() => runStep("tailor", "Resume Tailoring")}
+                  disabled={analyzing}
+                >
+                  {analyzing && currentAction === "Resume Tailoring" ? (
+                    <><div className="w-3.5 h-3.5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin mr-1.5" /> Tailoring...</>
+                  ) : (
+                    <><Wand2 className="w-4 h-4 mr-1.5" /> Tailor Resume</>
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══ Project Suggestions (after Step 3) ═══ */}
+        {suggestedProjects.length > 0 && (
+          <div className="bg-card border border-border rounded-2xl shadow-card mb-6 overflow-hidden">
+            <div className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Lightbulb className="w-5 h-5 text-primary" />
+                  <span className="font-semibold text-sm">Suggested Projects</span>
+                </div>
+                <p className="text-xs text-muted-foreground">Select projects to include, then tailor</p>
+              </div>
+
+              <div className="space-y-3">
+                {suggestedProjects.map((p: any, i: number) => {
+                  const selected = selectedProjects.includes(i);
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => setSelectedProjects(prev =>
+                        prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]
+                      )}
+                      className={`w-full text-left border rounded-xl p-4 transition-all ${
+                        selected ? "border-primary bg-primary/5 shadow-warm" : "border-border hover:border-primary/30"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-medium text-sm">{p.title}</h3>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-[10px]">
+                            <Clock className="w-3 h-3 mr-1" /> {p.estimated_hours}h
+                          </Badge>
+                          <Badge variant="outline" className="text-[10px]">{p.difficulty}</Badge>
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                            selected ? "border-primary bg-primary" : "border-muted-foreground"
+                          }`}>
+                            {selected && <CheckCircle className="w-3 h-3 text-primary-foreground" />}
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-2">{p.what_to_build}</p>
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {(p.tech_stack || []).map((t: string) => (
+                          <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">{t}</span>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-success">
+                        <Zap className="w-3 h-3 inline mr-0.5" /> Closes: {p.closes_gap}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex gap-2 mt-4">
+                {selectedProjects.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={handleSaveSelectedProjects} disabled={updateWs.isPending}>
+                    Save {selectedProjects.length} project(s)
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  className="bg-gradient-primary text-primary-foreground hover:opacity-90"
+                  onClick={() => runStep("tailor", "Resume Tailoring")}
+                  disabled={analyzing}
+                >
+                  {analyzing && currentAction === "Resume Tailoring" ? (
+                    <><div className="w-3.5 h-3.5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin mr-1.5" /> Tailoring...</>
+                  ) : (
+                    <><Wand2 className="w-4 h-4 mr-1.5" /> Tailor Resume</>
+                  )}
+                </Button>
+              </div>
             </div>
-          </motion.div>
-        </div>
-      )}
+          </div>
+        )}
+
+        {/* ═══ Tailored Resume Preview (after Step 4) ═══ */}
+        {hasTailoredResume && (
+          <div className="bg-card border border-border rounded-2xl shadow-card mb-6">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                  <Wand2 className="w-5 h-5 text-primary" />
+                  <span className="font-semibold text-sm">Tailored Resume</span>
+                </div>
+                <Badge className="bg-success/10 text-success border-success/30 text-xs">
+                  <CheckCircle className="w-3 h-3 mr-1" /> Ready to export
+                </Badge>
+              </div>
+
+              {/* Summary */}
+              <div className="mb-5">
+                <p className="text-xs text-muted-foreground font-medium mb-2 uppercase tracking-wide">Summary</p>
+                <p className="text-sm leading-relaxed text-foreground">{tailoredResume.summary}</p>
+              </div>
+
+              {/* Experience */}
+              {tailoredResume.experience?.length > 0 && (
+                <div className="mb-5">
+                  <p className="text-xs text-muted-foreground font-medium mb-3 uppercase tracking-wide">Experience</p>
+                  <div className="space-y-4">
+                    {tailoredResume.experience.map((exp: any, i: number) => (
+                      <div key={i} className="border-l-2 border-primary/20 pl-4">
+                        <div className="flex items-baseline justify-between mb-1">
+                          <h4 className="text-sm font-semibold">{exp.title}</h4>
+                          <span className="text-xs text-muted-foreground">{exp.dates}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mb-2">{exp.company}</p>
+                        <ul className="space-y-1.5">
+                          {(exp.bullets || []).map((b: string, j: number) => (
+                            <li key={j} className="text-sm text-foreground leading-relaxed flex items-start gap-2">
+                              <span className="text-primary mt-1 shrink-0">•</span>
+                              <span>{b}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Skills */}
+              {tailoredResume.skills?.length > 0 && (
+                <div className="mb-5">
+                  <p className="text-xs text-muted-foreground font-medium mb-2 uppercase tracking-wide">Skills</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {tailoredResume.skills.map((s: string) => (
+                      <span key={s} className="text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground font-medium">{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Projects */}
+              {tailoredResume.projects?.length > 0 && (
+                <div className="mb-5">
+                  <p className="text-xs text-muted-foreground font-medium mb-3 uppercase tracking-wide">Projects</p>
+                  <div className="space-y-3">
+                    {tailoredResume.projects.map((p: any, i: number) => (
+                      <div key={i} className="border-l-2 border-accent/20 pl-4">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="text-sm font-semibold">{p.title}</h4>
+                          <Badge variant="outline" className="text-[10px]">{p.status}</Badge>
+                        </div>
+                        <ul className="space-y-1">
+                          {(p.bullets || []).map((b: string, j: number) => (
+                            <li key={j} className="text-sm text-foreground leading-relaxed flex items-start gap-2">
+                              <span className="text-accent mt-1 shrink-0">•</span>
+                              <span>{b}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Changes Made */}
+              {tailoredResume.changes_made?.length > 0 && (
+                <div className="pt-4 border-t border-border">
+                  <button
+                    className="w-full text-left flex items-center justify-between"
+                    onClick={() => setExpandedSection(expandedSection === "changes" ? null : "changes")}
+                  >
+                    <p className="text-xs text-muted-foreground font-medium">
+                      {tailoredResume.changes_made.length} changes made
+                    </p>
+                    {expandedSection === "changes" ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
+                  </button>
+                  {expandedSection === "changes" && (
+                    <ul className="mt-2 space-y-1">
+                      {tailoredResume.changes_made.map((c: string, i: number) => (
+                        <li key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                          <span className="text-primary mt-0.5">→</span> {c}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Re-analyze button if already analyzed */}
+        {activeStep > 0 && activeStep < 4 && !analyzing && (
+          <div className="flex justify-center mb-6">
+            <Button variant="ghost" size="sm" className="text-xs text-muted-foreground"
+              onClick={() => runStep("analyze", "Re-analysis")}
+            >
+              <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Re-analyze
+            </Button>
+          </div>
+        )}
+      </motion.div>
 
       {/* Version History Panel */}
       <AnimatePresence>
@@ -832,12 +723,12 @@ const JobWorkspace = () => {
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="font-semibold flex items-center gap-2">
-                  <History className="w-7 h-7 text-primary" /> Version History
+                  <History className="w-5 h-5 text-primary" /> Version History
                 </h3>
                 <button onClick={() => setShowVersions(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-7 h-7" />
-              </button>
-            </div>
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
               {versionsLoading && (
                 <div className="flex justify-center py-8">
@@ -849,46 +740,36 @@ const JobWorkspace = () => {
                 <div className="text-center py-8">
                   <History className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
                   <p className="text-sm text-muted-foreground">No versions saved yet</p>
-                  <p className="text-xs text-muted-foreground mt-1">Click "Save Version" to create a snapshot</p>
                 </div>
               )}
 
               <div className="space-y-3">
                 {versions.map((v) => {
                   const snap = v.resume_snapshot as any;
-                  const snapBullets = Array.isArray(snap?.rewritten_bullets) ? snap.rewritten_bullets : [];
                   return (
-                    <div key={v.id} className="bg-card border border-border rounded-2xl p-4 shadow-card">
+                    <div key={v.id} className="bg-card border border-border rounded-xl p-4 shadow-card">
                       <div className="flex items-center justify-between mb-2">
                         <div>
                           <span className="text-sm font-medium">v{v.version_number}</span>
-                          {v.label && (
-                            <p className="text-xs font-medium text-primary truncate max-w-[180px]">{v.label}</p>
-                          )}
+                          {v.label && <p className="text-xs font-medium text-primary truncate max-w-[180px]">{v.label}</p>}
                           <p className="text-xs text-muted-foreground">
                             {format(new Date(v.created_at), "MMM d, yyyy h:mm a")}
                           </p>
                         </div>
-                        <Badge variant="outline" className="text-xs">
-                          {snapBullets.length} bullet{snapBullets.length !== 1 ? "s" : ""}
-                        </Badge>
+                        {snap?.match_bucket && (
+                          <Badge variant="outline" className="text-xs font-mono">{snap.match_bucket}</Badge>
+                        )}
                       </div>
                       {snap?.ats_score !== undefined && (
-                        <p className="text-xs text-muted-foreground mb-3">ATS: {snap.ats_score}%</p>
+                        <p className="text-xs text-muted-foreground mb-3">Score: {snap.ats_score}</p>
                       )}
                       <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1 text-xs h-7"
+                        <Button variant="outline" size="sm" className="flex-1 text-xs h-7"
                           onClick={() => setCompareVersion(v)}
                         >
                           <GitCompare className="w-3 h-3 mr-1" /> Compare
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1 text-xs h-7"
+                        <Button variant="outline" size="sm" className="flex-1 text-xs h-7"
                           onClick={() => handleRevert(v)}
                           disabled={updateWs.isPending}
                         >
@@ -907,17 +788,15 @@ const JobWorkspace = () => {
       {/* Save Version Modal */}
       {showSaveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
             className="w-full max-w-sm bg-card border border-border rounded-2xl p-6 shadow-2xl"
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold flex items-center gap-2">
-                <Save className="w-7 h-7 text-primary" /> Save Version
+                <Save className="w-5 h-5 text-primary" /> Save Version
               </h3>
               <button onClick={() => { setShowSaveModal(false); setVersionLabel(""); }} className="text-muted-foreground hover:text-foreground">
-                <X className="w-7 h-7" />
+                <X className="w-5 h-5" />
               </button>
             </div>
             <div className="mb-4">
@@ -925,20 +804,16 @@ const JobWorkspace = () => {
               <Input
                 value={versionLabel}
                 onChange={e => setVersionLabel(e.target.value)}
-                placeholder="e.g. Final draft, Before metric updates"
+                placeholder="e.g. Final draft"
                 className="mt-1.5 bg-secondary border-border"
                 autoFocus
                 onKeyDown={e => e.key === "Enter" && handleSaveVersion()}
               />
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => { setShowSaveModal(false); setVersionLabel(""); }}>
-                Cancel
-              </Button>
-              <Button
-                className="flex-1 bg-gradient-primary text-primary-foreground hover:opacity-90"
-                onClick={handleSaveVersion}
-                disabled={saveVersion.isPending}
+              <Button variant="outline" className="flex-1" onClick={() => { setShowSaveModal(false); setVersionLabel(""); }}>Cancel</Button>
+              <Button className="flex-1 bg-gradient-primary text-primary-foreground hover:opacity-90"
+                onClick={handleSaveVersion} disabled={saveVersion.isPending}
               >
                 {saveVersion.isPending ? "Saving..." : "Save"}
               </Button>
@@ -950,66 +825,67 @@ const JobWorkspace = () => {
       {/* Compare Modal */}
       {compareVersion && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-4xl max-h-[80vh] overflow-y-auto bg-card border border-border rounded-2xl p-6 shadow-2xl"
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-3xl max-h-[80vh] overflow-y-auto bg-card border border-border rounded-2xl p-6 shadow-2xl"
           >
             <div className="flex items-center justify-between mb-6">
               <h3 className="font-semibold flex items-center gap-2">
-                <GitCompare className="w-7 h-7 text-primary" />
-                Compare: Current vs Version {compareVersion.version_number}
+                <GitCompare className="w-5 h-5 text-primary" />
+                Compare: Current vs v{compareVersion.version_number}
               </h3>
               <button onClick={() => setCompareVersion(null)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-7 h-7" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="grid grid-cols-2 gap-6">
-              {/* Current */}
               <div>
                 <h4 className="text-sm font-medium mb-3 text-primary">Current</h4>
-                <div className="space-y-2">
-                  {bullets.length === 0 && <p className="text-xs text-muted-foreground">No bullets</p>}
-                  {bullets.map((b: any, i: number) => (
-                    <div key={i} className="text-xs p-2.5 rounded-lg bg-secondary border border-border leading-relaxed">
-                      {b.rewritten}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Version snapshot */}
-              <div>
-                <h4 className="text-sm font-medium mb-3 text-muted-foreground">
-                  Version {compareVersion.version_number}
-                </h4>
-                <div className="space-y-2">
-                  {(() => {
-                    const snap = compareVersion.resume_snapshot as any;
-                    const snapBullets = Array.isArray(snap?.rewritten_bullets) ? snap.rewritten_bullets : [];
-                    if (snapBullets.length === 0) return <p className="text-xs text-muted-foreground">No bullets</p>;
-                    return snapBullets.map((b: any, i: number) => (
-                      <div key={i} className="text-xs p-2.5 rounded-lg bg-secondary border border-border leading-relaxed">
-                        {b.rewritten}
+                {hasTailoredResume ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">{tailoredResume.summary}</p>
+                    {tailoredResume.experience?.map((e: any, i: number) => (
+                      <div key={i}>
+                        <p className="text-xs font-medium">{e.title} — {e.company}</p>
+                        {e.bullets?.map((b: string, j: number) => (
+                          <p key={j} className="text-xs text-muted-foreground pl-2">• {b}</p>
+                        ))}
                       </div>
-                    ));
-                  })()}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">No tailored resume yet</p>
+                )}
+              </div>
+              <div>
+                <h4 className="text-sm font-medium mb-3 text-muted-foreground">v{compareVersion.version_number}</h4>
+                {(() => {
+                  const snap = compareVersion.resume_snapshot as any;
+                  const snapResume = snap?.tailored_resume;
+                  if (!snapResume?.summary) return <p className="text-xs text-muted-foreground">No data</p>;
+                  return (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">{snapResume.summary}</p>
+                      {snapResume.experience?.map((e: any, i: number) => (
+                        <div key={i}>
+                          <p className="text-xs font-medium">{e.title} — {e.company}</p>
+                          {e.bullets?.map((b: string, j: number) => (
+                            <p key={j} className="text-xs text-muted-foreground pl-2">• {b}</p>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
             <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-border">
-              <Button variant="outline" onClick={() => setCompareVersion(null)}>
-                Close
-              </Button>
-              <Button
-                onClick={() => handleRevert(compareVersion)}
-                disabled={updateWs.isPending}
+              <Button variant="outline" onClick={() => setCompareVersion(null)}>Close</Button>
+              <Button onClick={() => handleRevert(compareVersion)} disabled={updateWs.isPending}
                 className="bg-gradient-primary text-primary-foreground hover:opacity-90"
               >
-                <RotateCcw className="w-4 h-4 mr-1.5" />
-                Revert to v{compareVersion.version_number}
+                <RotateCcw className="w-4 h-4 mr-1.5" /> Revert to v{compareVersion.version_number}
               </Button>
             </div>
           </motion.div>
