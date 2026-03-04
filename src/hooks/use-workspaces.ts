@@ -10,13 +10,15 @@ export interface Workspace {
   status: string;
   job_description: string;
   jd_analysis: any;
+  gap_analysis: any;
+  match_bucket: string;
+  tailored_resume: any;
   rewritten_bullets: any[];
   suggested_projects: any[];
   selected_projects: any[];
   ats_score: number;
   baseline_score: number;
   score_delta: number;
-  gap_analysis: any;
   created_at: string;
   updated_at: string;
 }

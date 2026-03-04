@@ -24,6 +24,7 @@ export type Database = {
           id: string
           jd_analysis: Json | null
           job_description: string | null
+          match_bucket: string
           profile_id: string
           rewritten_bullets: Json | null
           role_title: string
@@ -31,6 +32,7 @@ export type Database = {
           selected_projects: Json | null
           status: string
           suggested_projects: Json | null
+          tailored_resume: Json | null
           updated_at: string
         }
         Insert: {
@@ -42,6 +44,7 @@ export type Database = {
           id?: string
           jd_analysis?: Json | null
           job_description?: string | null
+          match_bucket?: string
           profile_id: string
           rewritten_bullets?: Json | null
           role_title?: string
@@ -49,6 +52,7 @@ export type Database = {
           selected_projects?: Json | null
           status?: string
           suggested_projects?: Json | null
+          tailored_resume?: Json | null
           updated_at?: string
         }
         Update: {
@@ -60,6 +64,7 @@ export type Database = {
           id?: string
           jd_analysis?: Json | null
           job_description?: string | null
+          match_bucket?: string
           profile_id?: string
           rewritten_bullets?: Json | null
           role_title?: string
@@ -67,6 +72,7 @@ export type Database = {
           selected_projects?: Json | null
           status?: string
           suggested_projects?: Json | null
+          tailored_resume?: Json | null
           updated_at?: string
         }
         Relationships: [
