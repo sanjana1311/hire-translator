@@ -319,10 +319,11 @@ ${jobDescription}`,
       // ═══════════════════════════════════════════════════════════════════
       if (!resumeText.trim()) {
         // No resume uploaded yet — save signals only
-        await supabaseClient.from("job_workspaces").update({
+        const { error: sigErr } = await supabaseClient.from("job_workspaces").update({
           status: "signals_ready",
           gap_analysis: { message: "Upload your resume to get a match score" },
         }).eq("id", workspaceId);
+        if (sigErr) console.error("Signals-only update failed:", JSON.stringify(sigErr));
 
         return new Response(JSON.stringify({ success: true, step: "signals_ready" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
