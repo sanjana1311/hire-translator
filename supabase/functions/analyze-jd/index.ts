@@ -359,13 +359,17 @@ ${resumeText}`,
       // Determine status based on bucket
       const newStatus = matchScore.bucket === "D" ? "weak_match" : "scored";
 
-      await supabaseClient.from("job_workspaces").update({
+      const { error: updateErr2 } = await supabaseClient.from("job_workspaces").update({
         ats_score: matchScore.overall_score || 0,
         baseline_score: matchScore.overall_score || 0,
         match_bucket: matchScore.bucket || "",
         gap_analysis: matchScore,
         status: newStatus,
       }).eq("id", workspaceId);
+      if (updateErr2) {
+        console.error("Step 2 DB update failed:", JSON.stringify(updateErr2));
+        throw new Error("Failed to save match score: " + updateErr2.message);
+      }
 
       return new Response(JSON.stringify({
         success: true,
