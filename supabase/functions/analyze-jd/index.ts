@@ -303,12 +303,16 @@ ${jobDescription}`,
       }));
 
       // Save JD signals + update company/role
-      await supabaseClient.from("job_workspaces").update({
+      const { error: updateErr1 } = await supabaseClient.from("job_workspaces").update({
         company: jdSignals.company || ws.company || "",
         role_title: jdSignals.job_title || ws.role_title || "",
         jd_analysis: jdSignals,
         status: "analyzing",
       }).eq("id", workspaceId);
+      if (updateErr1) {
+        console.error("Step 1 DB update failed:", JSON.stringify(updateErr1));
+        throw new Error("Failed to save JD signals: " + updateErr1.message);
+      }
 
       // ═══════════════════════════════════════════════════════════════════
       // STEP 2 — Match Scoring (auto-runs after Step 1)
