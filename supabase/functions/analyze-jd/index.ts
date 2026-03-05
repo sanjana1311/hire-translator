@@ -428,9 +428,13 @@ ${JSON.stringify({
 
       console.log(`Step 3 complete: ${projectResult.projects?.length || 0} projects suggested`);
 
-      await supabaseClient.from("job_workspaces").update({
+      const { error: updateErr3 } = await supabaseClient.from("job_workspaces").update({
         suggested_projects: projectResult.projects || [],
       }).eq("id", workspaceId);
+      if (updateErr3) {
+        console.error("Step 3 DB update failed:", JSON.stringify(updateErr3));
+        throw new Error("Failed to save projects: " + updateErr3.message);
+      }
 
       return new Response(JSON.stringify({
         success: true,
