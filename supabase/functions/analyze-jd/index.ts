@@ -506,13 +506,17 @@ Return the full tailored resume with:
       // Calculate final score delta
       const baselineScore = ws.baseline_score || ws.ats_score || 0;
 
-      await supabaseClient.from("job_workspaces").update({
+      const { error: updateErr4 } = await supabaseClient.from("job_workspaces").update({
         tailored_resume: tailored,
         rewritten_bullets: tailored.experience?.flatMap((e: any) =>
           (e.bullets || []).map((b: string) => ({ rewritten: b, company: e.company, title: e.title }))
         ) || [],
         status: "ready",
       }).eq("id", workspaceId);
+      if (updateErr4) {
+        console.error("Step 4 DB update failed:", JSON.stringify(updateErr4));
+        throw new Error("Failed to save tailored resume: " + updateErr4.message);
+      }
 
       return new Response(JSON.stringify({
         success: true,
