@@ -303,22 +303,27 @@ ${jobDescription}`,
       }));
 
       // Save JD signals + update company/role
-      await supabaseClient.from("job_workspaces").update({
+      const { error: updateErr1 } = await supabaseClient.from("job_workspaces").update({
         company: jdSignals.company || ws.company || "",
         role_title: jdSignals.job_title || ws.role_title || "",
         jd_analysis: jdSignals,
         status: "analyzing",
       }).eq("id", workspaceId);
+      if (updateErr1) {
+        console.error("Step 1 DB update failed:", JSON.stringify(updateErr1));
+        throw new Error("Failed to save JD signals: " + updateErr1.message);
+      }
 
       // ═══════════════════════════════════════════════════════════════════
       // STEP 2 — Match Scoring (auto-runs after Step 1)
       // ═══════════════════════════════════════════════════════════════════
       if (!resumeText.trim()) {
         // No resume uploaded yet — save signals only
-        await supabaseClient.from("job_workspaces").update({
+        const { error: sigErr } = await supabaseClient.from("job_workspaces").update({
           status: "signals_ready",
           gap_analysis: { message: "Upload your resume to get a match score" },
         }).eq("id", workspaceId);
+        if (sigErr) console.error("Signals-only update failed:", JSON.stringify(sigErr));
 
         return new Response(JSON.stringify({ success: true, step: "signals_ready" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -354,13 +359,17 @@ ${resumeText}`,
       // Determine status based on bucket
       const newStatus = matchScore.bucket === "D" ? "weak_match" : "scored";
 
-      await supabaseClient.from("job_workspaces").update({
+      const { error: updateErr2 } = await supabaseClient.from("job_workspaces").update({
         ats_score: matchScore.overall_score || 0,
         baseline_score: matchScore.overall_score || 0,
         match_bucket: matchScore.bucket || "",
         gap_analysis: matchScore,
         status: newStatus,
       }).eq("id", workspaceId);
+      if (updateErr2) {
+        console.error("Step 2 DB update failed:", JSON.stringify(updateErr2));
+        throw new Error("Failed to save match score: " + updateErr2.message);
+      }
 
       return new Response(JSON.stringify({
         success: true,
@@ -419,9 +428,13 @@ ${JSON.stringify({
 
       console.log(`Step 3 complete: ${projectResult.projects?.length || 0} projects suggested`);
 
-      await supabaseClient.from("job_workspaces").update({
+      const { error: updateErr3 } = await supabaseClient.from("job_workspaces").update({
         suggested_projects: projectResult.projects || [],
       }).eq("id", workspaceId);
+      if (updateErr3) {
+        console.error("Step 3 DB update failed:", JSON.stringify(updateErr3));
+        throw new Error("Failed to save projects: " + updateErr3.message);
+      }
 
       return new Response(JSON.stringify({
         success: true,
@@ -493,13 +506,17 @@ Return the full tailored resume with:
       // Calculate final score delta
       const baselineScore = ws.baseline_score || ws.ats_score || 0;
 
-      await supabaseClient.from("job_workspaces").update({
+      const { error: updateErr4 } = await supabaseClient.from("job_workspaces").update({
         tailored_resume: tailored,
         rewritten_bullets: tailored.experience?.flatMap((e: any) =>
           (e.bullets || []).map((b: string) => ({ rewritten: b, company: e.company, title: e.title }))
         ) || [],
         status: "ready",
       }).eq("id", workspaceId);
+      if (updateErr4) {
+        console.error("Step 4 DB update failed:", JSON.stringify(updateErr4));
+        throw new Error("Failed to save tailored resume: " + updateErr4.message);
+      }
 
       return new Response(JSON.stringify({
         success: true,
