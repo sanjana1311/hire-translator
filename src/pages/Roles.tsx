@@ -238,7 +238,7 @@ Output complete rewritten resume:`, 4000);
                 </div>
               </div>
               <div className="mt-4 pt-3.5 border-t border-border flex gap-2 flex-wrap">
-                <a href={selected.url} target="_blank" rel="noreferrer" className="text-xs font-medium text-primary hover:underline">View on LinkedIn ↗</a>
+                <button onClick={() => window.open(selected.url, '_blank', 'noopener,noreferrer')} className="text-xs font-medium text-primary hover:underline cursor-pointer bg-transparent border-none p-0">View on LinkedIn ↗</button>
                 {isApplied ? (
                   <span className="text-xs font-medium px-3 py-1 rounded-[6px] border" style={{ background: "hsl(150 38% 96%)", borderColor: "hsl(152 34% 82%)", color: "hsl(153 40% 30%)" }}>
                     Applied ✓
