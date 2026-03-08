@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { callAI } from "@/lib/ai";
 import { useGmailImport } from "@/hooks/use-gmail-import";
 import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
   INITIAL_JOBS, RESUME_TEXT, BUCKET_META,
@@ -35,77 +34,100 @@ interface AnalysisResult {
   error?: boolean;
 }
 
-const CACHE_KEY_RESULTS = "cc_role_results";
-const CACHE_KEY_RESUMES = "cc_role_resumes";
-
-const loadCache = <T,>(key: string): T | null => {
-  try {
-    const raw = sessionStorage.getItem(key);
-    if (!raw) return null;
-    const { data, ts } = JSON.parse(raw);
-    if (Date.now() - ts > 3600000) return null;
-    return data as T;
-  } catch { return null; }
-};
-
-const saveCache = (key: string, data: any) => {
-  try {
-    sessionStorage.setItem(key, JSON.stringify({ data, ts: Date.now() }));
-  } catch { /* storage full — ignore */ }
-};
-
 const Roles = () => {
   const navigate = useNavigate();
-  const cachedResults = loadCache<Record<number, AnalysisResult>>(CACHE_KEY_RESULTS);
-  const cachedResumes = loadCache<Record<number, string>>(CACHE_KEY_RESUMES);
-
-  const [results, setResults] = useState<Record<number, AnalysisResult>>(cachedResults || {});
-  const [resumes, setResumes] = useState<Record<number, string>>(cachedResumes || {});
+  const [results, setResults] = useState<Record<number, AnalysisResult>>({});
+  const [resumes, setResumes] = useState<Record<number, string>>({});
   const [aLoading, setAL] = useState<Set<number>>(new Set());
   const [rLoading, setRL] = useState<Set<number>>(new Set());
-  const [doneCount, setDone] = useState(cachedResults ? Object.keys(cachedResults).length : 0);
+  const [doneCount, setDone] = useState(0);
   const [selected, setSelected] = useState<Job | null>(null);
   const [jobTab, setJobTab] = useState("all");
   const [rtab, setRtab] = useState("tailored");
   const [copied, setCopied] = useState(false);
   const [appliedJobs, setAppliedJobs] = useState<Set<number>>(new Set());
   const [applyLoading, setApplyLoading] = useState(false);
-  const didRun = useRef(!!cachedResults);
+  const [dbLoaded, setDbLoaded] = useState(false);
+  const didRun = useRef(false);
   const { data: profile } = useProfile();
   const { importJobs, loading: gmailLoading, jobs: gmailJobs, unseenCount, lastSyncedAt, markSeen } = useGmailImport(profile?.id ?? null);
   const [showGmailJobs, setShowGmailJobs] = useState(false);
 
   const jobs = INITIAL_JOBS;
 
-  // Load applied status on mount
+  // Load persisted analyses + applied status from DB on mount
   useEffect(() => {
     if (!profile?.id) return;
-    const loadApplied = async () => {
-      const { data } = await supabase
+    const loadFromDB = async () => {
+      // Load analyses
+      const { data: analyses } = await supabase
+        .from("role_analyses")
+        .select("*")
+        .eq("profile_id", profile.id);
+
+      if (analyses && analyses.length > 0) {
+        const loadedResults: Record<number, AnalysisResult> = {};
+        const loadedResumes: Record<number, string> = {};
+        for (const a of analyses) {
+          loadedResults[a.job_seed_id] = {
+            score: a.score,
+            bucket: a.bucket,
+            matchSummary: a.match_summary || "",
+            strengths: (a.strengths as string[]) || [],
+            gaps: (a.gaps as string[]) || [],
+            missingKeywords: (a.missing_keywords as string[]) || [],
+            error: a.error || false,
+          };
+          if (a.tailored_resume) {
+            loadedResumes[a.job_seed_id] = a.tailored_resume;
+          }
+        }
+        setResults(loadedResults);
+        setResumes(loadedResumes);
+        setDone(Object.keys(loadedResults).length);
+      }
+
+      // Load applied jobs
+      const { data: apps } = await supabase
         .from("applications")
         .select("job_seed_id")
         .eq("profile_id", profile.id);
-      if (data) {
-        setAppliedJobs(new Set(data.map(d => d.job_seed_id).filter(Boolean) as number[]));
+      if (apps) {
+        setAppliedJobs(new Set(apps.map(d => d.job_seed_id).filter(Boolean) as number[]));
       }
+
+      setDbLoaded(true);
     };
-    loadApplied();
+    loadFromDB();
   }, [profile?.id]);
 
-  // Persist results to sessionStorage on change
+  // After DB load, run analysis for any jobs not yet scored
   useEffect(() => {
-    if (Object.keys(results).length > 0) saveCache(CACHE_KEY_RESULTS, results);
-  }, [results]);
-
-  useEffect(() => {
-    if (Object.keys(resumes).length > 0) saveCache(CACHE_KEY_RESUMES, resumes);
-  }, [resumes]);
-
-  useEffect(() => {
-    if (didRun.current) return;
+    if (!dbLoaded || !profile?.id || didRun.current) return;
     didRun.current = true;
-    jobs.forEach((job, i) => setTimeout(() => analyzeJob(job), i * 300));
-  }, []);
+    const unjudged = jobs.filter(j => !results[j.id] || results[j.id]?.error);
+    if (unjudged.length === 0) return;
+    unjudged.forEach((job, i) => setTimeout(() => analyzeJob(job), i * 300));
+  }, [dbLoaded, profile?.id]);
+
+  const saveAnalysisToDB = async (jobId: number, result: AnalysisResult, resumeText?: string) => {
+    if (!profile?.id) return;
+    const payload: any = {
+      profile_id: profile.id,
+      job_seed_id: jobId,
+      score: result.score,
+      bucket: result.bucket,
+      match_summary: result.matchSummary,
+      strengths: result.strengths,
+      gaps: result.gaps,
+      missing_keywords: result.missingKeywords,
+      error: result.error || false,
+      updated_at: new Date().toISOString(),
+    };
+    if (resumeText) payload.tailored_resume = resumeText;
+
+    await supabase.from("role_analyses").upsert(payload, { onConflict: "profile_id,job_seed_id" });
+  };
 
   const analyzeJob = async (job: Job) => {
     setAL(prev => new Set([...prev, job.id]));
@@ -122,18 +144,21 @@ bucket: must>=75, tweak 40-74, low<40`, 600);
         const parsed = JSON.parse(raw);
         scoreResult = parsed;
         setResults(prev => ({ ...prev, [job.id]: parsed }));
+        // Save to DB
+        saveAnalysisToDB(job.id, parsed);
       } catch (e) {
         console.error('Scoring parse failed:', e, 'Raw was:', raw);
-        setResults(prev => ({ ...prev, [job.id]: { error: true, score: 0, bucket: "low", matchSummary: `Scoring returned unparseable response. Raw: ${raw.slice(0, 200)}`, strengths: [], gaps: [], missingKeywords: [] } }));
+        const errResult: AnalysisResult = { error: true, score: 0, bucket: "low", matchSummary: `Scoring returned unparseable response. Raw: ${raw.slice(0, 200)}`, strengths: [], gaps: [], missingKeywords: [] };
+        setResults(prev => ({ ...prev, [job.id]: errResult }));
       }
     } catch (e: any) {
       console.error('Scoring call failed:', e);
-      setResults(prev => ({ ...prev, [job.id]: { error: true, score: 0, bucket: "low", matchSummary: `AI call failed: ${e?.message || 'Unknown error'}`, strengths: [], gaps: [], missingKeywords: [] } }));
+      const errResult: AnalysisResult = { error: true, score: 0, bucket: "low", matchSummary: `AI call failed: ${e?.message || 'Unknown error'}`, strengths: [], gaps: [], missingKeywords: [] };
+      setResults(prev => ({ ...prev, [job.id]: errResult }));
     }
     setDone(prev => prev + 1);
     setAL(prev => { const s = new Set(prev); s.delete(job.id); return s; });
 
-    // Gate: only run resume rewrite if scoring succeeded
     if (!scoreResult || scoreResult.error) return;
 
     setRL(prev => new Set([...prev, job.id]));
@@ -145,6 +170,8 @@ JD: ${job.description}
 WEAVE IN: ${scoreResult.missingKeywords?.join(", ")}
 Output complete rewritten resume:`, 4000);
       setResumes(prev => ({ ...prev, [job.id]: resumeText }));
+      // Save resume to DB
+      saveAnalysisToDB(job.id, scoreResult, resumeText);
     } catch (e: any) {
       console.error('Resume rewrite failed:', e);
     }
@@ -181,7 +208,6 @@ Output complete rewritten resume:`, 4000);
   };
 
   const analysisInProgress = aLoading.size > 0;
-  const totalAnalyzed = Object.keys(results).length;
   const isRunning = aLoading.size > 0 || rLoading.size > 0;
   const pct = Math.round((doneCount / jobs.length) * 100);
   const visibleJobs = jobTab === "all" ? jobs : (buckets[jobTab as keyof typeof buckets] || []);
@@ -197,9 +223,8 @@ Output complete rewritten resume:`, 4000);
           ← All roles
         </button>
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.1fr] gap-6 items-start">
-          {/* Left column — scrollable */}
+          {/* Left column */}
           <div className="flex flex-col gap-3">
-            {/* Header card */}
             <div className="bg-card border border-border rounded-[11px] p-5">
               <div className="flex gap-3.5 items-start">
                 <div className="w-12 h-12 bg-foreground rounded-lg flex items-center justify-center shrink-0">
@@ -266,7 +291,6 @@ Output complete rewritten resume:`, 4000);
               </div>
             ) : (
               <div className="animate-fade-up flex flex-col gap-2.5">
-                {/* ATS Score Card */}
                 <div className="rounded-[11px] p-5 flex items-center gap-5" style={{ background: scoreBg(r.score), border: `1px solid ${scoreBorder(r.score)}` }}>
                   <div className="shrink-0 text-center">
                     <div className="font-serif text-[52px] leading-none" style={{ color: scoreColor(r.score) }}>{r.score}</div>
@@ -282,7 +306,6 @@ Output complete rewritten resume:`, 4000);
                   </div>
                 </div>
 
-                {/* Strengths / Gaps two-column grid */}
                 <div className="grid grid-cols-2 gap-2.5">
                   <div className="rounded-[10px] p-4" style={{ background: "hsl(150 38% 96%)", border: "1px solid hsl(152 34% 82%)" }}>
                     <div className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: "hsl(153 40% 30%)" }}>Strengths</div>
@@ -290,9 +313,7 @@ Output complete rewritten resume:`, 4000);
                       <div key={i} className="flex gap-1.5 mb-2 text-xs leading-relaxed" style={{ color: "hsl(153 30% 25%)" }}>
                         <span className="shrink-0 mt-0.5 font-bold" style={{ color: "hsl(153 50% 35%)" }}>✓</span>{s}
                       </div>
-                    )) : (
-                      <p className="text-xs text-muted-foreground italic">No strengths identified</p>
-                    )}
+                    )) : <p className="text-xs text-muted-foreground italic">No strengths identified</p>}
                   </div>
                   <div className="rounded-[10px] p-4" style={{ background: "hsl(0 38% 97%)", border: "1px solid hsl(348 28% 85%)" }}>
                     <div className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: "hsl(348 46% 28%)" }}>Gaps</div>
@@ -300,13 +321,10 @@ Output complete rewritten resume:`, 4000);
                       <div key={i} className="flex gap-1.5 mb-2 text-xs leading-relaxed" style={{ color: "hsl(348 30% 30%)" }}>
                         <span className="shrink-0 mt-0.5 font-bold" style={{ color: "hsl(348 50% 35%)" }}>→</span>{g}
                       </div>
-                    )) : (
-                      <p className="text-xs text-muted-foreground italic">No gaps identified</p>
-                    )}
+                    )) : <p className="text-xs text-muted-foreground italic">No gaps identified</p>}
                   </div>
                 </div>
 
-                {/* Missing ATS Keywords */}
                 {(r.missingKeywords?.length ?? 0) > 0 && (
                   <div className="bg-card border border-border rounded-[10px] p-4">
                     <div className="text-[10px] font-bold uppercase tracking-widest text-secondary-foreground mb-2.5">Missing ATS Keywords</div>
@@ -414,7 +432,6 @@ Output complete rewritten resume:`, 4000);
         )}
       </div>
 
-      {/* Gmail imported jobs */}
       {gmailJobs.length > 0 && (showGmailJobs || unseenCount > 0) && (
         <div className="mb-5 bg-card border border-border rounded-[11px] p-4">
           <div className="flex items-center justify-between mb-3">
@@ -424,11 +441,6 @@ Output complete rewritten resume:`, 4000);
               <span className="text-[11px] text-muted-foreground">
                 ({unseenCount > 0 ? `${unseenCount} new` : `${gmailJobs.length} total`})
               </span>
-              {lastSyncedAt && (
-                <span className="text-[10px] text-muted-foreground">
-                  · Last sync: {new Date(lastSyncedAt).toLocaleDateString()}
-                </span>
-              )}
             </div>
             <button onClick={() => setShowGmailJobs(false)} className="text-xs text-muted-foreground hover:text-foreground">
               Dismiss
@@ -440,18 +452,11 @@ Output complete rewritten resume:`, 4000);
                 <div>
                   <div className="text-sm font-medium">{gj.title}</div>
                   <div className="text-xs text-muted-foreground">{gj.company} · {gj.location}</div>
-                  {gj.snippet && <p className="text-[11px] text-muted-foreground mt-1 line-clamp-1">{gj.snippet}</p>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0 ml-3">
                   <span className="text-[10px] text-muted-foreground bg-secondary border border-border rounded px-1.5 py-0.5">{gj.source}</span>
-                  {!gj.seen && (
-                    <button onClick={() => markSeen(gj.id)} className="text-[10px] text-muted-foreground hover:text-foreground">✓</button>
-                  )}
-                  {gj.url && (
-                    <a href={gj.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">
-                      Apply ↗
-                    </a>
-                  )}
+                  {!gj.seen && <button onClick={() => markSeen(gj.id)} className="text-[10px] text-muted-foreground hover:text-foreground">✓</button>}
+                  {gj.url && <a href={gj.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">Apply ↗</a>}
                 </div>
               </div>
             ))}
@@ -459,7 +464,6 @@ Output complete rewritten resume:`, 4000);
         </div>
       )}
 
-      {/* Filter tabs — no Pending tab */}
       <div className="flex gap-0.5 border-b border-border mb-4">
         {[
           ["all", `All (${jobs.length})`],
@@ -471,9 +475,7 @@ Output complete rewritten resume:`, 4000);
             key={k}
             onClick={() => setJobTab(k)}
             className={`text-[12.5px] px-3 py-1.5 -mb-px transition-colors ${
-              jobTab === k
-                ? "text-foreground font-semibold border-b-2 border-foreground"
-                : "text-muted-foreground border-b-2 border-transparent"
+              jobTab === k ? "text-foreground font-semibold border-b-2 border-foreground" : "text-muted-foreground border-b-2 border-transparent"
             }`}
           >
             {lbl}
@@ -481,7 +483,6 @@ Output complete rewritten resume:`, 4000);
         ))}
       </div>
 
-      {/* Job cards */}
       <div className="flex flex-col gap-1.5">
         {visibleJobs.map((job, i) => {
           const r = results[job.id];
