@@ -1,190 +1,251 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { callAI } from "@/lib/ai";
-import { INITIAL_JOBS, type Job } from "@/data/seed";
+import { INITIAL_JOBS, RESUME_TEXT, type Job } from "@/data/seed";
+import SectionShell from "@/components/prep/SectionShell";
+import CompanyDeepDive, { type CompanyData } from "@/components/prep/CompanyDeepDive";
+import HiringSignals, { type SignalsData } from "@/components/prep/HiringSignals";
+import ResumeAlignment, { type AlignmentData } from "@/components/prep/ResumeAlignment";
+import BehavioralPrep, { type BehavioralQuestion } from "@/components/prep/BehavioralPrep";
+import TechnicalPrep, { type TechnicalQuestion } from "@/components/prep/TechnicalPrep";
+import MockInterview from "@/components/prep/MockInterview";
+import ReadinessScore from "@/components/prep/ReadinessScore";
+import PrepSpinner from "@/components/prep/PrepSpinner";
+import { initials } from "@/data/seed";
 
-const Spinner = ({ size = 16 }: { size?: number }) => (
-  <div className="border-2 border-border border-t-foreground rounded-full animate-spin" style={{ width: size, height: size }} />
-);
-
-interface QItem { q: string; hint: string }
-interface PrepData {
-  behavioralQuestions?: QItem[];
-  technicalQuestions?: QItem[];
-  productQuestions?: QItem[];
-  caseQuestion?: QItem;
-  mustKnow?: string[];
-  error?: boolean;
+interface PrepState {
+  company: CompanyData | null;
+  signals: SignalsData | null;
+  alignment: AlignmentData | null;
+  behavioral: BehavioralQuestion[] | null;
+  technical: TechnicalQuestion[] | null;
 }
 
 const InterviewPrep = () => {
   const [searchParams] = useSearchParams();
-  const [prepJob, setPrepJob] = useState<Job | null>(null);
-  const [prepResult, setPrepResult] = useState<Record<number, PrepData>>({});
-  const [prepLoading, setPrepLoading] = useState<number | null>(null);
-  const [activeQ, setActiveQ] = useState<string | null>(null);
-  const [userAnswer, setUserAnswer] = useState("");
-  const [feedback, setFeedback] = useState<Record<string, string>>({});
-  const [fbLoading, setFbLoading] = useState<string | null>(null);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [state, setState] = useState<PrepState>({ company: null, signals: null, alignment: null, behavioral: null, technical: null });
+  const [loading, setLoading] = useState({ company: false, signals: false, alignment: false, behavioral: false, technical: false });
+  const [mockCompleted, setMockCompleted] = useState(false);
 
-  // Auto-select job from URL param
+  // Auto-select job from URL
   useEffect(() => {
     const jobId = searchParams.get("jobId");
-    if (jobId && !prepJob) {
+    if (jobId && !selectedJob) {
       const job = INITIAL_JOBS.find(j => j.id === Number(jobId));
-      if (job) {
-        setPrepJob(job);
-        if (!prepResult[job.id]) generatePrep(job);
-      }
+      if (job) selectJob(job);
     }
   }, [searchParams]);
 
-  const generatePrep = async (job: Job) => {
-    setPrepLoading(job.id);
+  const selectJob = (job: Job) => {
+    setSelectedJob(job);
+    setState({ company: null, signals: null, alignment: null, behavioral: null, technical: null });
+    setMockCompleted(false);
+    // Fire all generation calls in parallel
+    generateCompany(job);
+    generateSignals(job);
+    generateAlignment(job);
+    generateBehavioral(job);
+    generateTechnical(job);
+  };
+
+  const parseJSON = (raw: string) => {
+    const cleaned = raw.replace(/```json|```/g, "").trim();
+    return JSON.parse(cleaned);
+  };
+
+  const generateCompany = async (job: Job) => {
+    setLoading(p => ({ ...p, company: true }));
     try {
-      const raw = await callAI(`Expert PM interview coach. Return ONLY valid JSON.
-Candidate: Sanjana Ravikumar — PM at Tesla GenAI, PMP, 4+ years, 0→1 AI products.
-Role: ${job.title} at ${job.company}
+      const raw = await callAI(`Company research analyst. Return ONLY valid JSON. Research ${job.company} for a candidate interviewing for ${job.title}.
+
+Return: {
+  "companyOverview":"what the company does (2-3 sentences)",
+  "businessModel":"how they make money",
+  "revenueStreams":"key revenue streams",
+  "recentNews":["3 recent developments or news items"],
+  "productLaunches":["recent product launches or features"],
+  "aiDirection":"their AI/technology strategy",
+  "competitiveLandscape":"key competitors and positioning",
+  "roleContext":"how this role fits into the org",
+  "whyHiring":"why they are likely hiring for this role",
+  "talkingPoints":["5 insights the candidate should mention in interviews"]
+}`, 2000);
+      setState(p => ({ ...p, company: parseJSON(raw) }));
+    } catch (e) { console.error("Company gen failed:", e); }
+    setLoading(p => ({ ...p, company: false }));
+  };
+
+  const generateSignals = async (job: Job) => {
+    setLoading(p => ({ ...p, signals: true }));
+    try {
+      const raw = await callAI(`Hiring signal analyst. Return ONLY valid JSON. Analyze this JD for ${job.title} at ${job.company}.
+
 JD: ${job.description}
 
 Return: {
-  "behavioralQuestions": [{"q":"question","hint":"what they really want to hear, given Sanjana's background"}],
-  "technicalQuestions":  [{"q":"question","hint":"hint"}],
-  "productQuestions":    [{"q":"question","hint":"hint"}],
-  "caseQuestion":        {"q":"full case prompt tailored to this role","hint":"framework to use"},
-  "mustKnow":            ["5 things to know about ${job.company}'s product/strategy before this interview"]
-}
-Include 3 questions per category.`, 3000);
-      const parsed = JSON.parse(raw);
-      setPrepResult(prev => ({ ...prev, [job.id]: parsed }));
-    } catch (err) {
-      console.error("Interview prep parse error:", err);
-      setPrepResult(prev => ({ ...prev, [job.id]: { error: true } }));
-    }
-    setPrepLoading(null);
+  "coreSkills":["core skills required"],
+  "hiddenSignals":["hidden hiring signals from the JD language"],
+  "technologies":["technologies mentioned or implied"],
+  "leadershipExpectations":["leadership expectations"],
+  "crossFunctional":["cross-functional expectations"],
+  "mustDemonstrate":["things candidate MUST demonstrate"],
+  "niceToDemonstrate":["nice to have demonstrations"],
+  "redFlags":["potential red flags or traps to avoid"]
+}`, 1500);
+      setState(p => ({ ...p, signals: parseJSON(raw) }));
+    } catch (e) { console.error("Signals gen failed:", e); }
+    setLoading(p => ({ ...p, signals: false }));
   };
 
-  const getFeedback = async (question: string, answer: string, jobTitle: string) => {
-    const key = question.slice(0, 30);
-    setFbLoading(key);
+  const generateAlignment = async (job: Job) => {
+    setLoading(p => ({ ...p, alignment: true }));
     try {
-      const fb = await callAI(`PM interview coach. Give honest, direct feedback on this answer. 3-5 sentences. Call out what's strong and what's weak. Be specific.
-Role: ${jobTitle}
-Question: ${question}
-Candidate's answer: ${answer}
-Feedback:`, 400);
-      setFeedback(prev => ({ ...prev, [key]: fb }));
-    } catch { setFeedback(prev => ({ ...prev, [key]: "Could not generate feedback." })); }
-    setFbLoading(null);
+      const raw = await callAI(`ATS resume analyst. Return ONLY valid JSON. Compare this resume against the JD.
+
+RESUME: ${RESUME_TEXT}
+JD: ${job.title} at ${job.company} — ${job.description}
+
+Return: {
+  "strongMatches":["3-4 strong matches between resume and JD"],
+  "weakAreas":["3-4 weak areas or missing signals"],
+  "improvedBullets":[{"original":"original bullet from resume","improved":"rewritten bullet tailored to this role","why":"why this is better"}]
+}
+Include exactly 3 improved bullets.`, 2000);
+      setState(p => ({ ...p, alignment: parseJSON(raw) }));
+    } catch (e) { console.error("Alignment gen failed:", e); }
+    setLoading(p => ({ ...p, alignment: false }));
   };
 
-  if (prepJob) {
-    const p = prepResult[prepJob.id];
-    const sections: [string, QItem[] | undefined, string, string, string][] = [
-      ["Behavioral", p?.behavioralQuestions, "hsl(153 40% 30%)", "hsl(150 38% 96%)", "hsl(152 34% 82%)"],
-      ["Technical", p?.technicalQuestions, "hsl(226 71% 48%)", "hsl(214 100% 97%)", "hsl(213 93% 87%)"],
-      ["Product", p?.productQuestions, "hsl(25 84% 31%)", "hsl(37 60% 97%)", "hsl(37 40% 80%)"],
-    ];
+  const generateBehavioral = async (job: Job) => {
+    setLoading(p => ({ ...p, behavioral: true }));
+    try {
+      const raw = await callAI(`Expert behavioral interview coach. Return ONLY valid JSON. Generate STAR prompts for ${job.title} at ${job.company}.
 
+Candidate resume: ${RESUME_TEXT.slice(0, 800)}
+JD: ${job.description}
+
+Return: {"questions":[{"scenario":"short category label","question":"the behavioral question","whyAsked":"why interviewers ask this","strongAnswer":"what a strong answer looks like","suggestedAngle":"suggested personal story angle based on the candidate resume"}]}
+Include exactly 5 questions covering: ambiguous programs, stakeholder conflict, large-scale initiatives, handling failures, cross-functional leadership.`, 3000);
+      const parsed = parseJSON(raw);
+      setState(p => ({ ...p, behavioral: parsed.questions || parsed }));
+    } catch (e) { console.error("Behavioral gen failed:", e); }
+    setLoading(p => ({ ...p, behavioral: false }));
+  };
+
+  const generateTechnical = async (job: Job) => {
+    setLoading(p => ({ ...p, technical: true }));
+    try {
+      const raw = await callAI(`Expert technical interviewer. Return ONLY valid JSON. Generate role-specific technical/domain questions for ${job.title} at ${job.company}.
+
+JD: ${job.description}
+
+Return: {"questions":[{"category":"category name","question":"the question","whatTheyTest":"what the interviewer is evaluating","frameworks":"key frameworks or models to use","answerStructure":"suggested answer structure"}]}
+Include 6 questions across categories like: system design, infrastructure, program execution, technical tradeoffs, domain knowledge, estimation.`, 2500);
+      const parsed = parseJSON(raw);
+      setState(p => ({ ...p, technical: parsed.questions || parsed }));
+    } catch (e) { console.error("Technical gen failed:", e); }
+    setLoading(p => ({ ...p, technical: false }));
+  };
+
+  const anyLoading = Object.values(loading).some(Boolean);
+  const loadedCount = [state.company, state.signals, state.alignment, state.behavioral, state.technical].filter(Boolean).length;
+
+  if (selectedJob) {
     return (
-      <div className="max-w-[880px] mx-auto p-7 animate-fade-up">
-        <button onClick={() => { setPrepJob(null); setActiveQ(null); setUserAnswer(""); }} className="bg-transparent border border-border text-muted-foreground rounded-[6px] px-3 py-1 text-xs mb-5 hover:text-foreground transition-colors">
+      <div className="max-w-[900px] mx-auto p-7 animate-fade-up">
+        <button
+          onClick={() => setSelectedJob(null)}
+          className="bg-transparent border border-border text-muted-foreground rounded-[6px] px-3 py-1 text-xs mb-5 hover:text-foreground transition-colors"
+        >
           ← All roles
         </button>
 
-        {prepLoading === prepJob.id ? (
-          <div className="text-center py-12 bg-card border border-border rounded-[11px]">
-            <Spinner size={20} />
-            <p className="animate-pulse-dot text-xs text-muted-foreground mt-3">Building your personalized interview guide…</p>
+        {/* Header */}
+        <div className="bg-card border border-border rounded-xl p-5 mb-4 flex items-center gap-4">
+          <div className="w-12 h-12 bg-foreground rounded-lg flex items-center justify-center shrink-0">
+            <span className="text-background text-xs font-bold">{initials(selectedJob.company)}</span>
           </div>
-        ) : p?.error ? (
-          <div className="text-xs text-muted-foreground">Failed — retry.</div>
-        ) : p ? (
-          <div className="flex flex-col gap-3.5">
-            {p.mustKnow && (
-              <div className="bg-card border border-border rounded-[11px] p-4">
-                <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide mb-2.5">Must Know Before This Interview</div>
-                {p.mustKnow.map((item, i) => (
-                  <div key={i} className="flex gap-1.5 mb-2 text-xs leading-relaxed"><span className="font-bold shrink-0">{i + 1}.</span>{item}</div>
-                ))}
-              </div>
-            )}
-            {sections.map(([title, qs, color, bg, border]) => (
-              <div key={title} className="bg-card border border-border rounded-[11px] p-4">
-                <div className="text-[10px] font-bold uppercase tracking-wide mb-3" style={{ color }}>{title} Questions</div>
-                {qs?.map((item, i) => {
-                  const qKey = item.q.slice(0, 30);
-                  const isActive = activeQ === qKey;
-                  return (
-                    <div key={i} className="mb-2.5 rounded-lg transition-colors" style={{ background: isActive ? bg : "transparent", border: isActive ? `1px solid ${border}` : "1px solid transparent", padding: isActive ? 14 : 0 }}>
-                      <div
-                        className="flex items-start justify-between gap-2.5 cursor-pointer"
-                        style={{ padding: isActive ? 0 : "10px 0", borderBottom: !isActive ? "1px solid hsl(var(--border))" : "none" }}
-                        onClick={() => { setActiveQ(isActive ? null : qKey); setUserAnswer(""); }}
-                      >
-                        <span className="text-xs font-medium leading-relaxed">{item.q}</span>
-                        <span className="text-[11px] shrink-0 mt-0.5" style={{ color }}>{isActive ? "▲" : "▼"}</span>
-                      </div>
-                      {isActive && (
-                        <div className="animate-fade-up mt-2.5">
-                          <div className="text-[11.5px] italic mb-2.5" style={{ color }}>💡 {item.hint}</div>
-                          <textarea
-                            value={userAnswer}
-                            onChange={e => setUserAnswer(e.target.value)}
-                            placeholder="Type your answer to get AI feedback…"
-                            className="w-full bg-card border border-border rounded-[6px] p-2.5 text-xs min-h-[100px] outline-none leading-relaxed resize-y"
-                          />
-                          <div className="flex gap-2 mt-2">
-                            <button
-                              onClick={() => getFeedback(item.q, userAnswer, prepJob.title)}
-                              disabled={!userAnswer.trim() || fbLoading === qKey}
-                              className="bg-foreground text-background rounded-[6px] px-3 py-1 text-xs font-semibold disabled:opacity-40"
-                            >
-                              {fbLoading === qKey ? "Getting feedback…" : "Get AI Feedback"}
-                            </button>
-                          </div>
-                          {feedback[qKey] && (
-                            <div className="animate-fade-up mt-2.5 bg-card border border-border rounded-lg p-3">
-                              <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide mb-2">Feedback</div>
-                              <p className="text-xs leading-relaxed">{feedback[qKey]}</p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-            {p.caseQuestion && (
-              <div className="bg-card border border-border rounded-[11px] p-4">
-                <div className="text-[10px] font-bold uppercase tracking-wide mb-2.5" style={{ color: "hsl(348 46% 28%)" }}>Case Question</div>
-                <p className="text-xs font-medium leading-relaxed mb-2">{p.caseQuestion.q}</p>
-                <p className="text-xs italic" style={{ color: "hsl(348 46% 28%)" }}>Framework: {p.caseQuestion.hint}</p>
-              </div>
-            )}
+          <div className="flex-1">
+            <h1 className="font-serif text-xl font-normal">{selectedJob.title}</h1>
+            <p className="text-xs text-muted-foreground">{selectedJob.company} · {selectedJob.location}</p>
           </div>
-        ) : null}
+          {anyLoading && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <PrepSpinner size={14} />
+              <span>Building prep plan… ({loadedCount}/5)</span>
+            </div>
+          )}
+        </div>
+
+        {/* Sections */}
+        <div className="space-y-3">
+          <SectionShell number={1} title="Company Deep Dive" subtitle="Strategic context, news, and talking points" icon="🏢" defaultOpen={true}>
+            <CompanyDeepDive data={state.company} loading={loading.company} />
+          </SectionShell>
+
+          <SectionShell number={2} title="Hiring Signal Analysis" subtitle="What the interviewer is actually testing" icon="🔍">
+            <HiringSignals data={state.signals} loading={loading.signals} />
+          </SectionShell>
+
+          <SectionShell number={3} title="Resume Alignment" subtitle="Strengths, gaps, and improved bullets" icon="📄">
+            <ResumeAlignment data={state.alignment} loading={loading.alignment} />
+          </SectionShell>
+
+          <SectionShell number={4} title="Behavioral Interview Preparation" subtitle="STAR prompts tailored to your background" icon="🎯" badge={`${state.behavioral?.length || 0} questions`}>
+            <BehavioralPrep data={state.behavioral} loading={loading.behavioral} jobTitle={selectedJob.title} />
+          </SectionShell>
+
+          <SectionShell number={5} title="Technical / Domain Preparation" subtitle="Role-specific questions with frameworks" icon="⚙️" badge={`${state.technical?.length || 0} questions`}>
+            <TechnicalPrep data={state.technical} loading={loading.technical} jobTitle={selectedJob.title} />
+          </SectionShell>
+
+          <SectionShell number={6} title="Mock Interview Simulator" subtitle="Practice with an AI interviewer — 5 questions, then scored" icon="🎙️">
+            <MockInterview
+              jobTitle={selectedJob.title}
+              company={selectedJob.company}
+              jobDescription={selectedJob.description}
+              resumeText={RESUME_TEXT}
+            />
+          </SectionShell>
+
+          <SectionShell number={7} title="Interview Readiness Score" subtitle="Your preparation checklist and confidence level" icon="📊" defaultOpen={true}>
+            <ReadinessScore
+              companyLoaded={!!state.company}
+              signalsLoaded={!!state.signals}
+              alignmentLoaded={!!state.alignment}
+              behavioralAnswered={0}
+              behavioralTotal={state.behavioral?.length || 0}
+              technicalAnswered={0}
+              technicalTotal={state.technical?.length || 0}
+              mockCompleted={mockCompleted}
+            />
+          </SectionShell>
+        </div>
       </div>
     );
   }
 
+  // Role selection list
   return (
-    <div className="max-w-[880px] mx-auto p-7 pt-9">
-      <h1 className="font-serif text-[26px] font-normal mb-1">Interview Prep</h1>
-      <p className="text-xs text-muted-foreground mb-5">AI-generated questions tailored to the exact JD and your background — practice with live feedback</p>
-      <div className="flex flex-col gap-1.5">
+    <div className="max-w-[900px] mx-auto p-7 pt-9">
+      <h1 className="font-serif text-[26px] font-normal mb-1">Interview Preparation</h1>
+      <p className="text-xs text-muted-foreground mb-6">Select a role to build your end-to-end preparation plan — company research, signal analysis, behavioral & technical prep, and mock interviews.</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {INITIAL_JOBS.map(job => (
           <div
             key={job.id}
-            onClick={() => { setPrepJob(job); if (!prepResult[job.id]) generatePrep(job); }}
-            className="bg-card border border-border rounded-[9px] p-4 flex items-center justify-between cursor-pointer hover:shadow-sm hover:-translate-y-px transition-all"
+            onClick={() => selectJob(job)}
+            className="bg-card border border-border rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all group"
           >
-            <div>
-              <div className="text-sm font-semibold mb-0.5">{job.title}</div>
+            <div className="w-10 h-10 bg-foreground rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <span className="text-background text-[10px] font-bold">{initials(job.company)}</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold truncate">{job.title}</div>
               <div className="text-xs text-muted-foreground">{job.company} · {job.location}</div>
             </div>
-            <span className="text-xs text-muted-foreground">Prep this role →</span>
+            <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors shrink-0">Prep →</span>
           </div>
         ))}
       </div>
