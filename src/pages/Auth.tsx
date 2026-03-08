@@ -156,6 +156,10 @@ const Auth = () => {
             </div>
           </div>
 
+          <p className="text-[11px] text-muted-foreground leading-relaxed mb-3 text-center">
+            Career Compass reads your Gmail job alert emails to find open roles. We request read-only access — we never send emails, delete anything, or access non-job emails.
+          </p>
+
           <Button
             type="button"
             variant="outline"

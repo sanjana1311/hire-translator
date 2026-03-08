@@ -253,26 +253,18 @@ Output complete rewritten resume:`, 4000);
             ))}
           </div>
         )}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={async () => {
-            const imported = await importJobs();
-            if (imported.length > 0) setShowGmailJobs(true);
-          }}
-          disabled={gmailLoading}
-          className="rounded-[5px] text-xs gap-1.5 ml-2"
-        >
-          {gmailLoading ? (
-            <Spinner size={13} />
-          ) : (
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-              <polyline points="22,6 12,13 2,6" />
-            </svg>
-          )}
-          Import from Gmail
-        </Button>
+        {lastSyncedAt && (
+          <span className="text-[11px] text-muted-foreground ml-2">
+            Last synced {(() => {
+              const diff = Date.now() - new Date(lastSyncedAt).getTime();
+              const mins = Math.floor(diff / 60000);
+              if (mins < 60) return `${mins}m ago`;
+              const hrs = Math.floor(mins / 60);
+              if (hrs < 24) return `${hrs}h ago`;
+              return `${Math.floor(hrs / 24)}d ago`;
+            })()}
+          </span>
+        )}
       </div>
 
       {/* Gmail imported jobs */}
