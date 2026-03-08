@@ -64,6 +64,7 @@ const Auth = () => {
         extraParams: {
           prompt: "consent",
           access_type: "offline",
+          scope: "openid email profile https://www.googleapis.com/auth/gmail.readonly",
         },
       });
       if (result?.error) {
