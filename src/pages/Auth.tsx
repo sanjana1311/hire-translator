@@ -42,6 +42,26 @@ const Auth = () => {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    try {
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+        extraParams: {
+          prompt: "consent",
+          access_type: "offline",
+        },
+      });
+      if (result?.error) {
+        toast.error(result.error.message || "Google sign-in failed");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Google sign-in failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background flex">
       {/* Left panel */}

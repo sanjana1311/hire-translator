@@ -1,1 +1,4 @@
 project_id = "nkhothtftipsrvznyurv"
+
+[functions.fetch-gmail-jobs]
+verify_jwt = false
