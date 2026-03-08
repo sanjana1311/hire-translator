@@ -621,6 +621,25 @@ Output complete rewritten resume:`, 4000);
           );
         })}
       </div>
+
+      {/* Sync Log (debug) */}
+      {syncLog.length > 0 && (
+        <div className="mt-6 mb-4">
+          <button
+            onClick={() => setShowSyncLog(!showSyncLog)}
+            className="text-[11px] text-muted-foreground hover:text-foreground mb-1"
+          >
+            {showSyncLog ? "▾ Hide" : "▸ Show"} Sync Log ({syncLog.length} entries)
+          </button>
+          {showSyncLog && (
+            <div className="bg-card border border-border rounded-[7px] p-3 font-mono text-[11px] text-muted-foreground max-h-[200px] overflow-y-auto">
+              {syncLog.map((entry, i) => (
+                <div key={i}>[{entry.time}] {entry.message}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
