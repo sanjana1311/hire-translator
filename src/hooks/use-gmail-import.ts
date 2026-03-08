@@ -225,6 +225,35 @@ export function useGmailImport(profileId: string | null) {
     window.location.href = "/auth";
   }, []);
 
+  // Capture refresh token immediately after OAuth redirect and trigger first sync
+  useEffect(() => {
+    if (!profileId) return;
+
+    const captureTokenAndSync = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.provider_refresh_token) return;
+
+      // Store the refresh token right away so we never lose it
+      log("Capturing Google refresh token from session");
+      await supabase
+        .from("gmail_sync_metadata")
+        .upsert(
+          { profile_id: profileId, refresh_token: session.provider_refresh_token },
+          { onConflict: "profile_id" }
+        );
+      log("Refresh token stored successfully");
+
+      // If we also have a provider_token, trigger sync immediately
+      if (session.provider_token && !autoSyncRan.current) {
+        autoSyncRan.current = true;
+        log("Fresh provider token available — triggering immediate sync");
+        await triggerSync(false);
+      }
+    };
+
+    captureTokenAndSync();
+  }, [profileId, log, triggerSync]);
+
   // Auto-sync: run silently on load if >6 hours stale
   useEffect(() => {
     if (!profileId || autoSyncRan.current) return;
@@ -245,7 +274,9 @@ export function useGmailImport(profileId: string | null) {
       await triggerSync(true);
     };
 
-    autoSync();
+    // Small delay to let the token capture effect run first
+    const timer = setTimeout(autoSync, 1000);
+    return () => clearTimeout(timer);
   }, [profileId, triggerSync]);
 
   const markSeen = async (jobId: string) => {
