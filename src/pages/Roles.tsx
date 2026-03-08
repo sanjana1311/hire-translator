@@ -50,8 +50,9 @@ const Roles = () => {
   const [dbLoaded, setDbLoaded] = useState(false);
   const didRun = useRef(false);
   const { data: profile } = useProfile();
-  const { importJobs, loading: gmailLoading, jobs: gmailJobs, unseenCount, lastSyncedAt, markSeen } = useGmailImport(profile?.id ?? null);
+  const { triggerSync, connectGmail, signOut, loading: gmailLoading, jobs: gmailJobs, unseenCount, lastSyncedAt, jobsImportedCount, syncStatus, syncLog, markSeen } = useGmailImport(profile?.id ?? null);
   const [showGmailJobs, setShowGmailJobs] = useState(false);
+  const [showSyncLog, setShowSyncLog] = useState(false);
 
   const jobs = INITIAL_JOBS;
 
@@ -432,6 +433,91 @@ Output complete rewritten resume:`, 4000);
         )}
       </div>
 
+      {/* Gmail Sync Status Bar */}
+      <div className="mb-4 bg-card border border-border rounded-[9px] px-4 py-3 flex items-center justify-between">
+        {syncStatus === "never_synced" || syncStatus === "idle" ? (
+          <>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-muted-foreground/40" />
+              <span className="text-xs text-muted-foreground">Connect Gmail to import your job alerts</span>
+            </div>
+            <button
+              onClick={connectGmail}
+              className="text-xs font-medium px-3 py-1 rounded-[6px] bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              Connect Gmail →
+            </button>
+          </>
+        ) : syncStatus === "syncing" ? (
+          <>
+            <div className="flex items-center gap-2">
+              <Spinner size={12} />
+              <span className="text-xs text-muted-foreground animate-pulse">Syncing your Gmail job alerts…</span>
+            </div>
+          </>
+        ) : syncStatus === "success" ? (
+          <>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[hsl(153_50%_35%)]" />
+              <span className="text-xs text-muted-foreground">
+                Last synced {lastSyncedAt ? (() => {
+                  const diff = Date.now() - new Date(lastSyncedAt).getTime();
+                  const mins = Math.floor(diff / 60000);
+                  if (mins < 2) return "just now";
+                  if (mins < 60) return `${mins}m ago`;
+                  const hrs = Math.floor(mins / 60);
+                  if (hrs < 24) return `${hrs}h ago`;
+                  return `${Math.floor(hrs / 24)}d ago`;
+                })() : "never"} · {jobsImportedCount} jobs imported
+              </span>
+            </div>
+            <button
+              onClick={() => triggerSync(false)}
+              disabled={gmailLoading}
+              className="text-xs font-medium px-3 py-1 rounded-[6px] border border-border bg-secondary text-secondary-foreground hover:bg-accent transition-colors disabled:opacity-50"
+            >
+              Refresh ↻
+            </button>
+          </>
+        ) : syncStatus === "error" ? (
+          <>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-destructive" />
+              <span className="text-xs text-destructive">Sync failed — tap to retry</span>
+            </div>
+            <button
+              onClick={() => triggerSync(false)}
+              disabled={gmailLoading}
+              className="text-xs font-medium px-3 py-1 rounded-[6px] border border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors disabled:opacity-50"
+            >
+              Retry
+            </button>
+          </>
+        ) : syncStatus === "no_token" ? (
+          <>
+            <div className="flex items-center gap-2 flex-1 mr-3">
+              <div className="w-2 h-2 rounded-full bg-[hsl(25_84%_50%)]" />
+              <span className="text-xs text-muted-foreground">
+                Gmail access not granted. Sign out and sign back in — make sure to check the Gmail permission on the Google screen.
+              </span>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={connectGmail}
+                className="text-xs font-medium px-3 py-1 rounded-[6px] bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                Reconnect Gmail
+              </button>
+              <button
+                onClick={signOut}
+                className="text-xs font-medium px-3 py-1 rounded-[6px] border border-border bg-secondary text-secondary-foreground hover:bg-accent transition-colors"
+              >
+                Sign out
+              </button>
+            </div>
+          </>
+        ) : null}
+      </div>
       {gmailJobs.length > 0 && (showGmailJobs || unseenCount > 0) && (
         <div className="mb-5 bg-card border border-border rounded-[11px] p-4">
           <div className="flex items-center justify-between mb-3">
@@ -535,6 +621,25 @@ Output complete rewritten resume:`, 4000);
           );
         })}
       </div>
+
+      {/* Sync Log (debug) */}
+      {syncLog.length > 0 && (
+        <div className="mt-6 mb-4">
+          <button
+            onClick={() => setShowSyncLog(!showSyncLog)}
+            className="text-[11px] text-muted-foreground hover:text-foreground mb-1"
+          >
+            {showSyncLog ? "▾ Hide" : "▸ Show"} Sync Log ({syncLog.length} entries)
+          </button>
+          {showSyncLog && (
+            <div className="bg-card border border-border rounded-[7px] p-3 font-mono text-[11px] text-muted-foreground max-h-[200px] overflow-y-auto">
+              {syncLog.map((entry, i) => (
+                <div key={i}>[{entry.time}] {entry.message}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

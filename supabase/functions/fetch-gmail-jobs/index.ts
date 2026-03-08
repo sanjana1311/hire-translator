@@ -443,11 +443,29 @@ serve(async (req) => {
       .single();
     if (!profile) throw new Error("Profile not found");
 
-    const { providerToken, refreshToken } = await req.json();
-    if (!providerToken)
-      throw new Error(
-        "No Google provider token. Please sign in with Google first."
-      );
+    const { providerToken, refreshToken, useRefreshToken } = await req.json();
+    
+    let accessToken = providerToken;
+
+    // If no provider token but we have a refresh token, use it to get a fresh access token
+    if (!accessToken && useRefreshToken && refreshToken) {
+      console.log("No provider token — refreshing via stored refresh token");
+      accessToken = await refreshAccessToken(refreshToken);
+    } else if (!accessToken) {
+      // Try to get stored refresh token from DB
+      const { data: storedMeta } = await adminClient
+        .from("gmail_sync_metadata")
+        .select("refresh_token")
+        .eq("profile_id", profile.id)
+        .single();
+
+      if (storedMeta?.refresh_token) {
+        console.log("Using stored refresh token from DB");
+        accessToken = await refreshAccessToken(storedMeta.refresh_token);
+      } else {
+        throw new Error("No Google provider token. Please sign in with Google first.");
+      }
+    }
 
     // Store refresh token if provided
     if (refreshToken) {
@@ -467,7 +485,7 @@ serve(async (req) => {
       .single();
 
     const result = await syncGmailJobs({
-      accessToken: providerToken,
+      accessToken,
       profileId: profile.id,
       adminClient,
       lastSyncedAt: syncMeta?.last_synced_at || null,

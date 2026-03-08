@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable/index";
 import { toast } from "sonner";
 
 export interface ImportedJob {
@@ -20,13 +21,31 @@ export interface ImportedJob {
   seen: boolean;
 }
 
+export type SyncStatus = "idle" | "syncing" | "success" | "error" | "no_token" | "never_synced";
+
+export interface SyncLogEntry {
+  time: string;
+  message: string;
+}
+
 const SIX_HOURS = 6 * 60 * 60 * 1000;
+
+function timestamp(): string {
+  return new Date().toLocaleTimeString("en-US", { hour12: false });
+}
 
 export function useGmailImport(profileId: string | null) {
   const [loading, setLoading] = useState(false);
   const [jobs, setJobs] = useState<ImportedJob[]>([]);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [jobsImportedCount, setJobsImportedCount] = useState(0);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
+  const [syncLog, setSyncLog] = useState<SyncLogEntry[]>([]);
   const autoSyncRan = useRef(false);
+
+  const log = useCallback((message: string) => {
+    setSyncLog(prev => [...prev, { time: timestamp(), message }]);
+  }, []);
 
   // Load persisted imported jobs from database
   const loadJobs = useCallback(async () => {
@@ -36,7 +55,10 @@ export function useGmailImport(profileId: string | null) {
       .select("*")
       .eq("profile_id", profileId)
       .order("imported_at", { ascending: false });
-    if (data) setJobs(data as ImportedJob[]);
+    if (data) {
+      setJobs(data as ImportedJob[]);
+      setJobsImportedCount(data.length);
+    }
 
     // Load sync metadata
     const { data: meta } = await supabase
@@ -44,62 +66,164 @@ export function useGmailImport(profileId: string | null) {
       .select("last_synced_at")
       .eq("profile_id", profileId)
       .maybeSingle();
-    if (meta) setLastSyncedAt(meta.last_synced_at);
+    if (meta?.last_synced_at) {
+      setLastSyncedAt(meta.last_synced_at);
+      setSyncStatus("success");
+    } else {
+      setSyncStatus("never_synced");
+    }
   }, [profileId]);
 
   useEffect(() => {
     loadJobs();
   }, [loadJobs]);
 
-  const importJobs = async () => {
+  const triggerSync = useCallback(async (silent = false) => {
+    if (!profileId) return [];
     setLoading(true);
+    setSyncStatus("syncing");
+    log("Sync triggered");
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        toast.error("Please sign in first");
+        log("No session found");
+        setSyncStatus("no_token");
+        if (!silent) toast.error("Please sign in first");
         return [];
       }
 
       const providerToken = session.provider_token;
       const refreshToken = session.provider_refresh_token;
+      log(`Google token: ${providerToken ? "present" : "missing"}`);
+
       if (!providerToken) {
-        toast.error("To import jobs, sign out and sign back in — make sure to click 'Allow' on the Gmail permissions screen.");
-        return [];
+        // Try to use stored refresh token via edge function
+        log("No provider token in session — checking stored refresh token");
+        
+        const { data: syncMeta } = await supabase
+          .from("gmail_sync_metadata")
+          .select("refresh_token")
+          .eq("profile_id", profileId)
+          .maybeSingle();
+
+        if (!syncMeta?.refresh_token) {
+          log("No stored refresh token either — need Gmail connection");
+          setSyncStatus("no_token");
+          if (!silent) toast.error("Gmail access not granted. Connect Gmail to import jobs.");
+          return [];
+        }
+
+        // Call edge function with refresh token only — it will refresh the access token
+        log("Using stored refresh token to sync");
+        const res = await supabase.functions.invoke("fetch-gmail-jobs", {
+          body: { refreshToken: syncMeta.refresh_token, useRefreshToken: true },
+        });
+
+        if (res.error) {
+          log(`Edge function error: ${res.error.message}`);
+          setSyncStatus("error");
+          if (!silent) toast.error(res.error.message || "Sync failed");
+          return [];
+        }
+
+        const data = res.data;
+        if (data?.error) {
+          log(`Sync error: ${data.error}`);
+          setSyncStatus("error");
+          if (!silent) toast.error(data.error);
+          return [];
+        }
+
+        const importedJobs = data?.jobs || [];
+        log(`Sync complete: ${importedJobs.length} new jobs from ${data?.emailCount || 0} emails`);
+
+        if (!silent) {
+          if (importedJobs.length === 0) {
+            toast.info("No new job alerts since last sync.");
+          } else {
+            toast.success(`Found ${importedJobs.length} new jobs!`);
+          }
+        }
+
+        await loadJobs();
+        setSyncStatus("success");
+        return importedJobs;
       }
 
+      // We have a provider token — use it directly
+      log("Gmail query sent");
       const res = await supabase.functions.invoke("fetch-gmail-jobs", {
         body: { providerToken, refreshToken },
       });
 
       if (res.error) {
-        toast.error(res.error.message || "Failed to fetch Gmail jobs");
+        log(`Edge function error: ${res.error.message}`);
+        setSyncStatus("error");
+        if (!silent) toast.error(res.error.message || "Failed to fetch Gmail jobs");
         return [];
       }
 
       const data = res.data;
       if (data?.error) {
-        toast.error(data.error);
+        log(`Sync error: ${data.error}`);
+        setSyncStatus("error");
+        if (!silent) toast.error(data.error);
         return [];
       }
 
       const importedJobs = data?.jobs || [];
+      log(`Sync complete: ${importedJobs.length} new jobs from ${data?.emailCount || 0} emails`);
 
-      if (importedJobs.length === 0) {
-        toast.info("No new job alerts since last sync.");
-      } else {
-        toast.success(`Found ${importedJobs.length} new jobs from ${data?.emailCount || 0} emails!`);
+      if (!silent) {
+        if (importedJobs.length === 0) {
+          toast.info("No new job alerts since last sync.");
+        } else {
+          toast.success(`Found ${importedJobs.length} new jobs!`);
+        }
       }
 
-      // Reload from DB to get full persisted list
       await loadJobs();
+      setSyncStatus("success");
       return importedJobs;
     } catch (err: any) {
-      toast.error(err.message || "Gmail import failed");
+      log(`Sync failed: ${err.message}`);
+      setSyncStatus("error");
+      if (!silent) toast.error(err.message || "Gmail import failed");
       return [];
     } finally {
       setLoading(false);
     }
-  };
+  }, [profileId, loadJobs, log]);
+
+  // Connect Gmail — re-auth with Gmail scope
+  const connectGmail = useCallback(async () => {
+    log("Initiating Gmail OAuth connection");
+    try {
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+        extraParams: {
+          prompt: "consent",
+          access_type: "offline",
+          scope: "openid email profile https://www.googleapis.com/auth/gmail.readonly",
+        },
+      });
+      if (result?.error) {
+        log(`OAuth error: ${result.error.message}`);
+        toast.error(result.error.message || "Google sign-in failed");
+      }
+      // After redirect and return, auto-sync will trigger via the useEffect below
+    } catch (err: any) {
+      log(`OAuth error: ${err.message}`);
+      toast.error(err.message || "Google sign-in failed");
+    }
+  }, [log]);
+
+  // Sign out helper for no_token state
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/auth";
+  }, []);
 
   // Auto-sync: run silently on load if >6 hours stale
   useEffect(() => {
@@ -113,33 +237,16 @@ export function useGmailImport(profileId: string | null) {
         .maybeSingle();
 
       const lastSync = meta?.last_synced_at;
-      const isStale =
-        !lastSync || new Date(lastSync).getTime() < Date.now() - SIX_HOURS;
-
+      const isStale = !lastSync || new Date(lastSync).getTime() < Date.now() - SIX_HOURS;
       if (!isStale) return;
-
-      // Check if we have a provider token
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.provider_token) return;
 
       autoSyncRan.current = true;
       console.log("Auto-syncing Gmail jobs (stale > 6h)...");
-
-      try {
-        await supabase.functions.invoke("fetch-gmail-jobs", {
-          body: {
-            providerToken: session.provider_token,
-            refreshToken: session.provider_refresh_token,
-          },
-        });
-        await loadJobs();
-      } catch (err) {
-        console.error("Auto-sync failed:", err);
-      }
+      await triggerSync(true);
     };
 
     autoSync();
-  }, [profileId, loadJobs]);
+  }, [profileId, triggerSync]);
 
   const markSeen = async (jobId: string) => {
     await supabase.from("imported_jobs").update({ seen: true }).eq("id", jobId);
@@ -148,5 +255,18 @@ export function useGmailImport(profileId: string | null) {
 
   const unseenCount = jobs.filter(j => !j.seen).length;
 
-  return { importJobs, loading, jobs, unseenCount, lastSyncedAt, markSeen, loadJobs };
+  return {
+    triggerSync,
+    connectGmail,
+    signOut,
+    loading,
+    jobs,
+    unseenCount,
+    lastSyncedAt,
+    jobsImportedCount,
+    syncStatus,
+    syncLog,
+    markSeen,
+    loadJobs,
+  };
 }
