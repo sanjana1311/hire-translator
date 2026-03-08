@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -10,14 +10,23 @@ export interface ImportedJob {
   url: string;
   source: string;
   snippet: string;
+  salary: string | null;
+  description: string | null;
+  url_verified: boolean;
+  description_fetched_at: string | null;
+  source_email_subject: string | null;
+  status: string;
   imported_at: string;
   seen: boolean;
 }
+
+const SIX_HOURS = 6 * 60 * 60 * 1000;
 
 export function useGmailImport(profileId: string | null) {
   const [loading, setLoading] = useState(false);
   const [jobs, setJobs] = useState<ImportedJob[]>([]);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const autoSyncRan = useRef(false);
 
   // Load persisted imported jobs from database
   const loadJobs = useCallback(async () => {
@@ -91,6 +100,46 @@ export function useGmailImport(profileId: string | null) {
       setLoading(false);
     }
   };
+
+  // Auto-sync: run silently on load if >6 hours stale
+  useEffect(() => {
+    if (!profileId || autoSyncRan.current) return;
+
+    const autoSync = async () => {
+      const { data: meta } = await supabase
+        .from("gmail_sync_metadata")
+        .select("last_synced_at")
+        .eq("profile_id", profileId)
+        .maybeSingle();
+
+      const lastSync = meta?.last_synced_at;
+      const isStale =
+        !lastSync || new Date(lastSync).getTime() < Date.now() - SIX_HOURS;
+
+      if (!isStale) return;
+
+      // Check if we have a provider token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.provider_token) return;
+
+      autoSyncRan.current = true;
+      console.log("Auto-syncing Gmail jobs (stale > 6h)...");
+
+      try {
+        await supabase.functions.invoke("fetch-gmail-jobs", {
+          body: {
+            providerToken: session.provider_token,
+            refreshToken: session.provider_refresh_token,
+          },
+        });
+        await loadJobs();
+      } catch (err) {
+        console.error("Auto-sync failed:", err);
+      }
+    };
+
+    autoSync();
+  }, [profileId, loadJobs]);
 
   const markSeen = async (jobId: string) => {
     await supabase.from("imported_jobs").update({ seen: true }).eq("id", jobId);
