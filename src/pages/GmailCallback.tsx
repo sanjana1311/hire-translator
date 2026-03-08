@@ -7,12 +7,13 @@ import { toast } from "sonner";
 const GmailCallback = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { profileId } = useProfile();
+  const profileQuery = useProfile();
+  const profileId = profileQuery.data?.id ?? null;
   const { handleOAuthCallback } = useGmailImport(profileId);
   const processed = useRef(false);
 
   useEffect(() => {
-    if (processed.current) return;
+    if (processed.current || !profileId) return;
     
     const code = searchParams.get("code");
     const state = searchParams.get("state");
@@ -40,11 +41,10 @@ const GmailCallback = () => {
     processed.current = true;
     sessionStorage.removeItem("gmail_oauth_state");
 
-    // Exchange the code and then navigate back
     handleOAuthCallback(code).then(() => {
       navigate("/dashboard", { replace: true });
     });
-  }, [searchParams, navigate, handleOAuthCallback]);
+  }, [searchParams, navigate, handleOAuthCallback, profileId]);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
