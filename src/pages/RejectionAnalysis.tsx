@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { callAI } from "@/lib/ai";
+import { useProfile } from "@/hooks/use-profile";
+import { supabase } from "@/integrations/supabase/client";
 import { INITIAL_APPLICATIONS } from "@/data/seed";
 
 const Spinner = ({ size = 16 }: { size?: number }) => (
@@ -18,20 +20,51 @@ interface RejectionData {
 }
 
 const RejectionAnalysis = () => {
+  const { data: profile } = useProfile();
   const [rejection, setRejection] = useState<RejectionData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [rejCount, setRejCount] = useState(INITIAL_APPLICATIONS.filter(a => a.status === "rejected").length);
 
   const analyze = async () => {
     setLoading(true);
     try {
-      const apps = INITIAL_APPLICATIONS;
-      const rejected = apps.filter(a => a.status === "rejected");
+      // Load real applications from DB
+      let allApps: { company: string; title: string; status: string; notes: string }[] = [];
+
+      if (profile?.id) {
+        const { data } = await supabase
+          .from("applications")
+          .select("title, company, status, notes")
+          .eq("profile_id", profile.id);
+        if (data && data.length > 0) {
+          allApps = data.map(a => ({
+            company: a.company,
+            title: a.title,
+            status: a.status,
+            notes: a.notes || "",
+          }));
+        }
+      }
+
+      // Fall back to seed data
+      if (allApps.length === 0) {
+        allApps = INITIAL_APPLICATIONS.map(a => ({
+          company: a.company,
+          title: a.title,
+          status: a.status,
+          notes: a.notes,
+        }));
+      }
+
+      const rejected = allApps.filter(a => a.status === "rejected");
+      setRejCount(rejected.length);
+
       const raw = await callAI(`Career strategist. Analyze rejection patterns. Return ONLY valid JSON.
 Candidate: Sanjana Ravikumar — PM at Tesla GenAI, PMP, 4+ yrs, targeting senior PM/TPM at big tech.
 REJECTIONS:
 ${rejected.map(a => `${a.company}: ${a.title}. Notes: ${a.notes}`).join("\n")}
 
-ALL APPLICATIONS: ${apps.length} total, ${rejected.length} rejected, ${apps.filter(a => a.status === "applied").length} pending.
+ALL APPLICATIONS: ${allApps.length} total, ${rejected.length} rejected, ${allApps.filter(a => a.status === "applied").length} pending.
 
 Return: {
   "patterns": ["3 specific patterns"],
@@ -52,7 +85,7 @@ Return: {
       <div className="flex items-start justify-between mb-5">
         <div>
           <h1 className="font-serif text-[26px] font-normal mb-1">Rejection Analysis</h1>
-          <p className="text-xs text-muted-foreground">{INITIAL_APPLICATIONS.filter(a => a.status === "rejected").length} rejections analyzed for patterns</p>
+          <p className="text-xs text-muted-foreground">{rejCount} rejections analyzed for patterns</p>
         </div>
         <button
           onClick={analyze}
@@ -79,17 +112,14 @@ Return: {
 
       {rejection && !rejection.error && (
         <div className="animate-fade-up flex flex-col gap-3">
-          {/* Root cause */}
           <div className="rounded-[11px] p-5" style={{ background: "hsl(0 38% 97%)", border: "1px solid hsl(348 28% 85%)" }}>
             <div className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: "hsl(348 46% 28%)" }}>Most Likely Root Cause</div>
             <p className="font-serif text-lg leading-snug">{rejection.likelyRootCause}</p>
           </div>
-          {/* Title mismatch */}
           <div className="bg-card border border-border rounded-[11px] p-4">
             <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide mb-2.5">Title Mismatch Assessment</div>
             <p className="text-xs leading-relaxed">{rejection.titleMismatch}</p>
           </div>
-          {/* Patterns + Quick fixes */}
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-card border border-border rounded-[11px] p-4">
               <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide mb-2.5">Patterns Found</div>
@@ -108,7 +138,6 @@ Return: {
               ))}
             </div>
           </div>
-          {/* Best role + Longer term */}
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-[11px] p-4" style={{ background: "hsl(150 38% 96%)", border: "1px solid hsl(152 34% 82%)" }}>
               <div className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: "hsl(153 40% 30%)" }}>Best Role to Target</div>
@@ -123,7 +152,6 @@ Return: {
               ))}
             </div>
           </div>
-          {/* Companies to avoid */}
           <div className="bg-card border border-border rounded-[9px] p-3.5">
             <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide mb-2">Companies to Avoid</div>
             <p className="text-xs leading-relaxed text-muted-foreground">{rejection.companiesToAvoid}</p>

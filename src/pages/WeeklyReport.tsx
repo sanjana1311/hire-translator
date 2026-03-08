@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { callAI } from "@/lib/ai";
+import { useProfile } from "@/hooks/use-profile";
+import { supabase } from "@/integrations/supabase/client";
 import { INITIAL_APPLICATIONS, INITIAL_JOBS, fmtDate, daysSince } from "@/data/seed";
 
 const Spinner = ({ size = 16 }: { size?: number }) => (
@@ -19,18 +21,76 @@ interface Report {
   message?: string;
 }
 
+interface AppRow {
+  title: string;
+  company: string;
+  status: string;
+  applied_date: string | null;
+  last_email_date: string | null;
+  recruiter_email: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
 const WeeklyReport = () => {
+  const { data: profile } = useProfile();
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(false);
 
   const generateReport = async () => {
     setLoading(true);
     try {
-      const apps = INITIAL_APPLICATIONS;
+      // Load real applications from DB
+      let apps: { company: string; title: string; status: string; appliedDate: string; lastEmail: string | null; notes: string }[] = [];
+
+      if (profile?.id) {
+        const { data } = await supabase
+          .from("applications")
+          .select("title, company, status, applied_date, last_email_date, recruiter_email, notes, created_at")
+          .eq("profile_id", profile.id);
+        if (data && data.length > 0) {
+          apps = (data as AppRow[]).map(a => ({
+            company: a.company,
+            title: a.title,
+            status: a.status,
+            appliedDate: a.applied_date || a.created_at.split("T")[0],
+            lastEmail: a.last_email_date,
+            notes: a.notes || "",
+          }));
+        }
+      }
+
+      // Fall back to seed data if no DB apps
+      if (apps.length === 0) {
+        apps = INITIAL_APPLICATIONS.map(a => ({
+          company: a.company,
+          title: a.title,
+          status: a.status,
+          appliedDate: a.appliedDate,
+          lastEmail: a.lastEmail,
+          notes: a.notes,
+        }));
+      }
+
       const appSummary = apps.map(a => `- ${a.company} (${a.title}): ${a.status}. Applied ${fmtDate(a.appliedDate)}, ${daysSince(a.appliedDate)} days ago. Last email: ${a.lastEmail ? fmtDate(a.lastEmail) : "none"}. Notes: ${a.notes || "none"}`).join("\n");
       const rejections = apps.filter(a => a.status === "rejected");
       const pending = apps.filter(a => a.status === "applied" && !a.lastEmail);
-      const jobScores = INITIAL_JOBS.map(j => `${j.company} — ${j.title}: not yet scored`).join("\n");
+
+      // Load role scores from DB
+      let jobScores = INITIAL_JOBS.map(j => `${j.company} — ${j.title}: not yet scored`).join("\n");
+      if (profile?.id) {
+        const { data: analyses } = await supabase
+          .from("role_analyses")
+          .select("job_seed_id, score, bucket")
+          .eq("profile_id", profile.id);
+        if (analyses && analyses.length > 0) {
+          const scoreMap = new Map(analyses.map(a => [a.job_seed_id, a]));
+          jobScores = INITIAL_JOBS.map(j => {
+            const s = scoreMap.get(j.id);
+            return s ? `${j.company} — ${j.title}: ${s.score} (${s.bucket})` : `${j.company} — ${j.title}: not yet scored`;
+          }).join("\n");
+        }
+      }
 
       const raw = await callAI(`You are a senior career mentor — direct, warm, strategic. NOT a dashboard generator. Write like you are sitting with Sanjana over coffee. Use "you" not "the candidate". Be honest, specific, encouraging. Return ONLY valid JSON.
 
@@ -72,46 +132,43 @@ Return: {
       <div className="flex items-start justify-between mb-2">
         <div>
           <h1 className="font-serif text-[26px] font-normal mb-1">Weekly Mentor Session</h1>
-          <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} · Pulled from your real inbox</p>
+          <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} · Pulled from your real data</p>
         </div>
         <button
           onClick={generateReport}
           disabled={loading}
           className="bg-foreground text-background rounded-lg px-4 py-2 text-xs font-semibold disabled:opacity-50 shrink-0"
         >
-          {loading ? "Reading your inbox…" : report ? "Refresh" : "Get My Briefing"}
+          {loading ? "Reading your data…" : report ? "Refresh" : "Get My Briefing"}
         </button>
       </div>
-      <p className="text-xs text-muted-foreground mb-5">Reads your applications, rejections, and email patterns — then talks to you like a mentor, not a dashboard</p>
+      <p className="text-xs text-muted-foreground mb-5">Reads your applications, rejections, and role scores — then talks to you like a mentor, not a dashboard</p>
 
       {loading && (
         <div className="text-center py-16 bg-card border border-border rounded-[11px]">
           <Spinner size={20} />
-          <p className="animate-pulse-dot text-xs text-muted-foreground mt-3.5">Reading your inbox and thinking through your search…</p>
+          <p className="animate-pulse-dot text-xs text-muted-foreground mt-3.5">Reading your data and thinking through your search…</p>
         </div>
       )}
 
       {!report && !loading && (
         <div className="bg-card border border-border rounded-[11px] p-12 text-center">
           <div className="font-serif text-xl italic text-muted-foreground mb-2.5">What would your career mentor say right now?</div>
-          <p className="text-xs text-muted-foreground leading-relaxed">This reads your actual inbox — applications sent, rejections received, alert patterns — and gives you a real mentor conversation, not generic advice.</p>
+          <p className="text-xs text-muted-foreground leading-relaxed">This reads your actual applications — jobs applied, rejections received, role scores — and gives you a real mentor conversation, not generic advice.</p>
         </div>
       )}
 
       {report && !report.error && (
         <div className="animate-fade-up flex flex-col gap-3.5">
-          {/* Opening */}
           <div className="bg-card border border-border rounded-[11px] p-6">
             <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-wide mb-3">From your mentor</div>
             <p className="font-serif text-[17px] leading-relaxed mb-2.5">{report.opening}</p>
             <p className="text-xs text-secondary-foreground leading-relaxed border-t border-border pt-3">{report.whatTheDataSays}</p>
           </div>
-          {/* Title problem */}
           <div className="rounded-[11px] p-5" style={{ background: "hsl(37 60% 97%)", border: "1px solid hsl(37 40% 80%)" }}>
             <div className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: "hsl(25 84% 31%)" }}>The title question you need to address</div>
             <p className="text-xs leading-relaxed" style={{ color: "hsl(25 50% 22%)" }}>{report.titleProblem}</p>
           </div>
-          {/* Alert noise */}
           <div className="bg-card border border-border rounded-[9px] p-4 flex gap-2.5 items-start">
             <span className="text-sm shrink-0">📬</span>
             <div>
@@ -119,12 +176,10 @@ Return: {
               <p className="text-xs leading-relaxed">{report.alertNoise}</p>
             </div>
           </div>
-          {/* Top strategic insight */}
           <div className="bg-foreground rounded-[11px] p-5">
             <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-wide mb-2.5">The thing your mentor really wants to say</div>
             <p className="font-serif text-[17px] leading-relaxed text-background italic">{report.topStrategicInsight}</p>
           </div>
-          {/* This week actions */}
           <div className="bg-card border border-border rounded-[11px] p-5">
             <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide mb-3.5">Your 5 moves this week — in order</div>
             {report.thisWeekActions?.map((a, i) => (
@@ -136,7 +191,6 @@ Return: {
               </div>
             ))}
           </div>
-          {/* Bottom row */}
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-[11px] p-4" style={{ background: "hsl(214 100% 97%)", border: "1px solid hsl(213 93% 87%)" }}>
               <div className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: "hsl(226 71% 48%)" }}>Put your energy here</div>

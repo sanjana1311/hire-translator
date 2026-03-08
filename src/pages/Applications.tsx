@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { callAI } from "@/lib/ai";
+import { useProfile } from "@/hooks/use-profile";
+import { supabase } from "@/integrations/supabase/client";
 import {
-  INITIAL_APPLICATIONS, STATUS_META,
+  INITIAL_APPLICATIONS, INITIAL_JOBS, STATUS_META,
   initials, daysSince, fmtDate,
   type Application,
 } from "@/data/seed";
@@ -16,13 +18,64 @@ const Tag = ({ children, color, bg, border }: { children: React.ReactNode; color
   </span>
 );
 
+interface DBApplication {
+  id: string;
+  job_seed_id: number | null;
+  imported_job_id: string | null;
+  title: string;
+  company: string;
+  applied_date: string | null;
+  status: string;
+  last_email_date: string | null;
+  recruiter_email: string | null;
+  next_action: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+const toApplication = (db: DBApplication): Application => ({
+  jobId: db.job_seed_id || 0,
+  title: db.title,
+  company: db.company,
+  appliedDate: db.applied_date || db.created_at.split("T")[0],
+  status: db.status,
+  lastEmail: db.last_email_date,
+  recruiterName: null,
+  recruiterEmail: db.recruiter_email,
+  nextAction: db.next_action,
+  notes: db.notes || "",
+});
+
 const Applications = () => {
+  const { data: profile } = useProfile();
   const [applications, setApps] = useState<Application[]>(INITIAL_APPLICATIONS);
+  const [dbApps, setDbApps] = useState<DBApplication[]>([]);
   const [selApp, setSelApp] = useState<Application | null>(null);
   const [fuLoading, setFUL] = useState<number | null>(null);
   const [fuDrafts, setFUD] = useState<Record<number, string>>({});
   const [emailSent, setEmailSent] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Load real applications from DB and merge with seed data
+  useEffect(() => {
+    if (!profile?.id) return;
+    const load = async () => {
+      const { data } = await supabase
+        .from("applications")
+        .select("*")
+        .eq("profile_id", profile.id)
+        .order("created_at", { ascending: false });
+      if (data) {
+        setDbApps(data as DBApplication[]);
+        const dbConverted = (data as DBApplication[]).map(toApplication);
+        // Merge: DB apps first, then seed apps that don't have a DB counterpart
+        const dbJobIds = new Set(dbConverted.map(a => a.jobId));
+        const seedOnly = INITIAL_APPLICATIONS.filter(a => !dbJobIds.has(a.jobId));
+        setApps([...dbConverted, ...seedOnly]);
+      }
+    };
+    load();
+  }, [profile?.id]);
 
   const needsFollowUp = applications.filter(a => a.status === "applied" && daysSince(a.appliedDate) >= 7);
   const copy = (t: string) => { navigator.clipboard.writeText(t); setCopied(true); setTimeout(() => setCopied(false), 2500); };
@@ -42,7 +95,7 @@ Write email body only:`, 350);
   };
 
   if (selApp) {
-    const sm = STATUS_META[selApp.status];
+    const sm = STATUS_META[selApp.status] || STATUS_META.applied;
     return (
       <div className="max-w-[720px] mx-auto p-7 animate-fade-up">
         <button onClick={() => setSelApp(null)} className="bg-transparent border border-border text-muted-foreground rounded-[6px] px-3 py-1 text-xs mb-5 hover:text-foreground transition-colors">
@@ -156,7 +209,6 @@ Write email body only:`, 350);
         </div>
       )}
 
-      {/* Pipeline summary */}
       <div className="grid grid-cols-5 gap-2 mb-5">
         {Object.entries(STATUS_META).map(([key, meta]) => {
           const count = applications.filter(a => a.status === key).length;
@@ -172,14 +224,13 @@ Write email body only:`, 350);
         })}
       </div>
 
-      {/* App cards */}
       <div className="flex flex-col gap-1.5">
         {applications.map((app, i) => {
-          const sm = STATUS_META[app.status];
+          const sm = STATUS_META[app.status] || STATUS_META.applied;
           const overdue = app.status === "applied" && daysSince(app.appliedDate) >= 7;
           return (
             <div
-              key={app.jobId}
+              key={`${app.jobId}-${i}`}
               onClick={() => setSelApp(app)}
               className="animate-fade-up bg-card border rounded-[9px] p-4 grid cursor-pointer hover:shadow-sm hover:-translate-y-px transition-all"
               style={{

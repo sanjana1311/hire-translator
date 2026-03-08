@@ -331,6 +331,62 @@ export type Database = {
           },
         ]
       }
+      role_analyses: {
+        Row: {
+          bucket: string
+          created_at: string
+          error: boolean | null
+          gaps: Json | null
+          id: string
+          job_seed_id: number
+          match_summary: string | null
+          missing_keywords: Json | null
+          profile_id: string
+          score: number
+          strengths: Json | null
+          tailored_resume: string | null
+          updated_at: string
+        }
+        Insert: {
+          bucket?: string
+          created_at?: string
+          error?: boolean | null
+          gaps?: Json | null
+          id?: string
+          job_seed_id: number
+          match_summary?: string | null
+          missing_keywords?: Json | null
+          profile_id: string
+          score?: number
+          strengths?: Json | null
+          tailored_resume?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bucket?: string
+          created_at?: string
+          error?: boolean | null
+          gaps?: Json | null
+          id?: string
+          job_seed_id?: number
+          match_summary?: string | null
+          missing_keywords?: Json | null
+          profile_id?: string
+          score?: number
+          strengths?: Json | null
+          tailored_resume?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_analyses_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_versions: {
         Row: {
           created_at: string
