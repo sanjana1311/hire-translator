@@ -446,12 +446,17 @@ serve(async (req) => {
 
     const { providerToken, refreshToken, useRefreshToken } = await req.json();
     
+    console.log("[Gmail Sync] providerToken:", providerToken ? "present" : "missing");
+    console.log("[Gmail Sync] refreshToken:", refreshToken ? `present (${refreshToken.slice(0, 10)}...)` : "missing");
+    console.log("[Gmail Sync] useRefreshToken flag:", useRefreshToken);
+    
     let accessToken = providerToken;
 
     // If no provider token but we have a refresh token, use it to get a fresh access token
     if (!accessToken && useRefreshToken && refreshToken) {
       console.log("No provider token — refreshing via stored refresh token");
       accessToken = await refreshAccessToken(refreshToken);
+      console.log("[Gmail Sync] Successfully refreshed access token");
     } else if (!accessToken) {
       // Try to get stored refresh token from DB
       const { data: storedMeta } = await adminClient
@@ -461,7 +466,7 @@ serve(async (req) => {
         .single();
 
       if (storedMeta?.refresh_token) {
-        console.log("Using stored refresh token from DB");
+        console.log("[Gmail Sync] Using stored refresh token from DB:", storedMeta.refresh_token.slice(0, 10) + "...");
         accessToken = await refreshAccessToken(storedMeta.refresh_token);
       } else {
         throw new Error("No Google provider token. Please sign in with Google first.");
@@ -470,12 +475,14 @@ serve(async (req) => {
 
     // Store refresh token if provided
     if (refreshToken) {
+      console.log("[Gmail Sync] Saving refresh token to DB for profile:", profile.id);
       await adminClient
         .from("gmail_sync_metadata")
         .upsert(
           { profile_id: profile.id, refresh_token: refreshToken },
           { onConflict: "profile_id" }
         );
+      console.log("[Gmail Sync] Refresh token saved successfully");
     }
 
     // Get last sync time
