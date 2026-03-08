@@ -196,23 +196,26 @@ export function useGmailImport(profileId: string | null) {
     }
   }, [profileId, loadJobs, log]);
 
-  // Connect Gmail — re-auth with Gmail scope
+  // Connect Gmail — re-auth with Gmail scope (must use supabase directly to request gmail.readonly)
   const connectGmail = useCallback(async () => {
-    log("Initiating Gmail OAuth connection");
+    log("Initiating Gmail OAuth connection with gmail.readonly scope");
     try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
-        extraParams: {
-          prompt: "consent",
-          access_type: "offline",
-          scope: "openid email profile https://www.googleapis.com/auth/gmail.readonly",
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin + "/dashboard",
+          scopes: "openid email profile https://www.googleapis.com/auth/gmail.readonly",
+          queryParams: {
+            access_type: "offline",
+            prompt: "consent",
+          },
         },
       });
-      if (result?.error) {
-        log(`OAuth error: ${result.error.message}`);
-        toast.error(result.error.message || "Google sign-in failed");
+      if (error) {
+        log(`OAuth error: ${error.message}`);
+        toast.error(error.message || "Google sign-in failed");
       }
-      // After redirect and return, auto-sync will trigger via the useEffect below
+      // After redirect and return, auto-sync will trigger via the useEffect
     } catch (err: any) {
       log(`OAuth error: ${err.message}`);
       toast.error(err.message || "Google sign-in failed");
