@@ -32,22 +32,54 @@ interface AnalysisResult {
   error?: boolean;
 }
 
+const CACHE_KEY_RESULTS = "cc_role_results";
+const CACHE_KEY_RESUMES = "cc_role_resumes";
+
+const loadCache = <T,>(key: string): T | null => {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    // Cache valid for 1 hour
+    if (Date.now() - ts > 3600000) return null;
+    return data as T;
+  } catch { return null; }
+};
+
+const saveCache = (key: string, data: any) => {
+  try {
+    sessionStorage.setItem(key, JSON.stringify({ data, ts: Date.now() }));
+  } catch { /* storage full — ignore */ }
+};
+
 const Roles = () => {
-  const [results, setResults] = useState<Record<number, AnalysisResult>>({});
-  const [resumes, setResumes] = useState<Record<number, string>>({});
+  const cachedResults = loadCache<Record<number, AnalysisResult>>(CACHE_KEY_RESULTS);
+  const cachedResumes = loadCache<Record<number, string>>(CACHE_KEY_RESUMES);
+
+  const [results, setResults] = useState<Record<number, AnalysisResult>>(cachedResults || {});
+  const [resumes, setResumes] = useState<Record<number, string>>(cachedResumes || {});
   const [aLoading, setAL] = useState<Set<number>>(new Set());
   const [rLoading, setRL] = useState<Set<number>>(new Set());
-  const [doneCount, setDone] = useState(0);
+  const [doneCount, setDone] = useState(cachedResults ? Object.keys(cachedResults).length : 0);
   const [selected, setSelected] = useState<Job | null>(null);
   const [jobTab, setJobTab] = useState("all");
   const [rtab, setRtab] = useState("tailored");
   const [copied, setCopied] = useState(false);
-  const didRun = useRef(false);
+  const didRun = useRef(!!cachedResults);
   const { data: profile } = useProfile();
   const { importJobs, loading: gmailLoading, jobs: gmailJobs, unseenCount, lastSyncedAt, markSeen } = useGmailImport(profile?.id ?? null);
   const [showGmailJobs, setShowGmailJobs] = useState(false);
 
   const jobs = INITIAL_JOBS;
+
+  // Persist results to sessionStorage on change
+  useEffect(() => {
+    if (Object.keys(results).length > 0) saveCache(CACHE_KEY_RESULTS, results);
+  }, [results]);
+
+  useEffect(() => {
+    if (Object.keys(resumes).length > 0) saveCache(CACHE_KEY_RESUMES, resumes);
+  }, [resumes]);
 
   useEffect(() => {
     if (didRun.current) return;
