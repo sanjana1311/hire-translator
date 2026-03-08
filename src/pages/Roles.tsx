@@ -251,7 +251,62 @@ Output complete rewritten resume:`, 4000);
             ))}
           </div>
         )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={async () => {
+            const imported = await importJobs();
+            if (imported.length > 0) setShowGmailJobs(true);
+          }}
+          disabled={gmailLoading}
+          className="rounded-[5px] text-xs gap-1.5 ml-2"
+        >
+          {gmailLoading ? (
+            <Spinner size={13} />
+          ) : (
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+              <polyline points="22,6 12,13 2,6" />
+            </svg>
+          )}
+          Import from Gmail
+        </Button>
       </div>
+
+      {/* Gmail imported jobs */}
+      {showGmailJobs && gmailJobs.length > 0 && (
+        <div className="mb-5 bg-card border border-border rounded-[11px] p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <h3 className="text-sm font-semibold">Imported from Gmail</h3>
+              <span className="text-[11px] text-muted-foreground">({gmailJobs.length} jobs found)</span>
+            </div>
+            <button onClick={() => setShowGmailJobs(false)} className="text-xs text-muted-foreground hover:text-foreground">
+              Dismiss
+            </button>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {gmailJobs.map((gj, i) => (
+              <div key={i} className="bg-secondary/50 border border-border rounded-[7px] p-3 flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium">{gj.title}</div>
+                  <div className="text-xs text-muted-foreground">{gj.company} · {gj.location}</div>
+                  {gj.snippet && <p className="text-[11px] text-muted-foreground mt-1 line-clamp-1">{gj.snippet}</p>}
+                </div>
+                <div className="flex items-center gap-2 shrink-0 ml-3">
+                  <span className="text-[10px] text-muted-foreground bg-secondary border border-border rounded px-1.5 py-0.5">{gj.source}</span>
+                  {gj.url && (
+                    <a href={gj.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">
+                      Apply ↗
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Filter tabs */}
       <div className="flex gap-0.5 border-b border-border mb-4">
