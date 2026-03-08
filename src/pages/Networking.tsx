@@ -1,215 +1,146 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { callAI } from "@/lib/ai";
-import { INITIAL_JOBS, RESUME_TEXT, initials, type Job } from "@/data/seed";
-import { useProfile } from "@/hooks/use-profile";
-import SectionShell from "@/components/prep/SectionShell";
-import BestContacts, { type ContactTarget } from "@/components/networking/BestContacts";
-import OutreachStrategy, { type StrategyTier } from "@/components/networking/OutreachStrategy";
-import OutreachMessages, { type OutreachMessage } from "@/components/networking/OutreachMessages";
-import SmartQuestions, { type QuestionGroup } from "@/components/networking/SmartQuestions";
-import NetworkingTracker from "@/components/networking/NetworkingTracker";
-import FollowUpEmails from "@/components/networking/FollowUpEmails";
-import PrepSpinner from "@/components/prep/PrepSpinner";
+import { INITIAL_JOBS, initials, scoreColor, type Job } from "@/data/seed";
 
-interface NetState {
-  contacts: ContactTarget[] | null;
-  strategy: StrategyTier[] | null;
-  messages: OutreachMessage[] | null;
-  questions: QuestionGroup[] | null;
+const Spinner = ({ size = 16 }: { size?: number }) => (
+  <div className="border-2 border-border border-t-foreground rounded-full animate-spin" style={{ width: size, height: size }} />
+);
+
+interface NetResult {
+  connectionAngles?: string[];
+  searchQueries?: string[];
+  outreachMessages?: { persona: string; message: string }[];
+  insiderQuestions?: string[];
+  contentAngle?: string;
+  error?: boolean;
 }
 
 const Networking = () => {
   const [searchParams] = useSearchParams();
-  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
-  const [state, setState] = useState<NetState>({ contacts: null, strategy: null, messages: null, questions: null });
-  const [loading, setLoading] = useState({ contacts: false, strategy: false, messages: false, questions: false });
-  const { data: profile } = useProfile();
+  const [netJob, setNetJob] = useState<Job | null>(null);
+  const [netResult, setNetResult] = useState<Record<number, NetResult>>({});
+  const [netLoading, setNetLoading] = useState<number | null>(null);
+  const [copied, setCopied] = useState(false);
 
+  // Auto-select job from URL param
   useEffect(() => {
     const jobId = searchParams.get("jobId");
-    if (jobId && !selectedJob) {
+    if (jobId && !netJob) {
       const job = INITIAL_JOBS.find(j => j.id === Number(jobId));
-      if (job) selectJob(job);
+      if (job) {
+        setNetJob(job);
+        if (!netResult[job.id]) generateNetworking(job);
+      }
     }
   }, [searchParams]);
 
-  const selectJob = (job: Job) => {
-    setSelectedJob(job);
-    setState({ contacts: null, strategy: null, messages: null, questions: null });
-    generateContacts(job);
-    generateStrategy(job);
-    generateMessages(job);
-    generateQuestions(job);
-  };
+  const copy = (t: string) => { navigator.clipboard.writeText(t); setCopied(true); setTimeout(() => setCopied(false), 2500); };
 
-  const parseJSON = (raw: string) => JSON.parse(raw.replace(/```json|```/g, "").trim());
-
-  const generateContacts = async (job: Job) => {
-    setLoading(p => ({ ...p, contacts: true }));
+  const generateNetworking = async (job: Job) => {
+    setNetLoading(job.id);
     try {
-      const raw = await callAI(`Networking strategist. Return ONLY valid JSON. Candidate: Sanjana Ravikumar, PM at Tesla GenAI, PMP, ASU MS Engineering Management. Previously at Intellipaat, Infineon.
-Target: ${job.title} at ${job.company}.
+      const raw = await callAI(`You are a career networking strategist. Return ONLY valid JSON.
+Candidate: Sanjana Ravikumar — PM at Tesla, GenAI communication systems, PMP certified, ASU MS Engineering Management.
+Target role: ${job.title} at ${job.company} in ${job.location}
+Job description: ${job.description}
 
-Generate 4 networking target categories prioritized by response rate.
-Return: {"targets":[{"category":"School Alumni","title":"ASU alumni at ${job.company}","description":"why and how this helps","searchTip":"LinkedIn search tip","outreachGoal":"specific goal for this outreach"},{"category":"Previous Company Alumni","title":"...","description":"...","searchTip":"...","outreachGoal":"..."},{"category":"Role Holders","title":"...","description":"...","searchTip":"...","outreachGoal":"..."},{"category":"Hiring Team","title":"...","description":"...","searchTip":"...","outreachGoal":"..."}]}`, 1500);
-      const parsed = parseJSON(raw);
-      setState(p => ({ ...p, contacts: parsed.targets || parsed }));
-    } catch (e) { console.error("Contacts gen failed:", e); }
-    setLoading(p => ({ ...p, contacts: false }));
+Return: {
+  "connectionAngles": ["3 specific types of people to find at ${job.company} on LinkedIn"],
+  "searchQueries": ["3 exact LinkedIn search strings"],
+  "outreachMessages": [{"persona": "type of person", "message": "short warm DM, 3 sentences, specific to Sanjana's Tesla GenAI background"}],
+  "insiderQuestions": ["4 smart questions to ask connections"],
+  "contentAngle": "one LinkedIn post idea to get on ${job.company} employees' radar"
+}`, 900);
+      setNetResult(prev => ({ ...prev, [job.id]: JSON.parse(raw) }));
+    } catch { setNetResult(prev => ({ ...prev, [job.id]: { error: true } })); }
+    setNetLoading(null);
   };
 
-  const generateStrategy = async (job: Job) => {
-    setLoading(p => ({ ...p, strategy: true }));
-    try {
-      const raw = await callAI(`Networking strategist. Return ONLY valid JSON. For ${job.title} at ${job.company}, create a tiered outreach strategy.
-
-Return: {"tiers":[{"tier":"tier name","objective":"specific objective","approach":"how to approach","expectedOutcome":"what to expect","priority":1}]}
-Include 4 tiers: Alumni Outreach, Previous Company Connections, Role Holders, Hiring Team. Priority 1 is highest.`, 1200);
-      const parsed = parseJSON(raw);
-      setState(p => ({ ...p, strategy: parsed.tiers || parsed }));
-    } catch (e) { console.error("Strategy gen failed:", e); }
-    setLoading(p => ({ ...p, strategy: false }));
-  };
-
-  const generateMessages = async (job: Job) => {
-    setLoading(p => ({ ...p, messages: true }));
-    try {
-      const raw = await callAI(`Career networking expert. Return ONLY valid JSON. Write personalized outreach messages for ${job.title} at ${job.company}.
-Candidate: Sanjana Ravikumar, PM at Tesla GenAI, PMP, ASU grad.
-
-Generate one message per category. Each message should be warm, professional, 4-5 sentences, and include a specific ask.
-Return: {"messages":[{"category":"School Alumni","persona":"ASU alum working at ${job.company}","message":"full message text starting with Hi [Name], and ending with Best, Sanjana"},{"category":"Previous Company Alumni","persona":"...","message":"..."},{"category":"Role Holders","persona":"...","message":"..."},{"category":"Hiring Team","persona":"...","message":"..."}]}`, 2000);
-      const parsed = parseJSON(raw);
-      setState(p => ({ ...p, messages: parsed.messages || parsed }));
-    } catch (e) { console.error("Messages gen failed:", e); }
-    setLoading(p => ({ ...p, messages: false }));
-  };
-
-  const generateQuestions = async (job: Job) => {
-    setLoading(p => ({ ...p, questions: true }));
-    try {
-      const raw = await callAI(`Networking strategist. Return ONLY valid JSON. Generate smart networking questions for someone targeting ${job.title} at ${job.company}.
-
-Group questions by goal. Return: {"groups":[{"goal":"Understanding the Role","questions":["question 1","question 2","question 3"]},{"goal":"Understanding the Hiring Process","questions":["..."]},{"goal":"Understanding the Team","questions":["..."]}]}
-3 questions per group.`, 1000);
-      const parsed = parseJSON(raw);
-      setState(p => ({ ...p, questions: parsed.groups || parsed }));
-    } catch (e) { console.error("Questions gen failed:", e); }
-    setLoading(p => ({ ...p, questions: false }));
-  };
-
-  const anyLoading = Object.values(loading).some(Boolean);
-  const loadedCount = [state.contacts, state.strategy, state.messages, state.questions].filter(Boolean).length;
-
-  if (selectedJob) {
+  if (netJob) {
+    const n = netResult[netJob.id];
     return (
-      <div className="max-w-[900px] mx-auto p-7 animate-fade-up">
-        <button
-          onClick={() => setSelectedJob(null)}
-          className="bg-transparent border border-border text-muted-foreground rounded-[6px] px-3 py-1 text-xs mb-5 hover:text-foreground transition-colors"
-        >
+      <div className="max-w-[880px] mx-auto p-7 animate-fade-up">
+        <button onClick={() => setNetJob(null)} className="bg-transparent border border-border text-muted-foreground rounded-[6px] px-3 py-1 text-xs mb-5 hover:text-foreground transition-colors">
           ← All roles
         </button>
+        <div className="bg-card border border-border rounded-[11px] p-4 mb-3.5">
+          <div className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider mb-0.5">{netJob.company}</div>
+          <div className="font-serif text-lg">{netJob.title}</div>
+        </div>
 
-        {/* Header */}
-        <div className="bg-card border border-border rounded-xl p-5 mb-4 flex items-center gap-4">
-          <div className="w-12 h-12 bg-foreground rounded-lg flex items-center justify-center shrink-0">
-            <span className="text-background text-xs font-bold">{initials(selectedJob.company)}</span>
+        {netLoading === netJob.id ? (
+          <div className="text-center py-12 bg-card border border-border rounded-[11px]">
+            <Spinner size={20} />
+            <p className="animate-pulse-dot text-xs text-muted-foreground mt-3">Finding your networking strategy…</p>
           </div>
-          <div className="flex-1">
-            <h1 className="font-serif text-xl font-normal">Networking Strategy</h1>
-            <p className="text-xs text-muted-foreground">{selectedJob.title} · {selectedJob.company} · {selectedJob.location}</p>
+        ) : n?.error ? (
+          <div className="text-xs text-muted-foreground p-5">Analysis failed — please retry.</div>
+        ) : n ? (
+          <div className="flex flex-col gap-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-card border border-border rounded-[11px] p-4">
+                <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide mb-3">Who to Find on LinkedIn</div>
+                {n.connectionAngles?.map((a, i) => (
+                  <div key={i} className="flex gap-1.5 mb-2 text-xs leading-relaxed"><span className="font-bold shrink-0">{i + 1}.</span>{a}</div>
+                ))}
+              </div>
+              <div className="bg-card border border-border rounded-[11px] p-4">
+                <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide mb-3">LinkedIn Search Strings</div>
+                {n.searchQueries?.map((q, i) => (
+                  <div key={i} onClick={() => copy(q)} className="bg-secondary border border-border rounded-[6px] p-2 mb-2 text-xs font-mono cursor-pointer hover:bg-muted transition-colors">
+                    {q} <span className="text-[10px] text-muted-foreground">· click to copy</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="bg-card border border-border rounded-[11px] p-4">
+              <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide mb-3">Outreach Messages</div>
+              {n.outreachMessages?.map((m, i) => (
+                <div key={i} className="bg-secondary border border-border rounded-lg p-3.5 mb-2.5">
+                  <div className="text-[10.5px] text-muted-foreground font-semibold uppercase tracking-wide mb-2">{m.persona}</div>
+                  <p className="text-xs leading-relaxed mb-2">{m.message}</p>
+                  <button onClick={() => copy(m.message)} className="bg-card border border-border text-secondary-foreground rounded-[5px] px-2.5 py-1 text-[11.5px]">Copy message</button>
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-[11px] p-4" style={{ background: "hsl(150 38% 96%)", border: "1px solid hsl(152 34% 82%)" }}>
+                <div className="text-[10px] font-bold uppercase tracking-wide mb-2.5" style={{ color: "hsl(153 40% 30%)" }}>Smart Questions to Ask</div>
+                {n.insiderQuestions?.map((q, i) => (
+                  <div key={i} className="flex gap-1.5 mb-2 text-xs leading-relaxed" style={{ color: "hsl(153 30% 25%)" }}>
+                    <span style={{ color: "hsl(153 40% 30%)" }}>Q{i + 1}</span>{q}
+                  </div>
+                ))}
+              </div>
+              <div className="rounded-[11px] p-4" style={{ background: "hsl(37 60% 97%)", border: "1px solid hsl(37 40% 80%)" }}>
+                <div className="text-[10px] font-bold uppercase tracking-wide mb-2.5" style={{ color: "hsl(25 84% 31%)" }}>LinkedIn Content Angle</div>
+                <p className="text-xs leading-relaxed" style={{ color: "hsl(25 50% 22%)" }}>{n.contentAngle}</p>
+                <button onClick={() => copy(n.contentAngle || "")} className="mt-2.5 bg-card border border-border text-secondary-foreground rounded-[5px] px-2.5 py-1 text-[11.5px]">Copy idea</button>
+              </div>
+            </div>
           </div>
-          {anyLoading && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <PrepSpinner size={14} />
-              <span>Building strategy… ({loadedCount}/4)</span>
-            </div>
-          )}
-        </div>
-
-        {/* Pipeline indicator */}
-        <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 mb-4 flex items-center gap-4">
-          {["Apply", "Network", "Follow Up", "Interview", "Offer"].map((step, i) => (
-            <div key={step} className="flex items-center gap-2">
-              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                i <= 1 ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
-              }`}>{i + 1}</span>
-              <span className={`text-xs font-medium ${i <= 1 ? "text-foreground" : "text-muted-foreground"}`}>{step}</span>
-              {i < 4 && <span className="text-muted-foreground">→</span>}
-            </div>
-          ))}
-        </div>
-
-        <div className="space-y-3">
-          <SectionShell number={1} title="Best People to Contact" subtitle="Prioritized networking targets by response rate" icon="👥" defaultOpen={true}>
-            <BestContacts data={state.contacts} loading={loading.contacts} />
-          </SectionShell>
-
-          <SectionShell number={2} title="Outreach Strategy" subtitle="Objectives and approach for each tier" icon="🎯">
-            <OutreachStrategy data={state.strategy} loading={loading.strategy} />
-          </SectionShell>
-
-          <SectionShell number={3} title="Personalized Outreach Messages" subtitle="Ready-to-send messages with copy, edit, and regenerate" icon="💬">
-            <OutreachMessages data={state.messages} loading={loading.messages} jobTitle={selectedJob.title} company={selectedJob.company} />
-          </SectionShell>
-
-          <SectionShell number={4} title="Smart Questions to Ask" subtitle="Questions grouped by networking goal" icon="❓">
-            <SmartQuestions data={state.questions} loading={loading.questions} />
-          </SectionShell>
-
-          <SectionShell number={5} title="Networking Tracker" subtitle="Track your outreach pipeline for this role" icon="📋">
-            <NetworkingTracker jobSeedId={selectedJob.id} company={selectedJob.company} />
-          </SectionShell>
-
-          <SectionShell number={6} title="Follow-Up Emails" subtitle="Application, networking, and interview follow-ups" icon="📧">
-            <FollowUpEmails
-              jobTitle={selectedJob.title}
-              company={selectedJob.company}
-              userName={profile?.full_name || "Sanjana"}
-            />
-          </SectionShell>
-        </div>
+        ) : null}
       </div>
     );
   }
 
-  // Role selection
   return (
-    <div className="max-w-[900px] mx-auto p-7 pt-9">
-      <h1 className="font-serif text-[26px] font-normal mb-1">Networking & Follow-Up</h1>
-      <p className="text-xs text-muted-foreground mb-6">Select a role to build a complete networking strategy — who to contact, what to say, and how to follow up.</p>
-
-      {/* Pipeline overview */}
-      <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-6">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-primary mb-2">Your Job Search Pipeline</div>
-        <div className="flex items-center gap-3 text-xs">
-          {["Apply", "Network", "Follow Up", "Interview", "Offer"].map((step, i) => (
-            <div key={step} className="flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[9px] font-bold text-primary">{i + 1}</span>
-              <span className="text-secondary-foreground">{step}</span>
-              {i < 4 && <span className="text-muted-foreground">→</span>}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <div className="max-w-[880px] mx-auto p-7 pt-9">
+      <h1 className="font-serif text-[26px] font-normal mb-1">Networking Intelligence</h1>
+      <p className="text-xs text-muted-foreground mb-5">Pick a role — get exactly who to find on LinkedIn, what to say, and how to get on their radar</p>
+      <div className="flex flex-col gap-1.5">
         {INITIAL_JOBS.map(job => (
           <div
             key={job.id}
-            onClick={() => selectJob(job)}
-            className="bg-card border border-border rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all group"
+            onClick={() => { setNetJob(job); if (!netResult[job.id]) generateNetworking(job); }}
+            className="bg-card border border-border rounded-[9px] p-4 flex items-center justify-between cursor-pointer hover:shadow-sm hover:-translate-y-px transition-all"
           >
-            <div className="w-10 h-10 bg-foreground rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <span className="text-background text-[10px] font-bold">{initials(job.company)}</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold truncate">{job.title}</div>
+            <div>
+              <div className="text-sm font-semibold mb-0.5">{job.title}</div>
               <div className="text-xs text-muted-foreground">{job.company} · {job.location}</div>
             </div>
-            <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors shrink-0">Network →</span>
+            <span className="text-xs text-muted-foreground">Get connections →</span>
           </div>
         ))}
       </div>
