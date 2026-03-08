@@ -25,8 +25,9 @@ async function refreshAccessToken(refreshToken: string): Promise<string> {
 
   if (!res.ok) {
     const err = await res.text();
-    console.error("Token refresh failed:", err);
-    throw new Error("Failed to refresh Google token");
+    console.error("Token refresh failed:", res.status, err);
+    console.error("Using client_id:", clientId?.slice(0, 20) + "...");
+    throw new Error(`Failed to refresh Google token: ${res.status} - ${err}`);
   }
 
   const data = await res.json();
