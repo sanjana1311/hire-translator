@@ -485,7 +485,7 @@ serve(async (req) => {
       .single();
 
     const result = await syncGmailJobs({
-      accessToken: providerToken,
+      accessToken,
       profileId: profile.id,
       adminClient,
       lastSyncedAt: syncMeta?.last_synced_at || null,
