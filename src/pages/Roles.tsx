@@ -228,6 +228,18 @@ Output complete rewritten resume:`, 4000);
           <h1 className="font-serif text-[26px] font-normal mb-1">Today's Roles</h1>
           <p className="text-xs text-muted-foreground mb-5">
             {isRunning ? `Analyzing all ${jobs.length} roles…` : `${jobs.length} roles ready · click to review your tailored resume`}
+            {lastSyncedAt && (
+              <span className="ml-2 text-muted-foreground/70">
+                · Last synced {(() => {
+                  const diff = Date.now() - new Date(lastSyncedAt).getTime();
+                  const mins = Math.floor(diff / 60000);
+                  if (mins < 60) return `${mins}m ago`;
+                  const hrs = Math.floor(mins / 60);
+                  if (hrs < 24) return `${hrs}h ago`;
+                  return `${Math.floor(hrs / 24)}d ago`;
+                })()}
+              </span>
+            )}
           </p>
         </div>
         {isRunning ? (
@@ -252,18 +264,6 @@ Output complete rewritten resume:`, 4000);
               </div>
             ))}
           </div>
-        )}
-        {lastSyncedAt && (
-          <span className="text-[11px] text-muted-foreground ml-2">
-            Last synced {(() => {
-              const diff = Date.now() - new Date(lastSyncedAt).getTime();
-              const mins = Math.floor(diff / 60000);
-              if (mins < 60) return `${mins}m ago`;
-              const hrs = Math.floor(mins / 60);
-              if (hrs < 24) return `${hrs}h ago`;
-              return `${Math.floor(hrs / 24)}d ago`;
-            })()}
-          </span>
         )}
       </div>
 
