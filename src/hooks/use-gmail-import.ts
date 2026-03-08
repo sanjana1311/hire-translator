@@ -63,7 +63,7 @@ export function useGmailImport(profileId: string | null) {
       const providerToken = session.provider_token;
       const refreshToken = session.provider_refresh_token;
       if (!providerToken) {
-        toast.error("No Google access. Please sign out and sign in with Google to grant Gmail access.");
+        toast.error("To import jobs, sign out and sign back in — make sure to click 'Allow' on the Gmail permissions screen.");
         return [];
       }
 

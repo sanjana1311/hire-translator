@@ -64,6 +64,7 @@ const Auth = () => {
         extraParams: {
           prompt: "consent",
           access_type: "offline",
+          scope: "openid email profile https://www.googleapis.com/auth/gmail.readonly",
         },
       });
       if (result?.error) {
@@ -154,6 +155,10 @@ const Auth = () => {
               <span className="bg-background px-3 text-muted-foreground">or</span>
             </div>
           </div>
+
+          <p className="text-[11px] text-muted-foreground leading-relaxed mb-3 text-center">
+            Career Compass reads your Gmail job alert emails to find open roles. We request read-only access — we never send emails, delete anything, or access non-job emails.
+          </p>
 
           <Button
             type="button"
