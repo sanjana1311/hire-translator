@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { callAI } from "@/lib/ai";
-import { useGmailImport, type GmailJob } from "@/hooks/use-gmail-import";
+import { useGmailImport } from "@/hooks/use-gmail-import";
+import { useProfile } from "@/hooks/use-profile";
 import { Button } from "@/components/ui/button";
 import {
   INITIAL_JOBS, RESUME_TEXT, BUCKET_META,
@@ -42,7 +43,8 @@ const Roles = () => {
   const [rtab, setRtab] = useState("tailored");
   const [copied, setCopied] = useState(false);
   const didRun = useRef(false);
-  const { importJobs, loading: gmailLoading, jobs: gmailJobs } = useGmailImport();
+  const { data: profile } = useProfile();
+  const { importJobs, loading: gmailLoading, jobs: gmailJobs, unseenCount, lastSyncedAt, markSeen } = useGmailImport(profile?.id ?? null);
   const [showGmailJobs, setShowGmailJobs] = useState(false);
 
   const jobs = INITIAL_JOBS;
@@ -274,21 +276,29 @@ Output complete rewritten resume:`, 4000);
       </div>
 
       {/* Gmail imported jobs */}
-      {showGmailJobs && gmailJobs.length > 0 && (
+      {/* Persisted imported jobs */}
+      {gmailJobs.length > 0 && (showGmailJobs || unseenCount > 0) && (
         <div className="mb-5 bg-card border border-border rounded-[11px] p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              {unseenCount > 0 && <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />}
               <h3 className="text-sm font-semibold">Imported from Gmail</h3>
-              <span className="text-[11px] text-muted-foreground">({gmailJobs.length} jobs found)</span>
+              <span className="text-[11px] text-muted-foreground">
+                ({unseenCount > 0 ? `${unseenCount} new` : `${gmailJobs.length} total`})
+              </span>
+              {lastSyncedAt && (
+                <span className="text-[10px] text-muted-foreground">
+                  · Last sync: {new Date(lastSyncedAt).toLocaleDateString()}
+                </span>
+              )}
             </div>
             <button onClick={() => setShowGmailJobs(false)} className="text-xs text-muted-foreground hover:text-foreground">
               Dismiss
             </button>
           </div>
           <div className="flex flex-col gap-1.5">
-            {gmailJobs.map((gj, i) => (
-              <div key={i} className="bg-secondary/50 border border-border rounded-[7px] p-3 flex items-center justify-between">
+            {gmailJobs.filter(gj => showGmailJobs || !gj.seen).map((gj) => (
+              <div key={gj.id} className={`border border-border rounded-[7px] p-3 flex items-center justify-between ${gj.seen ? 'bg-secondary/30' : 'bg-secondary/50'}`}>
                 <div>
                   <div className="text-sm font-medium">{gj.title}</div>
                   <div className="text-xs text-muted-foreground">{gj.company} · {gj.location}</div>
@@ -296,6 +306,9 @@ Output complete rewritten resume:`, 4000);
                 </div>
                 <div className="flex items-center gap-2 shrink-0 ml-3">
                   <span className="text-[10px] text-muted-foreground bg-secondary border border-border rounded px-1.5 py-0.5">{gj.source}</span>
+                  {!gj.seen && (
+                    <button onClick={() => markSeen(gj.id)} className="text-[10px] text-muted-foreground hover:text-foreground">✓</button>
+                  )}
                   {gj.url && (
                     <a href={gj.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">
                       Apply ↗

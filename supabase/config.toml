@@ -2,3 +2,6 @@ project_id = "nkhothtftipsrvznyurv"
 
 [functions.fetch-gmail-jobs]
 verify_jwt = false
+
+[functions.gmail-sync-cron]
+verify_jwt = false
