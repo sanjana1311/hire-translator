@@ -149,27 +149,33 @@ Output complete rewritten resume:`, 4000);
   if (selected) {
     const r = results[selected.id];
     const bm = r ? BUCKET_META[r.bucket] : null;
+    const hasError = r?.error;
     return (
-      <div className="max-w-[1160px] mx-auto p-7 animate-fade-up">
+      <div className="max-w-[1200px] mx-auto p-7 animate-fade-up">
         <button onClick={() => setSelected(null)} className="bg-transparent border border-border text-muted-foreground rounded-[6px] px-3 py-1 text-xs mb-5 hover:text-foreground transition-colors">
           ← All roles
         </button>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
-          {/* Left: Score card */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.1fr] gap-6 items-start">
+          {/* Left column — scrollable */}
           <div className="flex flex-col gap-3">
+            {/* Header card */}
             <div className="bg-card border border-border rounded-[11px] p-5">
-              <div className="flex gap-3 items-start">
-                <div className="w-10 h-10 bg-foreground rounded-lg flex items-center justify-center shrink-0">
-                  <span className="text-background text-[11px] font-bold">{initials(selected.company)}</span>
+              <div className="flex gap-3.5 items-start">
+                <div className="w-12 h-12 bg-foreground rounded-lg flex items-center justify-center shrink-0">
+                  <span className="text-background text-xs font-bold">{initials(selected.company)}</span>
                 </div>
-                <div>
-                  <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-0.5">{selected.company}</div>
-                  <h2 className="font-serif text-[19px] leading-tight mb-1">{selected.title}</h2>
-                  <div className="text-xs text-muted-foreground">{selected.location}{selected.salary ? ` · ${selected.salary}/yr` : ""}</div>
+                <div className="flex-1">
+                  <h2 className="font-serif text-[22px] leading-tight mb-1">{selected.title}</h2>
+                  <div className="text-xs text-muted-foreground">
+                    {selected.company} · {selected.location}{selected.salary ? ` · ${selected.salary}/yr` : ""}
+                  </div>
                 </div>
               </div>
-              <div className="mt-3.5 pt-3.5 border-t border-border flex gap-2.5 flex-wrap">
-                <a href={selected.url} target="_blank" rel="noreferrer" className="text-xs font-medium hover:underline">View on LinkedIn ↗</a>
+              <div className="mt-4 pt-3.5 border-t border-border flex gap-2 flex-wrap">
+                <a href={selected.url} target="_blank" rel="noreferrer" className="text-xs font-medium text-primary hover:underline">View on LinkedIn ↗</a>
+                <button className="text-xs font-medium px-3 py-1 rounded-[6px] border border-border bg-secondary text-secondary-foreground hover:bg-accent transition-colors">Mark as Applied</button>
+                <button className="text-xs font-medium px-3 py-1 rounded-[6px] border border-border bg-secondary text-secondary-foreground hover:bg-accent transition-colors">Get Connections</button>
+                <button className="text-xs font-medium px-3 py-1 rounded-[6px] border border-border bg-secondary text-secondary-foreground hover:bg-accent transition-colors">Interview Prep</button>
               </div>
             </div>
 
@@ -178,52 +184,77 @@ Output complete rewritten resume:`, 4000);
                 <Spinner size={18} />
                 <div className="animate-pulse-dot text-xs text-muted-foreground mt-2.5">Analyzing…</div>
               </div>
+            ) : hasError ? (
+              <div className="animate-fade-up bg-card border border-destructive/30 rounded-[11px] p-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-destructive text-sm font-semibold">⚠ Scoring Failed</span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed mb-3">{r.matchSummary}</p>
+                <button
+                  onClick={() => {
+                    setResults(prev => { const n = { ...prev }; delete n[selected.id]; return n; });
+                    setDone(prev => prev - 1);
+                    analyzeJob(selected);
+                  }}
+                  className="text-xs font-medium px-3 py-1.5 rounded-[6px] border border-border bg-secondary text-secondary-foreground hover:bg-accent transition-colors"
+                >
+                  Retry Analysis
+                </button>
+              </div>
             ) : (
               <div className="animate-fade-up flex flex-col gap-2.5">
-                {/* Score */}
-                <div className="rounded-[11px] p-5 flex items-center gap-4" style={{ background: scoreBg(r.score), border: `1px solid ${scoreBorder(r.score)}` }}>
-                  <div className="shrink-0">
-                    <div className="font-serif text-5xl leading-none" style={{ color: scoreColor(r.score) }}>{r.score}</div>
-                    <div className="text-[9px] text-muted-foreground uppercase tracking-wide mt-0.5">ATS match</div>
+                {/* ATS Score Card */}
+                <div className="rounded-[11px] p-5 flex items-center gap-5" style={{ background: scoreBg(r.score), border: `1px solid ${scoreBorder(r.score)}` }}>
+                  <div className="shrink-0 text-center">
+                    <div className="font-serif text-[52px] leading-none" style={{ color: scoreColor(r.score) }}>{r.score}</div>
+                    <div className="text-[9px] text-muted-foreground uppercase tracking-widest mt-1">ATS Match</div>
                   </div>
-                  <div className="border-l pl-4 flex-1" style={{ borderColor: scoreBorder(r.score) }}>
+                  <div className="border-l pl-5 flex-1" style={{ borderColor: scoreBorder(r.score) }}>
                     {bm && (
-                      <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 mb-1.5 text-[11px] font-semibold" style={{ background: bm.bg, border: `1px solid ${bm.border}`, color: bm.text }}>
-                        <span className="w-1 h-1 rounded-full" style={{ background: bm.dot }} /> {bm.label}
+                      <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 mb-2 text-[11px] font-semibold" style={{ background: bm.bg, border: `1px solid ${bm.border}`, color: bm.text }}>
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: bm.dot }} /> {bm.label}
                       </span>
                     )}
                     <p className="text-xs leading-relaxed text-secondary-foreground">{r.matchSummary}</p>
                   </div>
                 </div>
-                {/* Strengths / Gaps */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-[9px] p-3.5" style={{ background: "hsl(150 38% 96%)", border: "1px solid hsl(152 34% 82%)" }}>
-                    <div className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: "hsl(153 40% 30%)" }}>Strengths</div>
-                    {r.strengths?.map((s, i) => (
-                      <div key={i} className="flex gap-1.5 mb-1.5 text-xs leading-relaxed" style={{ color: "hsl(153 30% 25%)" }}>
-                        <span className="shrink-0 mt-0.5" style={{ color: "hsl(153 40% 30%)" }}>✓</span>{s}
+
+                {/* Strengths / Gaps two-column grid */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="rounded-[10px] p-4" style={{ background: "hsl(150 38% 96%)", border: "1px solid hsl(152 34% 82%)" }}>
+                    <div className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: "hsl(153 40% 30%)" }}>Strengths</div>
+                    {(r.strengths?.length ?? 0) > 0 ? r.strengths.map((s, i) => (
+                      <div key={i} className="flex gap-1.5 mb-2 text-xs leading-relaxed" style={{ color: "hsl(153 30% 25%)" }}>
+                        <span className="shrink-0 mt-0.5 font-bold" style={{ color: "hsl(153 50% 35%)" }}>✓</span>{s}
                       </div>
-                    ))}
+                    )) : (
+                      <p className="text-xs text-muted-foreground italic">No strengths identified</p>
+                    )}
                   </div>
-                  <div className="rounded-[9px] p-3.5" style={{ background: "hsl(0 38% 97%)", border: "1px solid hsl(348 28% 85%)" }}>
-                    <div className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: "hsl(348 46% 28%)" }}>Gaps</div>
-                    {r.gaps?.map((g, i) => (
-                      <div key={i} className="flex gap-1.5 mb-1.5 text-xs leading-relaxed" style={{ color: "hsl(348 30% 30%)" }}>
-                        <span className="shrink-0 mt-0.5" style={{ color: "hsl(348 46% 28%)" }}>→</span>{g}
+                  <div className="rounded-[10px] p-4" style={{ background: "hsl(0 38% 97%)", border: "1px solid hsl(348 28% 85%)" }}>
+                    <div className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: "hsl(348 46% 28%)" }}>Gaps</div>
+                    {(r.gaps?.length ?? 0) > 0 ? r.gaps.map((g, i) => (
+                      <div key={i} className="flex gap-1.5 mb-2 text-xs leading-relaxed" style={{ color: "hsl(348 30% 30%)" }}>
+                        <span className="shrink-0 mt-0.5 font-bold" style={{ color: "hsl(348 50% 35%)" }}>→</span>{g}
                       </div>
-                    ))}
+                    )) : (
+                      <p className="text-xs text-muted-foreground italic">No gaps identified</p>
+                    )}
                   </div>
                 </div>
-                {/* Missing keywords */}
-                <div className="bg-card border border-border rounded-[9px] p-3.5">
-                  <div className="text-[10px] font-bold uppercase tracking-wide text-secondary-foreground mb-2">Missing ATS Keywords</div>
-                  <div className="flex flex-wrap gap-1">{r.missingKeywords?.map(kw => <Tag key={kw}>{kw}</Tag>)}</div>
-                </div>
+
+                {/* Missing ATS Keywords */}
+                {(r.missingKeywords?.length ?? 0) > 0 && (
+                  <div className="bg-card border border-border rounded-[10px] p-4">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-secondary-foreground mb-2.5">Missing ATS Keywords</div>
+                    <div className="flex flex-wrap gap-1.5">{r.missingKeywords.map(kw => <Tag key={kw}>{kw}</Tag>)}</div>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
-          {/* Right: Resume panel */}
+          {/* Right column — sticky resume panel */}
           <div className="bg-card border border-border rounded-[11px] overflow-hidden sticky top-[60px]">
             <div className="border-b border-border px-4 py-2.5 flex items-center justify-between">
               <div className="flex">
@@ -252,7 +283,11 @@ Output complete rewritten resume:`, 4000);
             </div>
             <div className="p-5 h-[calc(100vh-180px)] overflow-y-auto">
               {rtab === "tailored" ? (
-                resumes[selected.id] ? (
+                hasError ? (
+                  <div className="text-center py-16">
+                    <p className="text-sm text-muted-foreground">Resume tailoring unavailable — scoring must succeed first.</p>
+                  </div>
+                ) : resumes[selected.id] ? (
                   <pre className="font-sans text-[11.5px] leading-[1.85] whitespace-pre-wrap break-words text-secondary-foreground">{resumes[selected.id]}</pre>
                 ) : (
                   <div className="text-center py-16">
