@@ -43,7 +43,8 @@ const Roles = () => {
   const [rtab, setRtab] = useState("tailored");
   const [copied, setCopied] = useState(false);
   const didRun = useRef(false);
-  const { importJobs, loading: gmailLoading, jobs: gmailJobs } = useGmailImport();
+  const { data: profile } = useProfile();
+  const { importJobs, loading: gmailLoading, jobs: gmailJobs, unseenCount, lastSyncedAt, markSeen } = useGmailImport(profile?.id ?? null);
   const [showGmailJobs, setShowGmailJobs] = useState(false);
 
   const jobs = INITIAL_JOBS;
