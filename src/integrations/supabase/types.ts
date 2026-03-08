@@ -14,6 +14,72 @@ export type Database = {
   }
   public: {
     Tables: {
+      applications: {
+        Row: {
+          applied_date: string | null
+          company: string
+          created_at: string
+          id: string
+          imported_job_id: string | null
+          job_seed_id: number | null
+          last_email_date: string | null
+          next_action: string | null
+          notes: string | null
+          profile_id: string
+          recruiter_email: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          applied_date?: string | null
+          company: string
+          created_at?: string
+          id?: string
+          imported_job_id?: string | null
+          job_seed_id?: number | null
+          last_email_date?: string | null
+          next_action?: string | null
+          notes?: string | null
+          profile_id: string
+          recruiter_email?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          applied_date?: string | null
+          company?: string
+          created_at?: string
+          id?: string
+          imported_job_id?: string | null
+          job_seed_id?: number | null
+          last_email_date?: string | null
+          next_action?: string | null
+          notes?: string | null
+          profile_id?: string
+          recruiter_email?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "applications_imported_job_id_fkey"
+            columns: ["imported_job_id"]
+            isOneToOne: false
+            referencedRelation: "imported_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gmail_sync_metadata: {
         Row: {
           created_at: string

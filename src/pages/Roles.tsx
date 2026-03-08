@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { callAI } from "@/lib/ai";
 import { useGmailImport } from "@/hooks/use-gmail-import";
 import { useProfile } from "@/hooks/use-profile";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import {
   INITIAL_JOBS, RESUME_TEXT, BUCKET_META,
   initials, scoreColor, scoreBg, scoreBorder,
@@ -40,7 +43,6 @@ const loadCache = <T,>(key: string): T | null => {
     const raw = sessionStorage.getItem(key);
     if (!raw) return null;
     const { data, ts } = JSON.parse(raw);
-    // Cache valid for 1 hour
     if (Date.now() - ts > 3600000) return null;
     return data as T;
   } catch { return null; }
@@ -53,6 +55,7 @@ const saveCache = (key: string, data: any) => {
 };
 
 const Roles = () => {
+  const navigate = useNavigate();
   const cachedResults = loadCache<Record<number, AnalysisResult>>(CACHE_KEY_RESULTS);
   const cachedResumes = loadCache<Record<number, string>>(CACHE_KEY_RESUMES);
 
@@ -65,12 +68,29 @@ const Roles = () => {
   const [jobTab, setJobTab] = useState("all");
   const [rtab, setRtab] = useState("tailored");
   const [copied, setCopied] = useState(false);
+  const [appliedJobs, setAppliedJobs] = useState<Set<number>>(new Set());
+  const [applyLoading, setApplyLoading] = useState(false);
   const didRun = useRef(!!cachedResults);
   const { data: profile } = useProfile();
   const { importJobs, loading: gmailLoading, jobs: gmailJobs, unseenCount, lastSyncedAt, markSeen } = useGmailImport(profile?.id ?? null);
   const [showGmailJobs, setShowGmailJobs] = useState(false);
 
   const jobs = INITIAL_JOBS;
+
+  // Load applied status on mount
+  useEffect(() => {
+    if (!profile?.id) return;
+    const loadApplied = async () => {
+      const { data } = await supabase
+        .from("applications")
+        .select("job_seed_id")
+        .eq("profile_id", profile.id);
+      if (data) {
+        setAppliedJobs(new Set(data.map(d => d.job_seed_id).filter(Boolean) as number[]));
+      }
+    };
+    loadApplied();
+  }, [profile?.id]);
 
   // Persist results to sessionStorage on change
   useEffect(() => {
@@ -114,9 +134,7 @@ bucket: must>=75, tweak 40-74, low<40`, 600);
     setAL(prev => { const s = new Set(prev); s.delete(job.id); return s; });
 
     // Gate: only run resume rewrite if scoring succeeded
-    if (!scoreResult || scoreResult.error) {
-      return;
-    }
+    if (!scoreResult || scoreResult.error) return;
 
     setRL(prev => new Set([...prev, job.id]));
     try {
@@ -133,23 +151,46 @@ Output complete rewritten resume:`, 4000);
     setRL(prev => { const s = new Set(prev); s.delete(job.id); return s; });
   };
 
+  const handleMarkApplied = async (job: Job) => {
+    if (!profile?.id || appliedJobs.has(job.id)) return;
+    setApplyLoading(true);
+    try {
+      const { error } = await supabase.from("applications").insert({
+        profile_id: profile.id,
+        job_seed_id: job.id,
+        title: job.title,
+        company: job.company,
+        status: "applied",
+      });
+      if (error) throw error;
+      setAppliedJobs(prev => new Set([...prev, job.id]));
+      toast.success("Added to Applications tracker");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to mark as applied");
+    } finally {
+      setApplyLoading(false);
+    }
+  };
+
   const copy = (t: string) => { navigator.clipboard.writeText(t); setCopied(true); setTimeout(() => setCopied(false), 2500); };
 
   const buckets = {
     must: jobs.filter(j => results[j.id]?.bucket === "must"),
     tweak: jobs.filter(j => results[j.id]?.bucket === "tweak"),
     low: jobs.filter(j => results[j.id]?.bucket === "low"),
-    pending: jobs.filter(j => !results[j.id]),
   };
 
+  const analysisInProgress = aLoading.size > 0;
+  const totalAnalyzed = Object.keys(results).length;
   const isRunning = aLoading.size > 0 || rLoading.size > 0;
   const pct = Math.round((doneCount / jobs.length) * 100);
-  const visibleJobs = jobTab === "all" ? jobs : jobTab === "pending" ? buckets.pending : (buckets[jobTab as keyof typeof buckets] || []);
+  const visibleJobs = jobTab === "all" ? jobs : (buckets[jobTab as keyof typeof buckets] || []);
 
   if (selected) {
     const r = results[selected.id];
     const bm = r ? BUCKET_META[r.bucket] : null;
     const hasError = r?.error;
+    const isApplied = appliedJobs.has(selected.id);
     return (
       <div className="max-w-[1200px] mx-auto p-7 animate-fade-up">
         <button onClick={() => setSelected(null)} className="bg-transparent border border-border text-muted-foreground rounded-[6px] px-3 py-1 text-xs mb-5 hover:text-foreground transition-colors">
@@ -173,9 +214,31 @@ Output complete rewritten resume:`, 4000);
               </div>
               <div className="mt-4 pt-3.5 border-t border-border flex gap-2 flex-wrap">
                 <a href={selected.url} target="_blank" rel="noreferrer" className="text-xs font-medium text-primary hover:underline">View on LinkedIn ↗</a>
-                <button className="text-xs font-medium px-3 py-1 rounded-[6px] border border-border bg-secondary text-secondary-foreground hover:bg-accent transition-colors">Mark as Applied</button>
-                <button className="text-xs font-medium px-3 py-1 rounded-[6px] border border-border bg-secondary text-secondary-foreground hover:bg-accent transition-colors">Get Connections</button>
-                <button className="text-xs font-medium px-3 py-1 rounded-[6px] border border-border bg-secondary text-secondary-foreground hover:bg-accent transition-colors">Interview Prep</button>
+                {isApplied ? (
+                  <span className="text-xs font-medium px-3 py-1 rounded-[6px] border" style={{ background: "hsl(150 38% 96%)", borderColor: "hsl(152 34% 82%)", color: "hsl(153 40% 30%)" }}>
+                    Applied ✓
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => handleMarkApplied(selected)}
+                    disabled={applyLoading}
+                    className="text-xs font-medium px-3 py-1 rounded-[6px] border border-border bg-secondary text-secondary-foreground hover:bg-accent transition-colors disabled:opacity-50"
+                  >
+                    {applyLoading ? "Saving…" : "Mark as Applied"}
+                  </button>
+                )}
+                <button
+                  onClick={() => navigate(`/dashboard/networking?jobId=${selected.id}`)}
+                  className="text-xs font-medium px-3 py-1 rounded-[6px] border border-border bg-secondary text-secondary-foreground hover:bg-accent transition-colors"
+                >
+                  Get Connections
+                </button>
+                <button
+                  onClick={() => navigate(`/dashboard/prep?jobId=${selected.id}`)}
+                  className="text-xs font-medium px-3 py-1 rounded-[6px] border border-border bg-secondary text-secondary-foreground hover:bg-accent transition-colors"
+                >
+                  Interview Prep
+                </button>
               </div>
             </div>
 
@@ -352,7 +415,6 @@ Output complete rewritten resume:`, 4000);
       </div>
 
       {/* Gmail imported jobs */}
-      {/* Persisted imported jobs */}
       {gmailJobs.length > 0 && (showGmailJobs || unseenCount > 0) && (
         <div className="mb-5 bg-card border border-border rounded-[11px] p-4">
           <div className="flex items-center justify-between mb-3">
@@ -397,14 +459,13 @@ Output complete rewritten resume:`, 4000);
         </div>
       )}
 
-      {/* Filter tabs */}
+      {/* Filter tabs — no Pending tab */}
       <div className="flex gap-0.5 border-b border-border mb-4">
         {[
           ["all", `All (${jobs.length})`],
           ["must", `Must Apply (${buckets.must.length})`],
           ["tweak", `Needs Tweaking (${buckets.tweak.length})`],
           ["low", `Low (${buckets.low.length})`],
-          ["pending", `Pending (${buckets.pending.length})`],
         ].map(([k, lbl]) => (
           <button
             key={k}
@@ -466,7 +527,7 @@ Output complete rewritten resume:`, 4000);
                     </div>
                   </div>
                 ) : (
-                  <span className="text-[11px] text-muted-foreground">Queued…</span>
+                  <Spinner size={14} />
                 )}
               </div>
             </div>
