@@ -234,17 +234,34 @@ export function useGmailImport(profileId: string | null) {
 
     const captureTokenAndSync = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.provider_refresh_token) return;
+      
+      console.log("[Gmail Auth Debug] Session exists:", !!session);
+      console.log("[Gmail Auth Debug] provider_token:", session?.provider_token ? "present" : "missing");
+      console.log("[Gmail Auth Debug] provider_refresh_token:", session?.provider_refresh_token ? "present" : "missing");
+      
+      if (!session?.provider_refresh_token) {
+        log("No provider_refresh_token in session — skipping capture");
+        return;
+      }
 
       // Store the refresh token right away so we never lose it
-      log("Capturing Google refresh token from session");
-      await supabase
+      const tokenPreview = session.provider_refresh_token.slice(0, 10) + "...";
+      log(`Capturing Google refresh token from session (${tokenPreview})`);
+      
+      const { error: upsertErr } = await supabase
         .from("gmail_sync_metadata")
         .upsert(
           { profile_id: profileId, refresh_token: session.provider_refresh_token },
           { onConflict: "profile_id" }
         );
-      log("Refresh token stored successfully");
+      
+      if (upsertErr) {
+        log(`ERROR saving refresh token: ${upsertErr.message}`);
+        console.error("[Gmail Auth Debug] Upsert error:", upsertErr);
+      } else {
+        log("Refresh token stored successfully");
+        console.log("[Gmail Auth Debug] Refresh token saved to gmail_sync_metadata");
+      }
 
       // If we also have a provider_token, trigger sync immediately
       if (session.provider_token && !autoSyncRan.current) {
