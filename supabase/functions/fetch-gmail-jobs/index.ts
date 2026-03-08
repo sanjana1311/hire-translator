@@ -33,21 +33,114 @@ async function refreshAccessToken(refreshToken: string): Promise<string> {
   return data.access_token;
 }
 
-/** Build Gmail search query using last sync timestamp (or fallback to 7 days) */
+/** Build Gmail search query using last sync timestamp */
 function buildGmailQuery(lastSyncedAt: string | null): string {
-  const subjects = '(job alert OR new job OR job opportunity OR "jobs for you" OR "new jobs" OR "recommended jobs" OR "job match")';
+  const subjects =
+    '(job alert OR new jobs OR jobs for you OR new openings OR jobs matching OR roles for you OR hiring alert OR job recommendations)';
 
   if (lastSyncedAt) {
-    // Gmail after: uses epoch seconds
-    const epoch = Math.floor(new Date(lastSyncedAt).getTime() / 1000);
-    return `subject:${subjects} after:${epoch}`;
+    const daysSinceSync = Math.max(
+      1,
+      Math.ceil((Date.now() - new Date(lastSyncedAt).getTime()) / 86400000)
+    );
+    return `subject:${subjects} newer_than:${daysSinceSync}d`;
   }
 
-  // First sync — look back 7 days as a reasonable default
-  return `subject:${subjects} newer_than:7d`;
+  return `subject:${subjects} newer_than:30d`;
 }
 
-/** Core sync logic — works for both manual trigger and cron */
+/** Pre-filter: only emails that look like real job listings */
+const JOB_SIGNALS = [
+  "apply",
+  "view job",
+  "see job",
+  "open position",
+  "job opening",
+  "we're hiring",
+  "we are hiring",
+  "new role",
+  "/jobs/",
+  "/job/",
+  "/careers/",
+  "/apply/",
+  "job alert",
+  "new opening",
+];
+
+function looksLikeJobEmail(body: string): boolean {
+  const lower = body.toLowerCase();
+  return JOB_SIGNALS.some((s) => lower.includes(s));
+}
+
+/** Fetch full job description from a URL */
+async function fetchJobDescription(
+  url: string
+): Promise<{ description: string | null; urlVerified: boolean }> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; career-compass-bot/1.0)",
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!res.ok) return { description: null, urlVerified: false };
+
+    const html = await res.text();
+    let description: string | null = null;
+
+    // Try JSON-LD first — LinkedIn and many job boards use this
+    const jsonLdMatch = html.match(
+      /<script type="application\/ld\+json">([\s\S]*?)<\/script>/i
+    );
+    if (jsonLdMatch) {
+      try {
+        const jsonLd = JSON.parse(jsonLdMatch[1]);
+        description =
+          jsonLd.description || jsonLd.responsibilities || null;
+        if (description) {
+          description = description
+            .replace(/<[^>]+>/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+        }
+      } catch {
+        /* JSON-LD parse failed */
+      }
+    }
+
+    // Fallback — common job description HTML patterns
+    if (!description) {
+      const patterns = [
+        /class="[^"]*job-description[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+        /class="[^"]*jobsearch-jobDescriptionText[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+        /id="[^"]*job-description[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+        /class="[^"]*description__text[^"]*"[^>]*>([\s\S]*?)<\/section>/i,
+      ];
+      for (const pattern of patterns) {
+        const match = html.match(pattern);
+        if (match) {
+          description = match[1]
+            .replace(/<[^>]+>/g, " ")
+            .replace(/&amp;/g, "&")
+            .replace(/&lt;/g, "<")
+            .replace(/&gt;/g, ">")
+            .replace(/&nbsp;/g, " ")
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 5000);
+          break;
+        }
+      }
+    }
+
+    return { description, urlVerified: true };
+  } catch {
+    return { description: null, urlVerified: false };
+  }
+}
+
+/** Core sync logic */
 export async function syncGmailJobs(options: {
   accessToken: string;
   profileId: string;
@@ -56,9 +149,10 @@ export async function syncGmailJobs(options: {
 }): Promise<{ jobs: any[]; emailCount: number }> {
   const { accessToken, profileId, adminClient, lastSyncedAt } = options;
 
+  // Step 1 — Search Gmail
   const query = encodeURIComponent(buildGmailQuery(lastSyncedAt));
   const gmailRes = await fetch(
-    `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${query}&maxResults=30`,
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${query}&maxResults=50`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
 
@@ -75,16 +169,18 @@ export async function syncGmailJobs(options: {
   const messageIds = (gmailData.messages || []).map((m: any) => m.id);
 
   if (messageIds.length === 0) {
-    // Update last_synced_at even if no new emails
     await adminClient
       .from("gmail_sync_metadata")
-      .upsert({ profile_id: profileId, last_synced_at: new Date().toISOString() }, { onConflict: "profile_id" });
+      .upsert(
+        { profile_id: profileId, last_synced_at: new Date().toISOString() },
+        { onConflict: "profile_id" }
+      );
     return { jobs: [], emailCount: 0 };
   }
 
-  // Fetch email details (batch up to 15)
-  const emailBodies: string[] = [];
-  for (const msgId of messageIds.slice(0, 15)) {
+  // Step 2 — Fetch each email body
+  const emails: { subject: string; body: string }[] = [];
+  for (const msgId of messageIds) {
     const msgRes = await fetch(
       `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=full`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -92,134 +188,212 @@ export async function syncGmailJobs(options: {
     if (!msgRes.ok) continue;
     const msg = await msgRes.json();
 
-    const subject = msg.payload?.headers?.find((h: any) => h.name.toLowerCase() === "subject")?.value || "";
-    const from = msg.payload?.headers?.find((h: any) => h.name.toLowerCase() === "from")?.value || "";
+    const subject =
+      msg.payload?.headers?.find(
+        (h: any) => h.name.toLowerCase() === "subject"
+      )?.value || "";
 
-    let body = "";
+    let rawBody = "";
     if (msg.payload?.body?.data) {
-      body = atob(msg.payload.body.data.replace(/-/g, "+").replace(/_/g, "/"));
+      rawBody = atob(
+        msg.payload.body.data.replace(/-/g, "+").replace(/_/g, "/")
+      );
     } else if (msg.payload?.parts) {
-      const textPart = msg.payload.parts.find((p: any) => p.mimeType === "text/plain");
+      const textPart =
+        msg.payload.parts.find((p: any) => p.mimeType === "text/plain") ||
+        msg.payload.parts.find((p: any) => p.mimeType === "text/html");
       if (textPart?.body?.data) {
-        body = atob(textPart.body.data.replace(/-/g, "+").replace(/_/g, "/"));
+        rawBody = atob(
+          textPart.body.data.replace(/-/g, "+").replace(/_/g, "/")
+        );
       }
     }
 
-    emailBodies.push(`FROM: ${from}\nSUBJECT: ${subject}\n\n${body.slice(0, 3000)}`);
+    // Strip HTML tags for cleaner AI input
+    const body = rawBody
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    emails.push({ subject, body });
   }
 
-  if (emailBodies.length === 0) {
+  // Step 3 — Pre-filter: only emails with job signals
+  const relevantEmails = emails.filter(({ body }) => looksLikeJobEmail(body));
+  console.log(
+    `Emails fetched: ${emails.length}, relevant after filter: ${relevantEmails.length}`
+  );
+
+  if (relevantEmails.length === 0) {
     await adminClient
       .from("gmail_sync_metadata")
-      .upsert({ profile_id: profileId, last_synced_at: new Date().toISOString() }, { onConflict: "profile_id" });
-    return { jobs: [], emailCount: 0 };
+      .upsert(
+        { profile_id: profileId, last_synced_at: new Date().toISOString() },
+        { onConflict: "profile_id" }
+      );
+    return { jobs: [], emailCount: emails.length };
   }
 
-  // Use AI to extract job listings
+  // Step 4 — AI extraction (one call per email)
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-  const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      temperature: 0.2,
-      max_tokens: 4000,
-      tools: [
-        {
-          type: "function",
-          function: {
-            name: "extract_jobs",
-            description: "Extract job listings from email content",
-            parameters: {
-              type: "object",
-              properties: {
-                jobs: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      title: { type: "string", description: "Job title" },
-                      company: { type: "string", description: "Company name" },
-                      location: { type: "string", description: "Job location or Remote" },
-                      url: { type: "string", description: "Application URL if found, empty string otherwise" },
-                      source: { type: "string", description: "Email source (LinkedIn, Indeed, Glassdoor, etc.)" },
-                      snippet: { type: "string", description: "Brief description if available" },
-                    },
-                    required: ["title", "company", "location", "url", "source", "snippet"],
-                    additionalProperties: false,
-                  },
-                },
-              },
-              required: ["jobs"],
-              additionalProperties: false,
-            },
-          },
-        },
-      ],
-      tool_choice: { type: "function", function: { name: "extract_jobs" } },
-      messages: [
-        {
-          role: "system",
-          content:
-            "Extract individual job listings from these job alert emails. These are automated job alert/recommendation emails from platforms like LinkedIn, Indeed, Glassdoor, Google Jobs, ZipRecruiter, etc. Extract every distinct job posting: title, company, location, application URL, which platform sent the email, and a brief snippet. Return unique jobs only. Skip vague entries without a clear title or company.",
-        },
-        {
-          role: "user",
-          content: `Extract jobs from these ${emailBodies.length} emails:\n\n${emailBodies.join("\n\n---EMAIL SEPARATOR---\n\n")}`,
-        },
-      ],
-    }),
-  });
+  const allExtractedJobs: any[] = [];
 
-  if (!aiRes.ok) {
-    const status = aiRes.status;
-    if (status === 429) throw new Error("Rate limit exceeded. Please try again in a moment.");
-    if (status === 402) throw new Error("AI credits exhausted.");
-    throw new Error("AI extraction failed");
-  }
+  for (const { subject, body } of relevantEmails) {
+    const truncatedBody = body.slice(0, 6000);
 
-  const aiData = await aiRes.json();
-  let jobs: any[] = [];
+    const prompt = `You are parsing a job alert email. Extract every job listing mentioned. Return ONLY a valid JSON array, no other text, no markdown fences.
 
-  const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-  if (toolCall?.function?.arguments) {
+EMAIL SUBJECT: ${subject}
+EMAIL BODY:
+${truncatedBody}
+
+For each job found return:
+[{
+  "title": "exact job title as written",
+  "company": "company name",
+  "location": "city, state or Remote",
+  "salary": "salary range if mentioned, else null",
+  "url": "direct URL to the job posting if present, else null",
+  "source": "email platform (LinkedIn, Indeed, Glassdoor, etc.)",
+  "snippet": "brief description if available, else null"
+}]
+
+Rules:
+- Only extract real job openings explicitly listed in this email
+- Skip anything that is not a specific open role — career tips, newsletter content, event invites, recruiter marketing should return []
+- If a job has no URL still include it with url set to null
+- Return [] if no real job listings are found
+- Never invent or guess any field
+- Return raw JSON array only`;
+
     try {
-      const parsed = JSON.parse(toolCall.function.arguments);
-      jobs = parsed.jobs || [];
-    } catch {
-      console.error("Failed to parse AI tool call response");
+      const aiRes = await fetch(
+        "https://ai.gateway.lovable.dev/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            temperature: 0.0,
+            max_tokens: 2000,
+            messages: [
+              { role: "user", content: prompt },
+            ],
+          }),
+        }
+      );
+
+      if (!aiRes.ok) {
+        const status = aiRes.status;
+        if (status === 429) {
+          console.warn("Rate limited, pausing...");
+          await new Promise((r) => setTimeout(r, 2000));
+          continue;
+        }
+        console.error("AI error:", status);
+        continue;
+      }
+
+      const aiData = await aiRes.json();
+      const raw =
+        aiData.choices?.[0]?.message?.content || "";
+      const cleaned = raw.replace(/```json|```/g, "").trim();
+
+      const jobs = JSON.parse(cleaned);
+      if (Array.isArray(jobs)) {
+        // Tag each job with source email subject
+        for (const j of jobs) {
+          j._sourceSubject = subject;
+        }
+        allExtractedJobs.push(...jobs);
+      }
+    } catch (e) {
+      console.error("AI extraction error for email:", subject, e);
+      continue;
     }
+
+    // Stagger calls 300ms apart
+    await new Promise((r) => setTimeout(r, 300));
   }
 
-  // Deduplicate by title+company
-  const seen = new Set<string>();
-  jobs = jobs.filter((j: any) => {
-    const key = `${j.title}|${j.company}`.toLowerCase();
-    if (seen.has(key)) return false;
-    seen.add(key);
+  // Step 5 — Deduplicate against existing DB rows (last 60 days)
+  const normalize = (str: string) =>
+    str?.toLowerCase().trim().replace(/\s+/g, " ") || "";
+
+  const { data: existingJobs } = await adminClient
+    .from("imported_jobs")
+    .select("title, company")
+    .eq("profile_id", profileId)
+    .gte(
+      "imported_at",
+      new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
+    );
+
+  const existingSet = new Set(
+    existingJobs?.map(
+      (j: any) => `${normalize(j.title)}__${normalize(j.company)}`
+    ) || []
+  );
+
+  // Also deduplicate within the batch
+  const seenInBatch = new Set<string>();
+  const newJobs = allExtractedJobs.filter((j) => {
+    if (!j.title || !j.company) return false;
+    const key = `${normalize(j.title)}__${normalize(j.company)}`;
+    if (existingSet.has(key) || seenInBatch.has(key)) return false;
+    seenInBatch.add(key);
     return true;
   });
 
-  // Persist to imported_jobs (upsert to avoid duplicates)
-  if (jobs.length > 0) {
-    const rows = jobs.map((j: any) => ({
+  console.log(
+    `Extracted: ${allExtractedJobs.length}, new after dedup: ${newJobs.length}`
+  );
+
+  // Step 6 — Fetch full job descriptions for jobs with URLs
+  for (const job of newJobs) {
+    if (job.url) {
+      const { description, urlVerified } = await fetchJobDescription(job.url);
+      job._description = description;
+      job._urlVerified = urlVerified;
+      job._descriptionFetchedAt = new Date().toISOString();
+      // 500ms stagger between description fetches
+      await new Promise((r) => setTimeout(r, 500));
+    } else {
+      job._description = null;
+      job._urlVerified = false;
+      job._descriptionFetchedAt = null;
+    }
+  }
+
+  // Step 7 — Insert into Supabase
+  if (newJobs.length > 0) {
+    const rows = newJobs.map((j: any) => ({
       profile_id: profileId,
       title: j.title,
       company: j.company,
       location: j.location || "",
+      salary: j.salary || null,
       url: j.url || "",
+      url_verified: j._urlVerified || false,
+      description: j._description || null,
+      description_fetched_at: j._descriptionFetchedAt || null,
       source: j.source || "",
       snippet: j.snippet || "",
+      source_email_subject: j._sourceSubject || null,
+      status: "new",
     }));
 
     const { error: insertErr } = await adminClient
       .from("imported_jobs")
-      .upsert(rows, { onConflict: "profile_id,title,company", ignoreDuplicates: true });
+      .upsert(rows, {
+        onConflict: "profile_id,title,company",
+        ignoreDuplicates: true,
+      });
 
     if (insertErr) console.error("Error inserting imported jobs:", insertErr);
   }
@@ -227,14 +401,18 @@ export async function syncGmailJobs(options: {
   // Update last_synced_at
   await adminClient
     .from("gmail_sync_metadata")
-    .upsert({ profile_id: profileId, last_synced_at: new Date().toISOString() }, { onConflict: "profile_id" });
+    .upsert(
+      { profile_id: profileId, last_synced_at: new Date().toISOString() },
+      { onConflict: "profile_id" }
+    );
 
-  return { jobs, emailCount: emailBodies.length };
+  return { jobs: newJobs, emailCount: relevantEmails.length };
 }
 
 // ─── HTTP handler (manual trigger from frontend) ───
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method === "OPTIONS")
+    return new Response(null, { headers: corsHeaders });
 
   try {
     const authHeader = req.headers.get("Authorization");
@@ -242,12 +420,17 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY")!;
+    const anonKey =
+      Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ??
+      Deno.env.get("SUPABASE_ANON_KEY")!;
 
     const anonClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: { user }, error: userError } = await anonClient.auth.getUser();
+    const {
+      data: { user },
+      error: userError,
+    } = await anonClient.auth.getUser();
     if (userError || !user) throw new Error("Not authenticated");
 
     const adminClient = createClient(supabaseUrl, supabaseKey);
@@ -261,7 +444,10 @@ serve(async (req) => {
     if (!profile) throw new Error("Profile not found");
 
     const { providerToken, refreshToken } = await req.json();
-    if (!providerToken) throw new Error("No Google provider token. Please sign in with Google first.");
+    if (!providerToken)
+      throw new Error(
+        "No Google provider token. Please sign in with Google first."
+      );
 
     // Store refresh token if provided
     if (refreshToken) {
