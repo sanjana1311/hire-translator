@@ -12,6 +12,7 @@ import Networking from "./pages/Networking";
 import InterviewPrep from "./pages/InterviewPrep";
 import WeeklyReport from "./pages/WeeklyReport";
 import RejectionAnalysis from "./pages/RejectionAnalysis";
+import GmailCallback from "./pages/GmailCallback";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,6 +26,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/gmail-callback" element={<GmailCallback />} />
           <Route path="/dashboard" element={<AppLayout />}>
             <Route index element={<Roles />} />
             <Route path="applications" element={<Applications />} />
