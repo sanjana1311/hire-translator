@@ -1,32 +1,7 @@
 import { motion } from "framer-motion";
-import { ArrowRight, Upload, FileText, Target, Download, Sparkles, Shield, Lightbulb } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-import ThemeToggle from "@/components/ThemeToggle";
-
-const steps = [
-  { icon: Upload, label: "Upload Resume", desc: "Upload once. Structured for reuse." },
-  { icon: FileText, label: "Paste Job Description", desc: "We extract keywords, clusters, and hiring signals." },
-  { icon: Target, label: "ATS Score + Smart Rewrites", desc: "Bullet points rebuilt using exact JD language." },
-  { icon: Download, label: "Export PDF", desc: "ATS-safe formatting. Metrics validated." },
-];
-
-const features = [
-  { icon: Sparkles, title: "AI Bullet Rewrites", desc: "What → How → Who → Impact format with exact JD keyword alignment" },
-  { icon: Target, title: "ATS Quick Score", desc: "Instant keyword match %, missing clusters, and high-signal verb suggestions" },
-  { icon: Lightbulb, title: "Project Suggestions", desc: "AI recommends role-relevant projects based on hiring signals from the JD" },
-  { icon: Shield, title: "Metric Hard Gate", desc: "Missing metrics? We prompt you before export." },
-];
-
-const staggerContainer = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.08 } },
-};
-
-const staggerItem = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] as const } },
-};
 
 const Index = () => {
   const navigate = useNavigate();
@@ -34,215 +9,90 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Nav */}
-      <nav className="fixed top-0 w-full z-50 bg-background/70 backdrop-blur-xl border-b border-border/50">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <motion.div
-            className="flex items-center gap-2.5"
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.4 }}
-          >
-            <div className="w-9 h-9 rounded-xl bg-gradient-primary flex items-center justify-center">
-              <FileText className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-lg font-semibold tracking-tight text-foreground leading-none">HireOS</span>
-              <span className="text-[10px] font-medium text-muted-foreground tracking-wide">AI-native career platform</span>
-            </div>
-          </motion.div>
-          <motion.div
-            className="flex items-center gap-3"
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.4 }}
-          >
-            <ThemeToggle />
-            <Button variant="ghost" size="lg" className="link-underline text-base font-semibold" onClick={() => navigate("/auth")}>
-              Log in
-            </Button>
-            <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-              <Button size="lg" className="bg-foreground text-background hover:bg-foreground/90 rounded-full px-8 h-12 text-base font-bold shadow-warm" onClick={() => navigate("/auth")}>
-                Get started
-              </Button>
-            </motion.div>
-          </motion.div>
+      <nav className="sticky top-0 z-50 bg-background border-b border-border h-[52px] px-7 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <div className="w-6 h-6 bg-foreground rounded-[5px] flex items-center justify-center mr-1.5">
+            <span className="text-background text-[9px] font-bold">CC</span>
+          </div>
+          <span className="font-serif italic text-[15px]">Career Compass</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" className="text-xs" onClick={() => navigate("/auth")}>
+            Log in
+          </Button>
+          <Button size="sm" className="text-xs rounded-[5px]" onClick={() => navigate("/auth")}>
+            Get started
+          </Button>
         </div>
       </nav>
 
-      {/* Hero with gradient background */}
-      <section className="relative pt-16 overflow-hidden">
-        <motion.div
-          className="absolute inset-0 bg-gradient-hero opacity-60"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 0.6 }}
-          transition={{ duration: 1.2 }}
-        />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,transparent_20%,hsl(var(--background))_80%)]" />
-        <div className="relative pt-20 pb-32 px-6">
-          <div className="max-w-4xl mx-auto text-center">
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
-            >
-              <motion.h1
-                className="text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.08] mb-6 text-foreground"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, delay: 0.1 }}
-              >
-                Stop guessing.
-                <br />
-                <span className="text-gradient-primary">Start matching.</span>
-              </motion.h1>
-              <motion.p
-                className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed"
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.25 }}
-              >
-                HireOS rewrites your resume for each job — using the exact keywords, phrases, and signals from the job description. Every bullet verified. Every metric real.
-              </motion.p>
-              <motion.div
-                className="flex items-center justify-center gap-4"
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.4 }}
-              >
-                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }}>
-                  <Button
-                    size="lg"
-                    className="bg-foreground text-background hover:bg-foreground/90 rounded-full px-12 h-14 text-lg font-bold shadow-warm"
-                    onClick={() => navigate("/auth")}
-                  >
-                    Start for free <ArrowRight className="ml-2 w-5 h-5" />
-                  </Button>
-                </motion.div>
-              </motion.div>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* Steps */}
-      <section className="py-24 px-6">
-        <div className="max-w-5xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="text-center mb-16"
-          >
-            <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">How it works</p>
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-3 text-foreground">Four steps to a hiring-ready resume</h2>
-            <p className="text-muted-foreground text-lg">Tailor every application with precision.</p>
-          </motion.div>
-          <motion.div
-            className="grid grid-cols-1 md:grid-cols-4 gap-5"
-            variants={staggerContainer}
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true }}
-          >
-            {steps.map((step, i) => (
-              <motion.div
-                key={step.label}
-                variants={staggerItem}
-                whileHover={{ y: -4, transition: { duration: 0.2 } }}
-                className="bg-card rounded-2xl border border-border p-6 shadow-card hover:shadow-warm transition-shadow cursor-default"
-              >
-                <motion.div
-                  className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4"
-                  whileHover={{ rotate: 5, scale: 1.1 }}
-                  transition={{ type: "spring", stiffness: 300 }}
-                >
-                  <step.icon className="w-8 h-8 text-primary" />
-                </motion.div>
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Step {i + 1}</div>
-                <h3 className="font-semibold mb-1 text-foreground">{step.label}</h3>
-                <p className="text-sm text-muted-foreground">{step.desc}</p>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section className="py-24 px-6 bg-secondary/40">
-        <div className="max-w-5xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="text-center mb-16"
-          >
-            <p className="text-sm font-semibold text-accent uppercase tracking-wider mb-3">Features</p>
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">Built for precision</h2>
-          </motion.div>
-          <motion.div
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5"
-            variants={staggerContainer}
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true }}
-          >
-            {features.map((f) => (
-              <motion.div
-                key={f.title}
-                variants={staggerItem}
-                whileHover={{ y: -4, transition: { duration: 0.2 } }}
-                className="bg-card rounded-2xl border border-border p-6 shadow-card hover:shadow-warm transition-shadow cursor-default"
-              >
-                <motion.div
-                  className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mb-4"
-                  whileHover={{ rotate: -5, scale: 1.1 }}
-                  transition={{ type: "spring", stiffness: 300 }}
-                >
-                  <f.icon className="w-8 h-8 text-accent" />
-                </motion.div>
-                <h3 className="font-semibold mb-2 text-foreground">{f.title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{f.desc}</p>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="py-24 px-6">
-        <div className="max-w-3xl mx-auto text-center">
-          <motion.div
+      {/* Hero */}
+      <section className="pt-24 pb-20 px-7">
+        <div className="max-w-2xl mx-auto text-center">
+          <motion.h1
+            className="font-serif text-4xl md:text-5xl leading-[1.15] mb-4"
             initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4 text-foreground">
-              Ready to land your next role?
-            </h2>
-            <p className="text-lg text-muted-foreground mb-8">
-              Tailor every application with precision.
-            </p>
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }}>
-              <Button
-                size="lg"
-                className="bg-gradient-primary text-primary-foreground hover:opacity-90 rounded-full px-12 h-14 text-lg font-bold shadow-warm"
-                onClick={() => navigate("/auth")}
-              >
-                Get started — it's free <ArrowRight className="ml-2 w-5 h-5" />
-              </Button>
-            </motion.div>
+            Your AI career mentor.
+            <br />
+            <span className="italic">Every single day.</span>
+          </motion.h1>
+          <motion.p
+            className="text-muted-foreground text-base mb-8 max-w-lg mx-auto leading-relaxed"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.15 }}
+          >
+            Career Compass scores every role against your resume, drafts tailored resumes, tracks applications, and preps you for interviews — automatically.
+          </motion.p>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+          >
+            <Button
+              className="rounded-[5px] px-8 h-10 text-sm font-semibold"
+              onClick={() => navigate("/auth")}
+            >
+              Start for free <ArrowRight className="ml-2 w-4 h-4" />
+            </Button>
           </motion.div>
+        </div>
+      </section>
+
+      {/* Features grid */}
+      <section className="pb-24 px-7">
+        <div className="max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-3">
+          {[
+            { title: "ATS Scoring", desc: "Every role scored 0–100 against your resume in real time." },
+            { title: "Tailored Resumes", desc: "AI rewrites your resume for each specific job description." },
+            { title: "Application Tracker", desc: "Track status, detect recruiter replies, draft follow-ups." },
+            { title: "Networking Intel", desc: "Who to find on LinkedIn, what to say, how to get noticed." },
+            { title: "Interview Prep", desc: "Role-specific questions with hints and live AI feedback." },
+            { title: "Mentor Reports", desc: "Weekly briefings that read like a real career mentor session." },
+          ].map((f, i) => (
+            <motion.div
+              key={f.title}
+              className="bg-card border border-border rounded-[9px] p-5"
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4, delay: i * 0.06 }}
+            >
+              <h3 className="text-sm font-semibold mb-1">{f.title}</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">{f.desc}</p>
+            </motion.div>
+          ))}
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="py-10 px-6 border-t border-border">
-        <div className="max-w-5xl mx-auto flex items-center justify-between text-sm text-muted-foreground">
-          <span>© 2026 HireOS</span>
-          <span className="text-xs">Helping you land your dream interview.</span>
+      <footer className="py-8 px-7 border-t border-border">
+        <div className="max-w-3xl mx-auto flex items-center justify-between text-xs text-muted-foreground">
+          <span>© 2026 Career Compass</span>
+          <span>AI-powered job search dashboard</span>
         </div>
       </footer>
     </div>
