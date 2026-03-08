@@ -50,8 +50,9 @@ const Roles = () => {
   const [dbLoaded, setDbLoaded] = useState(false);
   const didRun = useRef(false);
   const { data: profile } = useProfile();
-  const { importJobs, loading: gmailLoading, jobs: gmailJobs, unseenCount, lastSyncedAt, markSeen } = useGmailImport(profile?.id ?? null);
+  const { triggerSync, connectGmail, signOut, loading: gmailLoading, jobs: gmailJobs, unseenCount, lastSyncedAt, jobsImportedCount, syncStatus, syncLog, markSeen } = useGmailImport(profile?.id ?? null);
   const [showGmailJobs, setShowGmailJobs] = useState(false);
+  const [showSyncLog, setShowSyncLog] = useState(false);
 
   const jobs = INITIAL_JOBS;
 
