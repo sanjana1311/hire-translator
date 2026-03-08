@@ -89,6 +89,7 @@ const Roles = () => {
 
   const analyzeJob = async (job: Job) => {
     setAL(prev => new Set([...prev, job.id]));
+    let scoreResult: AnalysisResult | null = null;
     try {
       const raw = await callAI(`ATS resume expert. Return ONLY valid JSON.
 RESUME: ${RESUME_TEXT}
@@ -96,22 +97,38 @@ JOB: ${job.title} at ${job.company}
 ${job.description}
 Return: {"score":0,"bucket":"must","matchSummary":"","strengths":["","",""],"gaps":["","",""],"missingKeywords":["","","","",""]}
 bucket: must>=75, tweak 40-74, low<40`, 600);
-      const parsed = JSON.parse(raw);
-      setResults(prev => ({ ...prev, [job.id]: parsed }));
-      setDone(prev => prev + 1);
-      setAL(prev => { const s = new Set(prev); s.delete(job.id); return s; });
-      setRL(prev => new Set([...prev, job.id]));
+      console.log('Raw scoring response:', raw);
+      try {
+        const parsed = JSON.parse(raw);
+        scoreResult = parsed;
+        setResults(prev => ({ ...prev, [job.id]: parsed }));
+      } catch (e) {
+        console.error('Scoring parse failed:', e, 'Raw was:', raw);
+        setResults(prev => ({ ...prev, [job.id]: { error: true, score: 0, bucket: "low", matchSummary: `Scoring returned unparseable response. Raw: ${raw.slice(0, 200)}`, strengths: [], gaps: [], missingKeywords: [] } }));
+      }
+    } catch (e: any) {
+      console.error('Scoring call failed:', e);
+      setResults(prev => ({ ...prev, [job.id]: { error: true, score: 0, bucket: "low", matchSummary: `AI call failed: ${e?.message || 'Unknown error'}`, strengths: [], gaps: [], missingKeywords: [] } }));
+    }
+    setDone(prev => prev + 1);
+    setAL(prev => { const s = new Set(prev); s.delete(job.id); return s; });
+
+    // Gate: only run resume rewrite if scoring succeeded
+    if (!scoreResult || scoreResult.error) {
+      return;
+    }
+
+    setRL(prev => new Set([...prev, job.id]));
+    try {
       const resumeText = await callAI(`Expert ATS resume writer. Rewrite for this specific job. Keep all real facts. Plain text only, no markdown.
 ORIGINAL: ${RESUME_TEXT}
 TARGET: ${job.title} at ${job.company}
 JD: ${job.description}
-WEAVE IN: ${parsed.missingKeywords?.join(", ")}
+WEAVE IN: ${scoreResult.missingKeywords?.join(", ")}
 Output complete rewritten resume:`, 4000);
       setResumes(prev => ({ ...prev, [job.id]: resumeText }));
-    } catch {
-      setResults(prev => ({ ...prev, [job.id]: { error: true, score: 0, bucket: "low", matchSummary: "Analysis failed.", strengths: [], gaps: [], missingKeywords: [] } }));
-      setDone(prev => prev + 1);
-      setAL(prev => { const s = new Set(prev); s.delete(job.id); return s; });
+    } catch (e: any) {
+      console.error('Resume rewrite failed:', e);
     }
     setRL(prev => { const s = new Set(prev); s.delete(job.id); return s; });
   };
