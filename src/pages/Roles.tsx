@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { callAI } from "@/lib/ai";
-import { useGmailImport, type GmailJob } from "@/hooks/use-gmail-import";
+import { useGmailImport } from "@/hooks/use-gmail-import";
+import { useProfile } from "@/hooks/use-profile";
 import { Button } from "@/components/ui/button";
 import {
   INITIAL_JOBS, RESUME_TEXT, BUCKET_META,
