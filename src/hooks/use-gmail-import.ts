@@ -351,6 +351,7 @@ export function useGmailImport(profileId: string | null) {
   return {
     triggerSync,
     connectGmail,
+    handleOAuthCallback,
     signOut,
     loading,
     jobs,
