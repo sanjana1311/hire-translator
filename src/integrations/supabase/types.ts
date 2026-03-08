@@ -55,39 +55,57 @@ export type Database = {
       imported_jobs: {
         Row: {
           company: string
+          description: string | null
+          description_fetched_at: string | null
           id: string
           imported_at: string
           location: string | null
           profile_id: string
+          salary: string | null
           seen: boolean
           snippet: string | null
           source: string | null
+          source_email_subject: string | null
+          status: string
           title: string
           url: string | null
+          url_verified: boolean
         }
         Insert: {
           company: string
+          description?: string | null
+          description_fetched_at?: string | null
           id?: string
           imported_at?: string
           location?: string | null
           profile_id: string
+          salary?: string | null
           seen?: boolean
           snippet?: string | null
           source?: string | null
+          source_email_subject?: string | null
+          status?: string
           title: string
           url?: string | null
+          url_verified?: boolean
         }
         Update: {
           company?: string
+          description?: string | null
+          description_fetched_at?: string | null
           id?: string
           imported_at?: string
           location?: string | null
           profile_id?: string
+          salary?: string | null
           seen?: boolean
           snippet?: string | null
           source?: string | null
+          source_email_subject?: string | null
+          status?: string
           title?: string
           url?: string | null
+          url_verified?: boolean
         }
         Relationships: [
           {
