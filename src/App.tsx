@@ -5,12 +5,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
-import Dashboard from "./pages/Dashboard";
-import ResumeProfile from "./pages/ResumeProfile";
-import Workspaces from "./pages/Workspaces";
-import NewWorkspace from "./pages/NewWorkspace";
-import JobWorkspace from "./pages/JobWorkspace";
 import AppLayout from "./components/AppLayout";
+import Roles from "./pages/Roles";
+import Applications from "./pages/Applications";
+import Networking from "./pages/Networking";
+import InterviewPrep from "./pages/InterviewPrep";
+import WeeklyReport from "./pages/WeeklyReport";
+import RejectionAnalysis from "./pages/RejectionAnalysis";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,11 +26,12 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/dashboard" element={<AppLayout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="resume" element={<ResumeProfile />} />
-            <Route path="workspaces" element={<Workspaces />} />
-            <Route path="workspaces/new" element={<NewWorkspace />} />
-            <Route path="workspaces/:id" element={<JobWorkspace />} />
+            <Route index element={<Roles />} />
+            <Route path="applications" element={<Applications />} />
+            <Route path="networking" element={<Networking />} />
+            <Route path="prep" element={<InterviewPrep />} />
+            <Route path="report" element={<WeeklyReport />} />
+            <Route path="rejection" element={<RejectionAnalysis />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

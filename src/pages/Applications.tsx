@@ -1,0 +1,216 @@
+import { useState } from "react";
+import { callAI } from "@/lib/ai";
+import {
+  INITIAL_APPLICATIONS, STATUS_META,
+  initials, daysSince, fmtDate,
+  type Application,
+} from "@/data/seed";
+
+const Spinner = ({ size = 16 }: { size?: number }) => (
+  <div className="border-2 border-border border-t-foreground rounded-full animate-spin" style={{ width: size, height: size }} />
+);
+
+const Tag = ({ children, color, bg, border }: { children: React.ReactNode; color?: string; bg?: string; border?: string }) => (
+  <span className="text-[11px] font-medium rounded px-1.5 py-0.5" style={{ color: color || undefined, background: bg || undefined, border: border ? `1px solid ${border}` : undefined }}>
+    {children}
+  </span>
+);
+
+const Applications = () => {
+  const [applications, setApps] = useState<Application[]>(INITIAL_APPLICATIONS);
+  const [selApp, setSelApp] = useState<Application | null>(null);
+  const [fuLoading, setFUL] = useState<number | null>(null);
+  const [fuDrafts, setFUD] = useState<Record<number, string>>({});
+  const [emailSent, setEmailSent] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const needsFollowUp = applications.filter(a => a.status === "applied" && daysSince(a.appliedDate) >= 7);
+  const copy = (t: string) => { navigator.clipboard.writeText(t); setCopied(true); setTimeout(() => setCopied(false), 2500); };
+
+  const draftFollowUp = async (app: Application) => {
+    setFUL(app.jobId);
+    try {
+      const draft = await callAI(`Career coach writing a follow-up email. Short, human, confident. 3-4 sentences. No sycophancy. No placeholders.
+Candidate: Sanjana Ravikumar, PM at Tesla working on GenAI communication systems.
+Applied for: ${app.title} at ${app.company}
+Applied: ${fmtDate(app.appliedDate)} (${daysSince(app.appliedDate)} days ago)
+Notes: ${app.notes || "none"}
+Write email body only:`, 350);
+      setFUD(prev => ({ ...prev, [app.jobId]: draft }));
+    } catch { setFUD(prev => ({ ...prev, [app.jobId]: "Could not generate — retry." })); }
+    setFUL(null);
+  };
+
+  if (selApp) {
+    const sm = STATUS_META[selApp.status];
+    return (
+      <div className="max-w-[720px] mx-auto p-7 animate-fade-up">
+        <button onClick={() => setSelApp(null)} className="bg-transparent border border-border text-muted-foreground rounded-[6px] px-3 py-1 text-xs mb-5 hover:text-foreground transition-colors">
+          ← All applications
+        </button>
+        <div className="flex flex-col gap-3">
+          <div className="bg-card border border-border rounded-[11px] p-5">
+            <div className="flex justify-between items-start">
+              <div className="flex gap-3">
+                <div className="w-10 h-10 bg-foreground rounded-lg flex items-center justify-center shrink-0">
+                  <span className="text-background text-[11px] font-bold">{initials(selApp.company)}</span>
+                </div>
+                <div>
+                  <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-0.5">{selApp.company}</div>
+                  <h2 className="font-serif text-[19px] font-normal mb-0.5">{selApp.title}</h2>
+                  <div className="text-xs text-muted-foreground">Applied {fmtDate(selApp.appliedDate)} · {daysSince(selApp.appliedDate)} days ago</div>
+                </div>
+              </div>
+              <select
+                value={selApp.status}
+                onChange={e => { const u = { ...selApp, status: e.target.value }; setSelApp(u); setApps(prev => prev.map(a => a.jobId === selApp.jobId ? u : a)); }}
+                className="text-xs border border-border rounded-[6px] px-2 py-1 bg-card cursor-pointer"
+              >
+                {Object.entries(STATUS_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="bg-card border border-border rounded-[11px] p-4">
+            <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide mb-2.5">Email Activity</div>
+            {selApp.lastEmail ? (
+              <div className="text-xs text-secondary-foreground">Reply detected from {selApp.recruiterEmail} on {fmtDate(selApp.lastEmail)}</div>
+            ) : (
+              <div className="text-xs text-muted-foreground">No recruiter emails yet · inbox is monitored</div>
+            )}
+          </div>
+
+          <div className="bg-card border border-border rounded-[11px] p-4">
+            <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide mb-2">Notes</div>
+            <textarea
+              value={selApp.notes}
+              onChange={e => { const u = { ...selApp, notes: e.target.value }; setSelApp(u); setApps(prev => prev.map(a => a.jobId === selApp.jobId ? u : a)); }}
+              placeholder="Add notes…"
+              className="w-full bg-secondary border border-border rounded-[6px] p-2.5 text-xs text-secondary-foreground min-h-[70px] outline-none resize-y"
+            />
+          </div>
+
+          {selApp.status !== "rejected" && (
+            <div className="bg-card border border-border rounded-[11px] p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide">Follow-up Email</div>
+                  {daysSince(selApp.appliedDate) >= 7 && !selApp.lastEmail && (
+                    <div className="text-[11.5px] mt-0.5" style={{ color: "hsl(25 84% 31%)" }}>{daysSince(selApp.appliedDate)} days since application</div>
+                  )}
+                </div>
+                {!fuDrafts[selApp.jobId] && (
+                  <button
+                    onClick={() => draftFollowUp(selApp)}
+                    disabled={fuLoading === selApp.jobId}
+                    className="bg-foreground text-background rounded-[6px] px-3 py-1 text-xs font-semibold disabled:opacity-50"
+                  >
+                    {fuLoading === selApp.jobId ? "Drafting…" : "Draft follow-up"}
+                  </button>
+                )}
+              </div>
+              {fuLoading === selApp.jobId && (
+                <div className="flex gap-2 items-center text-muted-foreground text-xs">
+                  <Spinner size={13} /><span className="animate-pulse-dot">Writing…</span>
+                </div>
+              )}
+              {fuDrafts[selApp.jobId] && (
+                <div className="animate-fade-up">
+                  <textarea
+                    value={fuDrafts[selApp.jobId]}
+                    onChange={e => setFUD(prev => ({ ...prev, [selApp.jobId]: e.target.value }))}
+                    className="w-full bg-secondary border border-border rounded-[6px] p-2.5 text-xs text-secondary-foreground min-h-[130px] outline-none resize-y leading-relaxed"
+                  />
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={async () => { await new Promise(r => setTimeout(r, 1200)); setEmailSent(true); setTimeout(() => setEmailSent(false), 2500); }}
+                      className={`rounded-[6px] px-3.5 py-1.5 text-xs font-semibold transition-colors ${emailSent ? "bg-[hsl(150_38%_96%)] border border-[hsl(152_34%_82%)] text-[hsl(153_40%_30%)]" : "bg-foreground text-background"}`}
+                    >
+                      {emailSent ? "Sent ✓" : "Send via Gmail"}
+                    </button>
+                    <button onClick={() => copy(fuDrafts[selApp.jobId])} className="bg-secondary border border-border text-secondary-foreground rounded-[6px] px-3 py-1.5 text-xs">Copy</button>
+                    <button onClick={() => setFUD(prev => { const n = { ...prev }; delete n[selApp.jobId]; return n; })} className="text-muted-foreground text-xs hover:text-foreground">Regenerate</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-[920px] mx-auto p-7 pt-9">
+      <h1 className="font-serif text-[26px] font-normal mb-1">Applications</h1>
+      <p className="text-xs text-muted-foreground mb-5">
+        {applications.length} tracked · {needsFollowUp.length > 0 ? `${needsFollowUp.length} follow-up${needsFollowUp.length > 1 ? "s" : ""} overdue` : "all follow-ups current"}
+      </p>
+
+      {needsFollowUp.length > 0 && (
+        <div className="rounded-[9px] p-3 px-4 mb-4 flex items-center gap-2" style={{ background: "hsl(37 60% 97%)", border: "1px solid hsl(37 40% 80%)" }}>
+          <span>⏰</span>
+          <span className="text-xs font-medium" style={{ color: "hsl(25 84% 31%)" }}>
+            {needsFollowUp.length} application{needsFollowUp.length > 1 ? "s" : ""} past 7 days with no reply
+          </span>
+        </div>
+      )}
+
+      {/* Pipeline summary */}
+      <div className="grid grid-cols-5 gap-2 mb-5">
+        {Object.entries(STATUS_META).map(([key, meta]) => {
+          const count = applications.filter(a => a.status === key).length;
+          return (
+            <div key={key} className="bg-card border border-border rounded-[9px] p-3">
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <div className="w-1.5 h-1.5 rounded-full" style={{ background: meta.dot }} />
+                <span className="text-[10.5px] font-semibold" style={{ color: meta.text }}>{meta.label}</span>
+              </div>
+              <div className="font-serif text-[26px]">{count}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* App cards */}
+      <div className="flex flex-col gap-1.5">
+        {applications.map((app, i) => {
+          const sm = STATUS_META[app.status];
+          const overdue = app.status === "applied" && daysSince(app.appliedDate) >= 7;
+          return (
+            <div
+              key={app.jobId}
+              onClick={() => setSelApp(app)}
+              className="animate-fade-up bg-card border rounded-[9px] p-4 grid cursor-pointer hover:shadow-sm hover:-translate-y-px transition-all"
+              style={{
+                gridTemplateColumns: "38px 1fr auto",
+                gap: 12,
+                alignItems: "center",
+                borderColor: overdue ? "hsl(37 40% 80%)" : undefined,
+                animationDelay: `${i * 0.04}s`,
+              }}
+            >
+              <div className="w-[38px] h-[38px] bg-secondary border border-border rounded-lg flex items-center justify-center">
+                <span className="text-[10px] font-bold text-secondary-foreground">{initials(app.company)}</span>
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                  <span className="text-sm font-semibold">{app.title}</span>
+                  <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-px text-[10.5px] font-semibold" style={{ background: sm.bg, border: `1px solid ${sm.border}`, color: sm.text }}>
+                    <span className="w-1 h-1 rounded-full inline-block" style={{ background: sm.dot }} />{sm.label}
+                  </span>
+                  {overdue && <Tag color="hsl(25 84% 31%)" bg="hsl(37 60% 97%)" border="hsl(37 40% 80%)">Follow up overdue</Tag>}
+                </div>
+                <div className="text-xs text-muted-foreground">{app.company} · Applied {fmtDate(app.appliedDate)} ({daysSince(app.appliedDate)}d ago)</div>
+                {app.nextAction && <div className="text-[11.5px] text-secondary-foreground mt-1">→ {app.nextAction}</div>}
+              </div>
+              <span className="text-xs text-muted-foreground">View →</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+export default Applications;
