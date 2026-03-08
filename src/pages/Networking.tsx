@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { callAI } from "@/lib/ai";
 import { INITIAL_JOBS, initials, scoreColor, type Job } from "@/data/seed";
 
@@ -16,10 +17,23 @@ interface NetResult {
 }
 
 const Networking = () => {
+  const [searchParams] = useSearchParams();
   const [netJob, setNetJob] = useState<Job | null>(null);
   const [netResult, setNetResult] = useState<Record<number, NetResult>>({});
   const [netLoading, setNetLoading] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Auto-select job from URL param
+  useEffect(() => {
+    const jobId = searchParams.get("jobId");
+    if (jobId && !netJob) {
+      const job = INITIAL_JOBS.find(j => j.id === Number(jobId));
+      if (job) {
+        setNetJob(job);
+        if (!netResult[job.id]) generateNetworking(job);
+      }
+    }
+  }, [searchParams]);
 
   const copy = (t: string) => { navigator.clipboard.writeText(t); setCopied(true); setTimeout(() => setCopied(false), 2500); };
 

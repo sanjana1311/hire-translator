@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { callAI } from "@/lib/ai";
 import { INITIAL_JOBS, type Job } from "@/data/seed";
 
@@ -17,6 +18,7 @@ interface PrepData {
 }
 
 const InterviewPrep = () => {
+  const [searchParams] = useSearchParams();
   const [prepJob, setPrepJob] = useState<Job | null>(null);
   const [prepResult, setPrepResult] = useState<Record<number, PrepData>>({});
   const [prepLoading, setPrepLoading] = useState<number | null>(null);
@@ -24,6 +26,18 @@ const InterviewPrep = () => {
   const [userAnswer, setUserAnswer] = useState("");
   const [feedback, setFeedback] = useState<Record<string, string>>({});
   const [fbLoading, setFbLoading] = useState<string | null>(null);
+
+  // Auto-select job from URL param
+  useEffect(() => {
+    const jobId = searchParams.get("jobId");
+    if (jobId && !prepJob) {
+      const job = INITIAL_JOBS.find(j => j.id === Number(jobId));
+      if (job) {
+        setPrepJob(job);
+        if (!prepResult[job.id]) generatePrep(job);
+      }
+    }
+  }, [searchParams]);
 
   const generatePrep = async (job: Job) => {
     setPrepLoading(job.id);
