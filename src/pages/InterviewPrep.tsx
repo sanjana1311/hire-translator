@@ -54,9 +54,13 @@ Return: {
   "caseQuestion":        {"q":"full case prompt tailored to this role","hint":"framework to use"},
   "mustKnow":            ["5 things to know about ${job.company}'s product/strategy before this interview"]
 }
-Include 3 questions per category.`, 1000);
-      setPrepResult(prev => ({ ...prev, [job.id]: JSON.parse(raw) }));
-    } catch { setPrepResult(prev => ({ ...prev, [job.id]: { error: true } })); }
+Include 3 questions per category.`, 3000);
+      const parsed = JSON.parse(raw);
+      setPrepResult(prev => ({ ...prev, [job.id]: parsed }));
+    } catch (err) {
+      console.error("Interview prep parse error:", err);
+      setPrepResult(prev => ({ ...prev, [job.id]: { error: true } }));
+    }
     setPrepLoading(null);
   };
 
