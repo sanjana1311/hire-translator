@@ -254,6 +254,62 @@ export type Database = {
           },
         ]
       }
+      networking_contacts: {
+        Row: {
+          category: string
+          company: string
+          contacted_date: string | null
+          created_at: string
+          follow_up_date: string | null
+          id: string
+          job_seed_id: number | null
+          name: string
+          notes: string | null
+          profile_id: string
+          role: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          company?: string
+          contacted_date?: string | null
+          created_at?: string
+          follow_up_date?: string | null
+          id?: string
+          job_seed_id?: number | null
+          name?: string
+          notes?: string | null
+          profile_id: string
+          role?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          company?: string
+          contacted_date?: string | null
+          created_at?: string
+          follow_up_date?: string | null
+          id?: string
+          job_seed_id?: number | null
+          name?: string
+          notes?: string | null
+          profile_id?: string
+          role?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "networking_contacts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
