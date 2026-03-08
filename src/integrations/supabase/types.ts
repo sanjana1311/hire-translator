@@ -14,6 +14,91 @@ export type Database = {
   }
   public: {
     Tables: {
+      gmail_sync_metadata: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          last_synced_at: string | null
+          profile_id: string
+          refresh_token: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_synced_at?: string | null
+          profile_id: string
+          refresh_token?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_synced_at?: string | null
+          profile_id?: string
+          refresh_token?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gmail_sync_metadata_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      imported_jobs: {
+        Row: {
+          company: string
+          id: string
+          imported_at: string
+          location: string | null
+          profile_id: string
+          seen: boolean
+          snippet: string | null
+          source: string | null
+          title: string
+          url: string | null
+        }
+        Insert: {
+          company: string
+          id?: string
+          imported_at?: string
+          location?: string | null
+          profile_id: string
+          seen?: boolean
+          snippet?: string | null
+          source?: string | null
+          title: string
+          url?: string | null
+        }
+        Update: {
+          company?: string
+          id?: string
+          imported_at?: string
+          location?: string | null
+          profile_id?: string
+          seen?: boolean
+          snippet?: string | null
+          source?: string | null
+          title?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "imported_jobs_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_workspaces: {
         Row: {
           ats_score: number | null
