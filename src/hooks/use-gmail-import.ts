@@ -196,30 +196,73 @@ export function useGmailImport(profileId: string | null) {
     }
   }, [profileId, loadJobs, log]);
 
-  // Connect Gmail — re-auth with Gmail scope (must use supabase directly to request gmail.readonly)
+  // Connect Gmail — direct OAuth flow bypassing Supabase auth provider
   const connectGmail = useCallback(async () => {
-    log("Initiating Gmail OAuth connection with gmail.readonly scope");
+    log("Initiating direct Gmail OAuth flow");
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: window.location.origin + "/dashboard",
-          scopes: "openid email profile https://www.googleapis.com/auth/gmail.readonly",
-          queryParams: {
-            access_type: "offline",
-            prompt: "consent",
-          },
-        },
-      });
-      if (error) {
-        log(`OAuth error: ${error.message}`);
-        toast.error(error.message || "Google sign-in failed");
-      }
+      const clientId = "704063554549-857m65opcgpm2nkfhulmjqbvncgkrj25.apps.googleusercontent.com";
+      const redirectUri = window.location.origin + "/gmail-callback";
+      const scope = "https://www.googleapis.com/auth/gmail.readonly";
+      
+      const state = crypto.randomUUID();
+      sessionStorage.setItem("gmail_oauth_state", state);
+      
+      const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+      authUrl.searchParams.set("client_id", clientId);
+      authUrl.searchParams.set("redirect_uri", redirectUri);
+      authUrl.searchParams.set("response_type", "code");
+      authUrl.searchParams.set("scope", scope);
+      authUrl.searchParams.set("access_type", "offline");
+      authUrl.searchParams.set("prompt", "consent");
+      authUrl.searchParams.set("state", state);
+      
+      window.location.href = authUrl.toString();
     } catch (err: any) {
       log(`OAuth error: ${err.message}`);
       toast.error(err.message || "Google sign-in failed");
     }
   }, [log]);
+
+  // Handle OAuth callback — exchange code for tokens
+  const handleOAuthCallback = useCallback(async (code: string) => {
+    if (!profileId) return;
+    setLoading(true);
+    setSyncStatus("syncing");
+    log("Exchanging OAuth code for Gmail tokens");
+    
+    try {
+      const redirectUri = window.location.origin + "/gmail-callback";
+      const res = await supabase.functions.invoke("gmail-oauth-exchange", {
+        body: { code, redirectUri },
+      });
+      
+      if (res.error) {
+        log(`Token exchange error: ${res.error.message}`);
+        toast.error("Failed to connect Gmail");
+        setSyncStatus("error");
+        return;
+      }
+      
+      if (res.data?.error) {
+        log(`Token exchange error: ${res.data.error}`);
+        toast.error(res.data.error);
+        setSyncStatus("error");
+        return;
+      }
+      
+      log("Gmail connected successfully! Starting first sync...");
+      toast.success("Gmail connected! Syncing your job alerts...");
+      
+      // Trigger sync now
+      await triggerSync(false);
+    } catch (err: any) {
+      log(`OAuth callback error: ${err.message}`);
+      toast.error("Failed to connect Gmail");
+      setSyncStatus("error");
+    } finally {
+      setLoading(false);
+    }
+  }, [profileId, log, triggerSync]);
 
   // Sign out helper for no_token state
   const signOut = useCallback(async () => {
