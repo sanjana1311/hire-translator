@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { callAI } from "@/lib/ai";
-import { INITIAL_JOBS, RESUME_TEXT, type Job } from "@/data/seed";
+import { RESUME_TEXT } from "@/data/seed";
+import { useProfile } from "@/hooks/use-profile";
+import { supabase } from "@/integrations/supabase/client";
 import SectionShell from "@/components/prep/SectionShell";
 import CompanyDeepDive, { type CompanyData } from "@/components/prep/CompanyDeepDive";
 import HiringSignals, { type SignalsData } from "@/components/prep/HiringSignals";
@@ -13,6 +15,15 @@ import ReadinessScore from "@/components/prep/ReadinessScore";
 import PrepSpinner from "@/components/prep/PrepSpinner";
 import { initials } from "@/data/seed";
 
+interface Job {
+  id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  description: string | null;
+  snippet: string | null;
+}
+
 interface PrepState {
   company: CompanyData | null;
   signals: SignalsData | null;
@@ -23,19 +34,36 @@ interface PrepState {
 
 const InterviewPrep = () => {
   const [searchParams] = useSearchParams();
+  const { data: profile } = useProfile();
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [state, setState] = useState<PrepState>({ company: null, signals: null, alignment: null, behavioral: null, technical: null });
   const [loading, setLoading] = useState({ company: false, signals: false, alignment: false, behavioral: false, technical: false });
   const [mockCompleted, setMockCompleted] = useState(false);
 
+  // Load jobs from DB
+  useEffect(() => {
+    if (!profile?.id) return;
+    const load = async () => {
+      const { data } = await supabase
+        .from("imported_jobs")
+        .select("id, title, company, location, description, snippet")
+        .eq("profile_id", profile.id)
+        .order("imported_at", { ascending: false })
+        .limit(50);
+      if (data) setJobs(data);
+    };
+    load();
+  }, [profile?.id]);
+
   // Auto-select job from URL
   useEffect(() => {
     const jobId = searchParams.get("jobId");
-    if (jobId && !selectedJob) {
-      const job = INITIAL_JOBS.find(j => j.id === Number(jobId));
+    if (jobId && !selectedJob && jobs.length > 0) {
+      const job = jobs.find(j => j.id === jobId);
       if (job) selectJob(job);
     }
-  }, [searchParams]);
+  }, [searchParams, jobs]);
 
   const selectJob = (job: Job) => {
     setSelectedJob(job);
