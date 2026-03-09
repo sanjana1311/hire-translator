@@ -20,16 +20,33 @@ const AppLayout = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+    const checkAuth = async (session: any) => {
+      if (!session?.user) {
+        navigate("/auth");
+        return;
+      }
+      setUser(session.user);
+
+      // Check if user has completed onboarding
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("onboarded")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+
+      if (profile && !(profile as any).onboarded) {
+        navigate("/onboarding", { replace: true });
+        return;
+      }
       setLoading(false);
-      if (!session?.user) navigate("/auth");
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      checkAuth(session);
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-      if (!session?.user) navigate("/auth");
+      checkAuth(session);
     });
 
     return () => subscription.unsubscribe();
