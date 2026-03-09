@@ -109,7 +109,7 @@ Return: {
     try {
       const raw = await callAI(`Hiring signal analyst. Return ONLY valid JSON. Analyze this JD for ${job.title} at ${job.company}.
 
-JD: ${job.description}
+JD: ${job.description || job.snippet || "No description available"}
 
 Return: {
   "coreSkills":["core skills required"],
