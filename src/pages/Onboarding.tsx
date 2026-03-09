@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile } from "@/hooks/use-profile";
@@ -8,6 +8,23 @@ interface ResumeEntry {
   label: string;
   text: string;
 }
+
+const Onboarding = () => {
+  const navigate = useNavigate();
+  const { data: profile, isLoading: profileLoading } = useProfile();
+
+  // Auth gate + already-onboarded redirect
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) navigate("/auth", { replace: true });
+    });
+  }, [navigate]);
+
+  useEffect(() => {
+    if (!profileLoading && profile && (profile as any).onboarded) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [profile, profileLoading, navigate]);
 
 const Onboarding = () => {
   const navigate = useNavigate();
