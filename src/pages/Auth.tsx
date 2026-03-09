@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
+import ThemeToggle from "@/components/ThemeToggle";
 import { toast } from "sonner";
 
 const Auth = () => {
