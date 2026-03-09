@@ -42,7 +42,7 @@ function buildGmailQuery(lastSyncedAt: string | null): string {
 
   console.log("[Gmail Sync] Days since last sync:", daysSinceSync);
 
-  return `("job alert" OR "new jobs" OR "new job" OR "jobs for you" OR "job for you" OR "new openings" OR "jobs matching" OR "roles for you" OR "hiring alert" OR "job recommendations" OR "job recommendation" OR "your job alert") newer_than:${daysSinceSync}d`;
+  return `(from:jobalerts-noreply@linkedin.com OR "job alert" OR "new jobs" OR "new job" OR "jobs for you" OR "job for you" OR "new openings" OR "jobs matching" OR "roles for you" OR "hiring alert" OR "job recommendations" OR "job recommendation" OR "your job alert") newer_than:${daysSinceSync}d`;
 }
 
 /** Pre-filter: only emails that look like real job listings */
@@ -248,7 +248,8 @@ export async function syncGmailJobs(options: {
   const allExtractedJobs: any[] = [];
 
   for (const { subject, body } of relevantEmails) {
-    const truncatedBody = body.slice(0, 6000);
+    // Limit body to keep prompt manageable but allow enough for multi-job emails
+    const truncatedBody = body.slice(0, 8000);
 
     const prompt = `You are parsing a job alert email. Extract every job listing mentioned. Return ONLY a valid JSON array, no other text, no markdown fences.
 
@@ -263,16 +264,17 @@ For each job found return:
   "location": "city, state or Remote",
   "salary": "salary range if mentioned, else null",
   "url": "direct URL to the job posting if present, else null",
-  "source": "email platform (LinkedIn, Indeed, Glassdoor, etc.)",
-  "snippet": "brief description if available, else null"
+  "source": "email platform (LinkedIn, Indeed, Glassdoor, Monster, etc.)",
+  "snippet": "brief one-line description if available, else null"
 }]
 
 Rules:
 - Only extract real job openings explicitly listed in this email
-- Skip anything that is not a specific open role — career tips, newsletter content, event invites, recruiter marketing should return []
+- Skip anything that is not a specific open role
 - If a job has no URL still include it with url set to null
 - Return [] if no real job listings are found
 - Never invent or guess any field
+- Keep snippet SHORT (under 100 chars) to avoid long output
 - Return raw JSON array only`;
 
     try {
@@ -287,7 +289,7 @@ Rules:
           body: JSON.stringify({
             model: "google/gemini-2.5-flash",
             temperature: 0.0,
-            max_tokens: 2000,
+            max_tokens: 8000,
             messages: [
               { role: "user", content: prompt },
             ],
@@ -307,17 +309,37 @@ Rules:
       }
 
       const aiData = await aiRes.json();
-      const raw =
-        aiData.choices?.[0]?.message?.content || "";
-      const cleaned = raw.replace(/```json|```/g, "").trim();
+      const raw = aiData.choices?.[0]?.message?.content || "";
+      const finishReason = aiData.choices?.[0]?.finish_reason;
+      console.log(`[Gmail Sync] AI response for "${subject.slice(0, 50)}": ${raw.length} chars, finish_reason: ${finishReason}`);
+      
+      let cleaned = raw.replace(/```json|```/g, "").trim();
+
+      // Repair truncated JSON: if the response was cut off, try to close the array
+      if (finishReason === "length" || (!cleaned.endsWith("]") && cleaned.includes("{"))) {
+        console.warn(`[Gmail Sync] Truncated AI response for: ${subject.slice(0, 50)}, attempting repair`);
+        // Find the last complete object by finding last "},"  or "}"
+        const lastCompleteObj = cleaned.lastIndexOf("}");
+        if (lastCompleteObj > 0) {
+          cleaned = cleaned.slice(0, lastCompleteObj + 1);
+          // Ensure it ends with ]
+          if (!cleaned.endsWith("]")) {
+            cleaned += "]";
+          }
+          // Ensure it starts with [
+          if (!cleaned.startsWith("[")) {
+            cleaned = "[" + cleaned;
+          }
+        }
+      }
 
       const jobs = JSON.parse(cleaned);
       if (Array.isArray(jobs)) {
-        // Tag each job with source email subject
         for (const j of jobs) {
           j._sourceSubject = subject;
         }
         allExtractedJobs.push(...jobs);
+        console.log(`[Gmail Sync] Extracted ${jobs.length} jobs from: ${subject.slice(0, 60)}`);
       }
     } catch (e) {
       console.error("AI extraction error for email:", subject, e);
