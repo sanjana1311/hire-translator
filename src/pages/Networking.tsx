@@ -1,11 +1,22 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { callAI } from "@/lib/ai";
-import { INITIAL_JOBS, initials, scoreColor, type Job } from "@/data/seed";
+import { initials, scoreColor } from "@/data/seed";
+import { useProfile } from "@/hooks/use-profile";
+import { supabase } from "@/integrations/supabase/client";
 
 const Spinner = ({ size = 16 }: { size?: number }) => (
   <div className="border-2 border-border border-t-foreground rounded-full animate-spin" style={{ width: size, height: size }} />
 );
+
+interface Job {
+  id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  description: string | null;
+  snippet: string | null;
+}
 
 interface NetResult {
   connectionAngles?: string[];
@@ -18,22 +29,39 @@ interface NetResult {
 
 const Networking = () => {
   const [searchParams] = useSearchParams();
+  const { data: profile } = useProfile();
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [netJob, setNetJob] = useState<Job | null>(null);
-  const [netResult, setNetResult] = useState<Record<number, NetResult>>({});
-  const [netLoading, setNetLoading] = useState<number | null>(null);
+  const [netResult, setNetResult] = useState<Record<string, NetResult>>({});
+  const [netLoading, setNetLoading] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Load jobs from DB
+  useEffect(() => {
+    if (!profile?.id) return;
+    const load = async () => {
+      const { data } = await supabase
+        .from("imported_jobs")
+        .select("id, title, company, location, description, snippet")
+        .eq("profile_id", profile.id)
+        .order("imported_at", { ascending: false })
+        .limit(50);
+      if (data) setJobs(data);
+    };
+    load();
+  }, [profile?.id]);
 
   // Auto-select job from URL param
   useEffect(() => {
     const jobId = searchParams.get("jobId");
-    if (jobId && !netJob) {
-      const job = INITIAL_JOBS.find(j => j.id === Number(jobId));
+    if (jobId && !netJob && jobs.length > 0) {
+      const job = jobs.find(j => j.id === jobId);
       if (job) {
         setNetJob(job);
         if (!netResult[job.id]) generateNetworking(job);
       }
     }
-  }, [searchParams]);
+  }, [searchParams, jobs]);
 
   const copy = (t: string) => { navigator.clipboard.writeText(t); setCopied(true); setTimeout(() => setCopied(false), 2500); };
 
@@ -42,8 +70,8 @@ const Networking = () => {
     try {
       const raw = await callAI(`You are a career networking strategist. Return ONLY valid JSON.
 Candidate: Sanjana Ravikumar — PM at Tesla, GenAI communication systems, PMP certified, ASU MS Engineering Management.
-Target role: ${job.title} at ${job.company} in ${job.location}
-Job description: ${job.description}
+Target role: ${job.title} at ${job.company} in ${job.location || "Remote"}
+Job description: ${job.description || job.snippet || "No description available"}
 
 Return: {
   "connectionAngles": ["3 specific types of people to find at ${job.company} on LinkedIn"],
@@ -130,7 +158,11 @@ Return: {
       <h1 className="font-serif text-[26px] font-normal mb-1">Networking Intelligence</h1>
       <p className="text-xs text-muted-foreground mb-5">Pick a role — get exactly who to find on LinkedIn, what to say, and how to get on their radar</p>
       <div className="flex flex-col gap-1.5">
-        {INITIAL_JOBS.map(job => (
+        {jobs.length === 0 ? (
+          <div className="bg-card border border-dashed border-border rounded-[9px] p-12 text-center">
+            <p className="text-sm text-muted-foreground">No imported jobs yet. Sync your Gmail on the Roles page to get started.</p>
+          </div>
+        ) : jobs.map(job => (
           <div
             key={job.id}
             onClick={() => { setNetJob(job); if (!netResult[job.id]) generateNetworking(job); }}
@@ -138,7 +170,7 @@ Return: {
           >
             <div>
               <div className="text-sm font-semibold mb-0.5">{job.title}</div>
-              <div className="text-xs text-muted-foreground">{job.company} · {job.location}</div>
+              <div className="text-xs text-muted-foreground">{job.company} · {job.location || "Remote"}</div>
             </div>
             <span className="text-xs text-muted-foreground">Get connections →</span>
           </div>

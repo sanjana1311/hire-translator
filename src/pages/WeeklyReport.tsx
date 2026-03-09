@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { callAI } from "@/lib/ai";
 import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/integrations/supabase/client";
-import { INITIAL_APPLICATIONS, INITIAL_JOBS, fmtDate, daysSince } from "@/data/seed";
+import { fmtDate, daysSince } from "@/data/seed";
 
 const Spinner = ({ size = 16 }: { size?: number }) => (
   <div className="border-2 border-border border-t-foreground rounded-full animate-spin" style={{ width: size, height: size }} />
@@ -60,34 +60,28 @@ const WeeklyReport = () => {
         }
       }
 
-      // Fall back to seed data if no DB apps
+      // If no DB apps, show empty
       if (apps.length === 0) {
-        apps = INITIAL_APPLICATIONS.map(a => ({
-          company: a.company,
-          title: a.title,
-          status: a.status,
-          appliedDate: a.appliedDate,
-          lastEmail: a.lastEmail,
-          notes: a.notes,
-        }));
+        apps = [{ company: "No applications", title: "N/A", status: "none", appliedDate: new Date().toISOString().split("T")[0], lastEmail: null, notes: "No applications tracked yet" }];
       }
 
       const appSummary = apps.map(a => `- ${a.company} (${a.title}): ${a.status}. Applied ${fmtDate(a.appliedDate)}, ${daysSince(a.appliedDate)} days ago. Last email: ${a.lastEmail ? fmtDate(a.lastEmail) : "none"}. Notes: ${a.notes || "none"}`).join("\n");
       const rejections = apps.filter(a => a.status === "rejected");
       const pending = apps.filter(a => a.status === "applied" && !a.lastEmail);
 
-      // Load role scores from DB
-      let jobScores = INITIAL_JOBS.map(j => `${j.company} — ${j.title}: not yet scored`).join("\n");
+      // Load role scores from DB (imported jobs)
+      let jobScores = "No imported jobs scored yet";
       if (profile?.id) {
-        const { data: analyses } = await supabase
-          .from("role_analyses")
-          .select("job_seed_id, score, bucket")
-          .eq("profile_id", profile.id);
-        if (analyses && analyses.length > 0) {
-          const scoreMap = new Map(analyses.map(a => [a.job_seed_id, a]));
-          jobScores = INITIAL_JOBS.map(j => {
-            const s = scoreMap.get(j.id);
-            return s ? `${j.company} — ${j.title}: ${s.score} (${s.bucket})` : `${j.company} — ${j.title}: not yet scored`;
+        const { data: scoredJobs } = await supabase
+          .from("imported_jobs")
+          .select("title, company, analysis")
+          .eq("profile_id", profile.id)
+          .not("analysis", "is", null)
+          .limit(50);
+        if (scoredJobs && scoredJobs.length > 0) {
+          jobScores = scoredJobs.map((j: any) => {
+            const a = j.analysis;
+            return a ? `${j.company} — ${j.title}: ${a.score} (${a.bucket})` : `${j.company} — ${j.title}: not yet scored`;
           }).join("\n");
         }
       }

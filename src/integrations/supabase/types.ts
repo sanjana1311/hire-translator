@@ -120,6 +120,7 @@ export type Database = {
       }
       imported_jobs: {
         Row: {
+          analysis: Json | null
           company: string
           description: string | null
           description_fetched_at: string | null
@@ -133,11 +134,13 @@ export type Database = {
           source: string | null
           source_email_subject: string | null
           status: string
+          tailored_resume: string | null
           title: string
           url: string | null
           url_verified: boolean
         }
         Insert: {
+          analysis?: Json | null
           company: string
           description?: string | null
           description_fetched_at?: string | null
@@ -151,11 +154,13 @@ export type Database = {
           source?: string | null
           source_email_subject?: string | null
           status?: string
+          tailored_resume?: string | null
           title: string
           url?: string | null
           url_verified?: boolean
         }
         Update: {
+          analysis?: Json | null
           company?: string
           description?: string | null
           description_fetched_at?: string | null
@@ -169,6 +174,7 @@ export type Database = {
           source?: string | null
           source_email_subject?: string | null
           status?: string
+          tailored_resume?: string | null
           title?: string
           url?: string | null
           url_verified?: boolean

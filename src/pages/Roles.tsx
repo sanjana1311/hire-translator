@@ -1,14 +1,14 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { callAI } from "@/lib/ai";
 import { useGmailImport } from "@/hooks/use-gmail-import";
 import { useProfile } from "@/hooks/use-profile";
+import { useResume } from "@/hooks/use-resume";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
-  INITIAL_JOBS, RESUME_TEXT, BUCKET_META,
+  RESUME_TEXT, BUCKET_META,
   initials, scoreColor, scoreBg, scoreBorder,
-  type Job,
 } from "@/data/seed";
 
 const Spinner = ({ size = 16 }: { size?: number }) => (
@@ -34,110 +34,145 @@ interface AnalysisResult {
   error?: boolean;
 }
 
+export interface ImportedJob {
+  id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  salary: string | null;
+  url: string | null;
+  source: string | null;
+  snippet: string | null;
+  description: string | null;
+  status: string;
+  analysis: AnalysisResult | null;
+  tailored_resume: string | null;
+  imported_at: string;
+  seen: boolean;
+}
+
 const Roles = () => {
   const navigate = useNavigate();
-  const [results, setResults] = useState<Record<number, AnalysisResult>>({});
-  const [resumes, setResumes] = useState<Record<number, string>>({});
-  const [aLoading, setAL] = useState<Set<number>>(new Set());
-  const [rLoading, setRL] = useState<Set<number>>(new Set());
+  const [jobs, setJobs] = useState<ImportedJob[]>([]);
+  const [results, setResults] = useState<Record<string, AnalysisResult>>({});
+  const [resumes, setResumes] = useState<Record<string, string>>({});
+  const [aLoading, setAL] = useState<Set<string>>(new Set());
+  const [rLoading, setRL] = useState<Set<string>>(new Set());
   const [doneCount, setDone] = useState(0);
-  const [selected, setSelected] = useState<Job | null>(null);
+  const [selected, setSelected] = useState<ImportedJob | null>(null);
   const [jobTab, setJobTab] = useState("all");
   const [rtab, setRtab] = useState("tailored");
   const [copied, setCopied] = useState(false);
-  const [appliedJobs, setAppliedJobs] = useState<Set<number>>(new Set());
+  const [appliedJobs, setAppliedJobs] = useState<Set<string>>(new Set());
   const [applyLoading, setApplyLoading] = useState(false);
   const [dbLoaded, setDbLoaded] = useState(false);
-  const didRun = useRef(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const didAutoScore = useRef(false);
   const { data: profile } = useProfile();
-  const { triggerSync, connectGmail, signOut, loading: gmailLoading, jobs: gmailJobs, unseenCount, lastSyncedAt, jobsImportedCount, syncStatus, syncLog, markSeen } = useGmailImport(profile?.id ?? null);
-  const [showGmailJobs, setShowGmailJobs] = useState(false);
+  const { data: resumeData } = useResume();
+  const { triggerSync, connectGmail, signOut, loading: gmailLoading, lastSyncedAt, jobsImportedCount, syncStatus, syncLog } = useGmailImport(profile?.id ?? null);
   const [showSyncLog, setShowSyncLog] = useState(false);
 
-  const jobs = INITIAL_JOBS;
+  // Get resume text - prefer DB resume, fallback to seed
+  const resumeText = resumeData?.raw_text || RESUME_TEXT;
 
-  // Load persisted analyses + applied status from DB on mount
-  useEffect(() => {
+  // Load jobs from imported_jobs table
+  const loadJobsFromDB = useCallback(async () => {
     if (!profile?.id) return;
-    const loadFromDB = async () => {
-      // Load analyses
-      const { data: analyses } = await supabase
-        .from("role_analyses")
-        .select("*")
-        .eq("profile_id", profile.id);
+    const { data, error } = await supabase
+      .from("imported_jobs")
+      .select("*")
+      .eq("profile_id", profile.id)
+      .order("imported_at", { ascending: false })
+      .limit(50);
 
-      if (analyses && analyses.length > 0) {
-        const loadedResults: Record<number, AnalysisResult> = {};
-        const loadedResumes: Record<number, string> = {};
-        for (const a of analyses) {
-          loadedResults[a.job_seed_id] = {
-            score: a.score,
-            bucket: a.bucket,
-            matchSummary: a.match_summary || "",
-            strengths: (a.strengths as string[]) || [],
-            gaps: (a.gaps as string[]) || [],
-            missingKeywords: (a.missing_keywords as string[]) || [],
-            error: a.error || false,
-          };
-          if (a.tailored_resume) {
-            loadedResumes[a.job_seed_id] = a.tailored_resume;
-          }
+    if (error) {
+      console.error("Error loading imported jobs:", error);
+      return;
+    }
+
+    if (data && data.length > 0) {
+      const mapped: ImportedJob[] = data.map((d: any) => ({
+        id: d.id,
+        title: d.title,
+        company: d.company,
+        location: d.location,
+        salary: d.salary,
+        url: d.url,
+        source: d.source,
+        snippet: d.snippet,
+        description: d.description,
+        status: d.status,
+        analysis: d.analysis as AnalysisResult | null,
+        tailored_resume: d.tailored_resume,
+        imported_at: d.imported_at,
+        seen: d.seen,
+      }));
+      setJobs(mapped);
+
+      // Hydrate results/resumes from stored analysis
+      const loadedResults: Record<string, AnalysisResult> = {};
+      const loadedResumes: Record<string, string> = {};
+      let scored = 0;
+      for (const job of mapped) {
+        if (job.analysis && !job.analysis.error) {
+          loadedResults[job.id] = job.analysis;
+          scored++;
         }
-        setResults(loadedResults);
-        setResumes(loadedResumes);
-        setDone(Object.keys(loadedResults).length);
+        if (job.tailored_resume) {
+          loadedResumes[job.id] = job.tailored_resume;
+        }
       }
+      setResults(prev => ({ ...prev, ...loadedResults }));
+      setResumes(prev => ({ ...prev, ...loadedResumes }));
+      setDone(scored);
+    }
 
-      // Load applied jobs
-      const { data: apps } = await supabase
-        .from("applications")
-        .select("job_seed_id")
-        .eq("profile_id", profile.id);
-      if (apps) {
-        setAppliedJobs(new Set(apps.map(d => d.job_seed_id).filter(Boolean) as number[]));
-      }
+    // Load applied jobs
+    const { data: apps } = await supabase
+      .from("applications")
+      .select("imported_job_id")
+      .eq("profile_id", profile.id);
+    if (apps) {
+      setAppliedJobs(new Set(apps.map(d => d.imported_job_id).filter(Boolean) as string[]));
+    }
 
-      setDbLoaded(true);
-    };
-    loadFromDB();
+    setDbLoaded(true);
+    setInitialLoading(false);
   }, [profile?.id]);
 
-  // After DB load, run analysis for any jobs not yet scored
   useEffect(() => {
-    if (!dbLoaded || !profile?.id || didRun.current) return;
-    didRun.current = true;
-    const unjudged = jobs.filter(j => !results[j.id] || results[j.id]?.error);
-    if (unjudged.length === 0) return;
-    unjudged.forEach((job, i) => setTimeout(() => analyzeJob(job), i * 300));
-  }, [dbLoaded, profile?.id]);
+    loadJobsFromDB();
+  }, [loadJobsFromDB]);
 
-  const saveAnalysisToDB = async (jobId: number, result: AnalysisResult, resumeText?: string) => {
-    if (!profile?.id) return;
-    const payload: any = {
-      profile_id: profile.id,
-      job_seed_id: jobId,
-      score: result.score,
-      bucket: result.bucket,
-      match_summary: result.matchSummary,
-      strengths: result.strengths,
-      gaps: result.gaps,
-      missing_keywords: result.missingKeywords,
-      error: result.error || false,
-      updated_at: new Date().toISOString(),
-    };
-    if (resumeText) payload.tailored_resume = resumeText;
+  // After sync completes, reload jobs
+  useEffect(() => {
+    if (syncStatus === "success" && profile?.id) {
+      loadJobsFromDB();
+    }
+  }, [syncStatus, profile?.id, loadJobsFromDB]);
 
-    await supabase.from("role_analyses").upsert(payload, { onConflict: "profile_id,job_seed_id" });
-  };
+  // Auto-score unscored jobs after DB load
+  useEffect(() => {
+    if (!dbLoaded || didAutoScore.current || jobs.length === 0) return;
+    didAutoScore.current = true;
+    const unscored = jobs.filter(j => j.status === "new" && !results[j.id]);
+    if (unscored.length === 0) return;
+    console.log(`[Roles] Auto-scoring ${unscored.length} new jobs`);
+    unscored.forEach((job, i) => setTimeout(() => analyzeJob(job), i * 400));
+  }, [dbLoaded, jobs]);
 
-  const analyzeJob = async (job: Job) => {
+  const analyzeJob = async (job: ImportedJob) => {
     setAL(prev => new Set([...prev, job.id]));
     let scoreResult: AnalysisResult | null = null;
+
+    const jobDesc = job.description || job.snippet || `${job.title} at ${job.company}`;
+
     try {
       const raw = await callAI(`ATS resume expert. Return ONLY valid JSON.
-RESUME: ${RESUME_TEXT}
+RESUME: ${resumeText}
 JOB: ${job.title} at ${job.company}
-${job.description}
+${jobDesc}
 Return: {"score":0,"bucket":"must","matchSummary":"","strengths":["","",""],"gaps":["","",""],"missingKeywords":["","","","",""]}
 bucket: must>=75, tweak 40-74, low<40`, 600);
       console.log('Raw scoring response:', raw);
@@ -145,12 +180,19 @@ bucket: must>=75, tweak 40-74, low<40`, 600);
         const parsed = JSON.parse(raw);
         scoreResult = parsed;
         setResults(prev => ({ ...prev, [job.id]: parsed }));
-        // Save to DB
-        saveAnalysisToDB(job.id, parsed);
+        // Save analysis to imported_jobs
+        await supabase
+          .from("imported_jobs")
+          .update({ analysis: parsed as any, status: "scored" })
+          .eq("id", job.id);
       } catch (e) {
         console.error('Scoring parse failed:', e, 'Raw was:', raw);
         const errResult: AnalysisResult = { error: true, score: 0, bucket: "low", matchSummary: `Scoring returned unparseable response. Raw: ${raw.slice(0, 200)}`, strengths: [], gaps: [], missingKeywords: [] };
         setResults(prev => ({ ...prev, [job.id]: errResult }));
+        await supabase
+          .from("imported_jobs")
+          .update({ analysis: errResult as any, status: "error" })
+          .eq("id", job.id);
       }
     } catch (e: any) {
       console.error('Scoring call failed:', e);
@@ -164,28 +206,31 @@ bucket: must>=75, tweak 40-74, low<40`, 600);
 
     setRL(prev => new Set([...prev, job.id]));
     try {
-      const resumeText = await callAI(`Expert ATS resume writer. Rewrite for this specific job. Keep all real facts. Plain text only, no markdown.
-ORIGINAL: ${RESUME_TEXT}
+      const tailoredResume = await callAI(`Expert ATS resume writer. Rewrite for this specific job. Keep all real facts. Plain text only, no markdown.
+ORIGINAL: ${resumeText}
 TARGET: ${job.title} at ${job.company}
-JD: ${job.description}
+JD: ${jobDesc}
 WEAVE IN: ${scoreResult.missingKeywords?.join(", ")}
 Output complete rewritten resume:`, 4000);
-      setResumes(prev => ({ ...prev, [job.id]: resumeText }));
-      // Save resume to DB
-      saveAnalysisToDB(job.id, scoreResult, resumeText);
+      setResumes(prev => ({ ...prev, [job.id]: tailoredResume }));
+      // Save tailored resume to DB
+      await supabase
+        .from("imported_jobs")
+        .update({ tailored_resume: tailoredResume })
+        .eq("id", job.id);
     } catch (e: any) {
       console.error('Resume rewrite failed:', e);
     }
     setRL(prev => { const s = new Set(prev); s.delete(job.id); return s; });
   };
 
-  const handleMarkApplied = async (job: Job) => {
+  const handleMarkApplied = async (job: ImportedJob) => {
     if (!profile?.id || appliedJobs.has(job.id)) return;
     setApplyLoading(true);
     try {
       const { error } = await supabase.from("applications").insert({
         profile_id: profile.id,
-        job_seed_id: job.id,
+        imported_job_id: job.id,
         title: job.title,
         company: job.company,
         status: "applied",
@@ -210,9 +255,20 @@ Output complete rewritten resume:`, 4000);
 
   const analysisInProgress = aLoading.size > 0;
   const isRunning = aLoading.size > 0 || rLoading.size > 0;
-  const pct = Math.round((doneCount / jobs.length) * 100);
+  const pct = jobs.length > 0 ? Math.round((doneCount / jobs.length) * 100) : 0;
   const visibleJobs = jobTab === "all" ? jobs : (buckets[jobTab as keyof typeof buckets] || []);
 
+  // Loading state
+  if (initialLoading) {
+    return (
+      <div className="max-w-[960px] mx-auto p-7 pt-9 text-center py-20">
+        <Spinner size={24} />
+        <p className="text-sm text-muted-foreground mt-3">Loading your roles…</p>
+      </div>
+    );
+  }
+
+  // Job detail view
   if (selected) {
     const r = results[selected.id];
     const bm = r ? BUCKET_META[r.bucket] : null;
@@ -234,12 +290,14 @@ Output complete rewritten resume:`, 4000);
                 <div className="flex-1">
                   <h2 className="font-serif text-[22px] leading-tight mb-1">{selected.title}</h2>
                   <div className="text-xs text-muted-foreground">
-                    {selected.company} · {selected.location}{selected.salary ? ` · ${selected.salary}/yr` : ""}
+                    {selected.company} · {selected.location || "Remote"}{selected.salary ? ` · ${selected.salary}/yr` : ""}
                   </div>
                 </div>
               </div>
               <div className="mt-4 pt-3.5 border-t border-border flex gap-2 flex-wrap">
-                <button onClick={() => window.open(selected.url, '_blank', 'noopener,noreferrer')} className="text-xs font-medium text-primary hover:underline cursor-pointer bg-transparent border-none p-0">View on LinkedIn ↗</button>
+                {selected.url && (
+                  <button onClick={() => window.open(selected.url!, '_blank', 'noopener,noreferrer')} className="text-xs font-medium text-primary hover:underline cursor-pointer bg-transparent border-none p-0">View Job ↗</button>
+                )}
                 {isApplied ? (
                   <span className="text-xs font-medium px-3 py-1 rounded-[6px] border" style={{ background: "hsl(150 38% 96%)", borderColor: "hsl(152 34% 82%)", color: "hsl(153 40% 30%)" }}>
                     Applied ✓
@@ -378,7 +436,7 @@ Output complete rewritten resume:`, 4000);
                   </div>
                 )
               ) : (
-                <pre className="font-sans text-[11.5px] leading-[1.85] whitespace-pre-wrap break-words text-secondary-foreground">{RESUME_TEXT}</pre>
+                <pre className="font-sans text-[11.5px] leading-[1.85] whitespace-pre-wrap break-words text-secondary-foreground">{resumeText}</pre>
               )}
             </div>
           </div>
@@ -387,13 +445,96 @@ Output complete rewritten resume:`, 4000);
     );
   }
 
+  // Empty state
+  if (jobs.length === 0 && !isRunning) {
+    return (
+      <div className="max-w-[960px] mx-auto p-7 pt-9">
+        <h1 className="font-serif text-[26px] font-normal mb-1">Today's Roles</h1>
+        <p className="text-xs text-muted-foreground mb-8">Import jobs from your Gmail to get started with ATS scoring and resume tailoring.</p>
+
+        {/* Gmail Sync Status Bar */}
+        <div className="mb-6 bg-card border border-border rounded-[9px] px-4 py-3 flex items-center justify-between">
+          {syncStatus === "syncing" ? (
+            <>
+              <div className="flex items-center gap-2">
+                <Spinner size={12} />
+                <span className="text-xs text-muted-foreground animate-pulse">Syncing your Gmail job alerts…</span>
+              </div>
+            </>
+          ) : syncStatus === "success" ? (
+            <>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[hsl(153_50%_35%)]" />
+                <span className="text-xs text-muted-foreground">
+                  Synced · {jobsImportedCount} jobs imported
+                </span>
+              </div>
+              <button
+                onClick={() => triggerSync(false)}
+                disabled={gmailLoading}
+                className="text-xs font-medium px-3 py-1 rounded-[6px] border border-border bg-secondary text-secondary-foreground hover:bg-accent transition-colors disabled:opacity-50"
+              >
+                Refresh ↻
+              </button>
+            </>
+          ) : syncStatus === "no_token" ? (
+            <>
+              <div className="flex items-center gap-2 flex-1 mr-3">
+                <div className="w-2 h-2 rounded-full bg-[hsl(25_84%_50%)]" />
+                <span className="text-xs text-muted-foreground">
+                  Gmail access not granted. Sign out and sign back in — check the Gmail permission.
+                </span>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <button onClick={connectGmail} className="text-xs font-medium px-3 py-1 rounded-[6px] bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+                  Reconnect Gmail
+                </button>
+                <button onClick={signOut} className="text-xs font-medium px-3 py-1 rounded-[6px] border border-border bg-secondary text-secondary-foreground hover:bg-accent transition-colors">
+                  Sign out
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-muted-foreground/40" />
+                <span className="text-xs text-muted-foreground">Connect Gmail to import your job alerts</span>
+              </div>
+              <button
+                onClick={connectGmail}
+                className="text-xs font-medium px-3 py-1 rounded-[6px] bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                Connect Gmail →
+              </button>
+            </>
+          )}
+        </div>
+
+        <div className="bg-card border border-dashed border-border rounded-[11px] p-12 text-center">
+          <div className="text-4xl mb-4">📬</div>
+          <h3 className="font-serif text-lg mb-2">No roles imported yet</h3>
+          <p className="text-sm text-muted-foreground max-w-md mx-auto mb-6">
+            Connect your Gmail to automatically pull in job alerts from LinkedIn, Indeed, Monster and more. Each job gets ATS-scored against your resume and a tailored version is generated.
+          </p>
+          <button
+            onClick={connectGmail}
+            className="text-sm font-medium px-5 py-2.5 rounded-[8px] bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            Sync Gmail →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Main list view
   return (
     <div className="max-w-[960px] mx-auto p-7 pt-9">
       <div className="flex items-start justify-between mb-1">
         <div>
           <h1 className="font-serif text-[26px] font-normal mb-1">Today's Roles</h1>
           <p className="text-xs text-muted-foreground mb-5">
-            {isRunning ? `Analyzing all ${jobs.length} roles…` : `${jobs.length} roles ready · click to review your tailored resume`}
+            {isRunning ? `Analyzing ${jobs.length} roles…` : `${jobs.length} roles ready · click to review your tailored resume`}
             {lastSyncedAt && (
               <span className="ml-2 text-muted-foreground/70">
                 · Last synced {(() => {
@@ -439,7 +580,7 @@ Output complete rewritten resume:`, 4000);
           <>
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-muted-foreground/40" />
-              <span className="text-xs text-muted-foreground">Connect Gmail to import your job alerts</span>
+              <span className="text-xs text-muted-foreground">Connect Gmail to import more job alerts</span>
             </div>
             <button
               onClick={connectGmail}
@@ -518,37 +659,6 @@ Output complete rewritten resume:`, 4000);
           </>
         ) : null}
       </div>
-      {gmailJobs.length > 0 && (showGmailJobs || unseenCount > 0) && (
-        <div className="mb-5 bg-card border border-border rounded-[11px] p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              {unseenCount > 0 && <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />}
-              <h3 className="text-sm font-semibold">Imported from Gmail</h3>
-              <span className="text-[11px] text-muted-foreground">
-                ({unseenCount > 0 ? `${unseenCount} new` : `${gmailJobs.length} total`})
-              </span>
-            </div>
-            <button onClick={() => setShowGmailJobs(false)} className="text-xs text-muted-foreground hover:text-foreground">
-              Dismiss
-            </button>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            {gmailJobs.filter(gj => showGmailJobs || !gj.seen).map((gj) => (
-              <div key={gj.id} className={`border border-border rounded-[7px] p-3 flex items-center justify-between ${gj.seen ? 'bg-secondary/30' : 'bg-secondary/50'}`}>
-                <div>
-                  <div className="text-sm font-medium">{gj.title}</div>
-                  <div className="text-xs text-muted-foreground">{gj.company} · {gj.location}</div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0 ml-3">
-                  <span className="text-[10px] text-muted-foreground bg-secondary border border-border rounded px-1.5 py-0.5">{gj.source}</span>
-                  {!gj.seen && <button onClick={() => markSeen(gj.id)} className="text-[10px] text-muted-foreground hover:text-foreground">✓</button>}
-                  {gj.url && <a href={gj.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">Apply ↗</a>}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div className="flex gap-0.5 border-b border-border mb-4">
         {[
@@ -592,8 +702,9 @@ Output complete rewritten resume:`, 4000);
                       {bm.label}
                     </span>
                   )}
+                  {job.source && <span className="text-[10px] text-muted-foreground bg-secondary border border-border rounded px-1.5 py-0.5">{job.source}</span>}
                 </div>
-                <div className="text-xs text-muted-foreground">{job.company} · {job.location}{job.salary ? ` · ${job.salary}` : ""}</div>
+                <div className="text-xs text-muted-foreground">{job.company} · {job.location || "Remote"}{job.salary ? ` · ${job.salary}` : ""}</div>
                 {r && (
                   <div className="flex flex-wrap gap-0.5 mt-1.5">
                     {r.missingKeywords?.slice(0, 4).map(kw => <Tag key={kw}>{kw}</Tag>)}

@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { callAI } from "@/lib/ai";
-import { INITIAL_JOBS, RESUME_TEXT, type Job } from "@/data/seed";
+import { RESUME_TEXT } from "@/data/seed";
+import { useProfile } from "@/hooks/use-profile";
+import { supabase } from "@/integrations/supabase/client";
 import SectionShell from "@/components/prep/SectionShell";
 import CompanyDeepDive, { type CompanyData } from "@/components/prep/CompanyDeepDive";
 import HiringSignals, { type SignalsData } from "@/components/prep/HiringSignals";
@@ -13,6 +15,15 @@ import ReadinessScore from "@/components/prep/ReadinessScore";
 import PrepSpinner from "@/components/prep/PrepSpinner";
 import { initials } from "@/data/seed";
 
+interface Job {
+  id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  description: string | null;
+  snippet: string | null;
+}
+
 interface PrepState {
   company: CompanyData | null;
   signals: SignalsData | null;
@@ -23,19 +34,36 @@ interface PrepState {
 
 const InterviewPrep = () => {
   const [searchParams] = useSearchParams();
+  const { data: profile } = useProfile();
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [state, setState] = useState<PrepState>({ company: null, signals: null, alignment: null, behavioral: null, technical: null });
   const [loading, setLoading] = useState({ company: false, signals: false, alignment: false, behavioral: false, technical: false });
   const [mockCompleted, setMockCompleted] = useState(false);
 
+  // Load jobs from DB
+  useEffect(() => {
+    if (!profile?.id) return;
+    const load = async () => {
+      const { data } = await supabase
+        .from("imported_jobs")
+        .select("id, title, company, location, description, snippet")
+        .eq("profile_id", profile.id)
+        .order("imported_at", { ascending: false })
+        .limit(50);
+      if (data) setJobs(data);
+    };
+    load();
+  }, [profile?.id]);
+
   // Auto-select job from URL
   useEffect(() => {
     const jobId = searchParams.get("jobId");
-    if (jobId && !selectedJob) {
-      const job = INITIAL_JOBS.find(j => j.id === Number(jobId));
+    if (jobId && !selectedJob && jobs.length > 0) {
+      const job = jobs.find(j => j.id === jobId);
       if (job) selectJob(job);
     }
-  }, [searchParams]);
+  }, [searchParams, jobs]);
 
   const selectJob = (job: Job) => {
     setSelectedJob(job);
@@ -81,7 +109,7 @@ Return: {
     try {
       const raw = await callAI(`Hiring signal analyst. Return ONLY valid JSON. Analyze this JD for ${job.title} at ${job.company}.
 
-JD: ${job.description}
+JD: ${job.description || job.snippet || "No description available"}
 
 Return: {
   "coreSkills":["core skills required"],
@@ -104,7 +132,7 @@ Return: {
       const raw = await callAI(`ATS resume analyst. Return ONLY valid JSON. Compare this resume against the JD.
 
 RESUME: ${RESUME_TEXT}
-JD: ${job.title} at ${job.company} — ${job.description}
+JD: ${job.title} at ${job.company} — ${job.description || job.snippet || "No description available"}
 
 Return: {
   "strongMatches":["3-4 strong matches between resume and JD"],
@@ -232,7 +260,11 @@ Include 6 questions across categories like: system design, infrastructure, progr
       <h1 className="font-serif text-[26px] font-normal mb-1">Interview Preparation</h1>
       <p className="text-xs text-muted-foreground mb-6">Select a role to build your end-to-end preparation plan — company research, signal analysis, behavioral & technical prep, and mock interviews.</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {INITIAL_JOBS.map(job => (
+        {jobs.length === 0 ? (
+          <div className="bg-card border border-dashed border-border rounded-xl p-12 text-center col-span-2">
+            <p className="text-sm text-muted-foreground">No imported jobs yet. Sync your Gmail on the Roles page to get started.</p>
+          </div>
+        ) : jobs.map(job => (
           <div
             key={job.id}
             onClick={() => selectJob(job)}
@@ -243,7 +275,7 @@ Include 6 questions across categories like: system design, infrastructure, progr
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-semibold truncate">{job.title}</div>
-              <div className="text-xs text-muted-foreground">{job.company} · {job.location}</div>
+              <div className="text-xs text-muted-foreground">{job.company} · {job.location || "Remote"}</div>
             </div>
             <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors shrink-0">Prep →</span>
           </div>
