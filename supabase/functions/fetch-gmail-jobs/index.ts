@@ -36,18 +36,27 @@ async function refreshAccessToken(refreshToken: string): Promise<string> {
 
 /** Build Gmail search query using last sync timestamp */
 function buildGmailQuery(lastSyncedAt: string | null): string {
-  const subjects =
-    '(job alert OR new jobs OR new job OR jobs for you OR job for you OR new openings OR jobs matching OR roles for you OR hiring alert OR job recommendations OR recommended jobs OR recommended job)';
+  // Use from: filters for known job alert senders + broad subject keywords
+  const fromSenders = [
+    'jobs-noreply@linkedin.com',
+    'jobalerts-noreply@linkedin.com', 
+    'noreply@indeed.com',
+    'no-reply@glassdoor.com',
+    'noreply@dice.com',
+    'notifications@ziprecruiter.com',
+    'noreply@monster.com',
+  ];
+  
+  const fromFilter = fromSenders.map(s => `from:${s}`).join(' OR ');
+  
+  // Also catch other job alert emails by subject keywords (without subject: prefix for broader matching)
+  const subjectKeywords = '{subject:"job alert" subject:"new job" subject:"jobs for you" subject:"job recommendation" subject:"hiring" subject:"job opening"}';
 
-  if (lastSyncedAt) {
-    const daysSinceSync = Math.max(
-      1,
-      Math.ceil((Date.now() - new Date(lastSyncedAt).getTime()) / 86400000)
-    );
-    return `subject:${subjects} newer_than:${daysSinceSync}d`;
-  }
+  const timeFilter = lastSyncedAt
+    ? `newer_than:${Math.max(1, Math.ceil((Date.now() - new Date(lastSyncedAt).getTime()) / 86400000))}d`
+    : 'newer_than:30d';
 
-  return `subject:${subjects} newer_than:30d`;
+  return `(${fromFilter} OR ${subjectKeywords}) ${timeFilter}`;
 }
 
 /** Pre-filter: only emails that look like real job listings */
