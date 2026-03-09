@@ -201,7 +201,16 @@ export function useGmailImport(profileId: string | null) {
     log("Initiating direct Gmail OAuth flow");
     try {
       const clientId = "704063554549-857m65opcgpm2nkfhulmjqbvncgkrj25.apps.googleusercontent.com";
-      const redirectUri = window.location.origin + "/gmail-callback";
+      // The preview iframe origin (lovableproject.com) differs from the user-facing URL (lovable.app)
+      // Use the published domain when available, otherwise construct the correct preview URL
+      const origin = window.location.origin;
+      let redirectOrigin = origin;
+      // Detect lovableproject.com iframe and map to the id-preview lovable.app domain
+      const iframeMatch = origin.match(/^https:\/\/([a-f0-9-]+)\.lovableproject\.com$/);
+      if (iframeMatch) {
+        redirectOrigin = `https://id-preview--${iframeMatch[1]}.lovable.app`;
+      }
+      const redirectUri = redirectOrigin + "/gmail-callback";
       const scope = "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/gmail.readonly";
       
       const state = crypto.randomUUID();
@@ -237,7 +246,13 @@ export function useGmailImport(profileId: string | null) {
     log("Exchanging OAuth code for Gmail tokens");
     
     try {
-      const redirectUri = window.location.origin + "/gmail-callback";
+      const origin = window.location.origin;
+      let redirectOrigin = origin;
+      const iframeMatch = origin.match(/^https:\/\/([a-f0-9-]+)\.lovableproject\.com$/);
+      if (iframeMatch) {
+        redirectOrigin = `https://id-preview--${iframeMatch[1]}.lovable.app`;
+      }
+      const redirectUri = redirectOrigin + "/gmail-callback";
       const res = await supabase.functions.invoke("gmail-oauth-exchange", {
         body: { code, redirectUri },
       });
