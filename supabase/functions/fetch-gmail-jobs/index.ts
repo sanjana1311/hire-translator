@@ -42,7 +42,7 @@ function buildGmailQuery(lastSyncedAt: string | null): string {
 
   console.log("[Gmail Sync] Days since last sync:", daysSinceSync);
 
-  return `subject:(job alert OR new jobs OR new job OR jobs for you OR job for you OR new openings OR new opening OR jobs matching OR roles for you OR role for you OR hiring alert OR job recommendations OR job recommendation) newer_than:${daysSinceSync}d`;
+  return `("job alert" OR "new jobs" OR "new job" OR "jobs for you" OR "job for you" OR "new openings" OR "jobs matching" OR "roles for you" OR "hiring alert" OR "job recommendations" OR "job recommendation" OR "your job alert") newer_than:${daysSinceSync}d`;
 }
 
 /** Pre-filter: only emails that look like real job listings */
