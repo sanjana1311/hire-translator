@@ -73,10 +73,10 @@ const AppLayout = () => {
       <nav className="sticky top-0 z-50 bg-background border-b border-border h-[52px] px-7 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           {/* CC Logo */}
-          <div className="w-6 h-6 bg-foreground rounded-[5px] flex items-center justify-center mr-1.5">
-            <span className="text-background text-[9px] font-bold">CC</span>
+          <div className="w-6 h-6 rounded-[5px] flex items-center justify-center mr-1.5" style={{ background: 'linear-gradient(135deg, #FF6B6B, #EE5A24, #F0932B)' }}>
+            <span className="text-white text-[9px] font-bold">CC</span>
           </div>
-          <span className="font-serif italic text-[15px] mr-3.5">Career Compass</span>
+          <span className="font-serif italic text-[15px] mr-3.5 bg-gradient-to-r from-[#FF6B6B] via-[#EE5A24] to-[#F0932B] bg-clip-text text-transparent">Career Compass</span>
           
           {/* Nav tabs */}
           {NAV_ITEMS.map((item) => {
