@@ -36,27 +36,13 @@ async function refreshAccessToken(refreshToken: string): Promise<string> {
 
 /** Build Gmail search query using last sync timestamp */
 function buildGmailQuery(lastSyncedAt: string | null): string {
-  // Use from: filters for known job alert senders + broad subject keywords
-  const fromSenders = [
-    'jobs-noreply@linkedin.com',
-    'jobalerts-noreply@linkedin.com', 
-    'noreply@indeed.com',
-    'no-reply@glassdoor.com',
-    'noreply@dice.com',
-    'notifications@ziprecruiter.com',
-    'noreply@monster.com',
-  ];
-  
-  const fromFilter = fromSenders.map(s => `from:${s}`).join(' OR ');
-  
-  // Also catch other job alert emails by subject keywords (without subject: prefix for broader matching)
-  const subjectKeywords = '{subject:"job alert" subject:"new job" subject:"jobs for you" subject:"job recommendation" subject:"hiring" subject:"job opening"}';
+  const daysSinceSync = lastSyncedAt
+    ? Math.max(1, Math.ceil((Date.now() - new Date(lastSyncedAt).getTime()) / 86400000))
+    : 30;
 
-  const timeFilter = lastSyncedAt
-    ? `newer_than:${Math.max(1, Math.ceil((Date.now() - new Date(lastSyncedAt).getTime()) / 86400000))}d`
-    : 'newer_than:30d';
+  console.log("[Gmail Sync] Days since last sync:", daysSinceSync);
 
-  return `(${fromFilter} OR ${subjectKeywords}) ${timeFilter}`;
+  return `subject:(job alert OR new jobs OR jobs for you OR new openings OR jobs matching OR roles for you OR hiring alert OR job recommendations) newer_than:${daysSinceSync}d`;
 }
 
 /** Pre-filter: only emails that look like real job listings */
@@ -182,18 +168,22 @@ export async function syncGmailJobs(options: {
   }
 
   const gmailData = await gmailRes.json();
-  const messageIds = (gmailData.messages || []).map((m: any) => m.id);
-  console.log("[Gmail Sync] Messages found:", messageIds.length);
+  console.log("[Gmail Sync] Raw Gmail API response:", JSON.stringify(gmailData).slice(0, 500));
+  console.log("[Gmail Sync] resultSizeEstimate:", gmailData.resultSizeEstimate);
 
-  if (messageIds.length === 0) {
+  if (!gmailData.messages?.length) {
+    console.log("[Gmail Sync] Zero messages returned. resultSizeEstimate:", gmailData.resultSizeEstimate);
     await adminClient
       .from("gmail_sync_metadata")
       .upsert(
         { profile_id: profileId, last_synced_at: new Date().toISOString() },
         { onConflict: "profile_id" }
       );
-    return { jobs: [], emailCount: 0 };
+    return { jobs: [], emailCount: 0, query: rawQuery, resultSizeEstimate: gmailData.resultSizeEstimate };
   }
+
+  const messageIds = gmailData.messages.map((m: any) => m.id);
+  console.log("[Gmail Sync] Messages found:", messageIds.length);
 
   // Step 2 — Fetch each email body
   const emails: { subject: string; body: string }[] = [];
