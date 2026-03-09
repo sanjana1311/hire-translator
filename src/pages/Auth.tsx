@@ -56,7 +56,7 @@ const Auth = () => {
         });
         if (error) throw error;
         if (data.session) {
-          navigate("/dashboard");
+          navigate("/onboarding");
         } else {
           toast.success("Check your email to confirm your account!");
         }
