@@ -622,8 +622,8 @@ Output complete rewritten resume:`, 4000);
         })}
       </div>
 
-      {/* Sync Log (debug) */}
-      {syncLog.length > 0 && (
+      {/* Sync Log - hidden in production, only visible in dev/preview */}
+      {syncLog.length > 0 && import.meta.env.DEV && (
         <div className="mt-6 mb-4">
           <button
             onClick={() => setShowSyncLog(!showSyncLog)}
