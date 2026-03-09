@@ -202,7 +202,7 @@ export function useGmailImport(profileId: string | null) {
     try {
       const clientId = "704063554549-857m65opcgpm2nkfhulmjqbvncgkrj25.apps.googleusercontent.com";
       const redirectUri = window.location.origin + "/gmail-callback";
-      const scope = "https://www.googleapis.com/auth/gmail.readonly";
+      const scope = "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/gmail.readonly";
       
       const state = crypto.randomUUID();
       sessionStorage.setItem("gmail_oauth_state", state);
@@ -214,6 +214,7 @@ export function useGmailImport(profileId: string | null) {
       authUrl.searchParams.set("scope", scope);
       authUrl.searchParams.set("access_type", "offline");
       authUrl.searchParams.set("prompt", "consent");
+      authUrl.searchParams.set("include_granted_scopes", "true");
       authUrl.searchParams.set("state", state);
       
       window.location.href = authUrl.toString();
