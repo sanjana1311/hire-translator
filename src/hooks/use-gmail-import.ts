@@ -217,7 +217,12 @@ export function useGmailImport(profileId: string | null) {
       authUrl.searchParams.set("include_granted_scopes", "true");
       authUrl.searchParams.set("state", state);
       
-      window.location.href = authUrl.toString();
+      const finalUrl = authUrl.toString();
+      console.log("[Gmail OAuth] Full auth URL:", finalUrl);
+      console.log("[Gmail OAuth] client_id:", clientId);
+      console.log("[Gmail OAuth] redirect_uri:", redirectUri);
+      console.log("[Gmail OAuth] scope:", scope);
+      window.location.href = finalUrl;
     } catch (err: any) {
       log(`OAuth error: ${err.message}`);
       toast.error(err.message || "Google sign-in failed");
