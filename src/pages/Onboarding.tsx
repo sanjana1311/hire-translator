@@ -190,21 +190,45 @@ const Onboarding = () => {
           <label className="text-sm font-medium block mb-1.5">
             What roles are you targeting?
           </label>
-          <input
-            type="text"
-            value={targetRoles}
-            onChange={(e) => {
-              setTargetRoles(e.target.value);
-              if (errors.targetRoles) setErrors((p) => ({ ...p, targetRoles: "" }));
-            }}
-            placeholder="e.g. Software Engineer, Data Analyst, Product Manager, Marketing Manager"
-            className="w-full bg-card border border-border rounded-[8px] px-3.5 py-2.5 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-shadow"
-          />
+
+          <div className="space-y-2.5">
+            {targetRoles.map((role, idx) => (
+              <div key={idx}>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={role}
+                    onChange={(e) => updateRole(idx, e.target.value)}
+                    placeholder="e.g. Product Manager"
+                    className="flex-1 bg-card border border-border rounded-[8px] px-3.5 py-2.5 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-shadow"
+                  />
+                  {idx > 0 && (
+                    <button
+                      onClick={() => removeRole(idx)}
+                      className="text-muted-foreground hover:text-destructive transition-colors text-lg leading-none shrink-0 w-8 h-8 flex items-center justify-center rounded-md hover:bg-secondary"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+                {errors[`role_${idx}`] && (
+                  <p className="text-[12px] text-destructive mt-1">{errors[`role_${idx}`]}</p>
+                )}
+              </div>
+            ))}
+          </div>
+
           <p className="text-[11px] text-muted-foreground mt-1.5">
-            We use this to filter and analyze relevant job alerts.
+            We'll use these roles to filter and analyze relevant job alerts.
           </p>
-          {errors.targetRoles && (
-            <p className="text-[12px] text-destructive mt-1">{errors.targetRoles}</p>
+
+          {showAddRoleButton && (
+            <button
+              onClick={addRole}
+              className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors mt-2"
+            >
+              + Add another role
+            </button>
           )}
         </div>
 
