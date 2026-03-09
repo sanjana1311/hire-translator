@@ -119,7 +119,7 @@ const Onboarding = () => {
       const { error: profileError } = await supabase
         .from("profiles")
         .update({
-          target_roles: targetRoles.trim(),
+          target_roles: dedupedRoles.join(", "),
           onboarded: true,
         } as any)
         .eq("id", profile.id);
