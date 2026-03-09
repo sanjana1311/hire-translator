@@ -132,7 +132,7 @@ Return: {
       const raw = await callAI(`ATS resume analyst. Return ONLY valid JSON. Compare this resume against the JD.
 
 RESUME: ${RESUME_TEXT}
-JD: ${job.title} at ${job.company} — ${job.description}
+JD: ${job.title} at ${job.company} — ${job.description || job.snippet || "No description available"}
 
 Return: {
   "strongMatches":["3-4 strong matches between resume and JD"],
