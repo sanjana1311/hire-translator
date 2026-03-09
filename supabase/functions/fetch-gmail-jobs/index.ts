@@ -151,11 +151,17 @@ export async function syncGmailJobs(options: {
   const { accessToken, profileId, adminClient, lastSyncedAt } = options;
 
   // Step 1 — Search Gmail
-  const query = encodeURIComponent(buildGmailQuery(lastSyncedAt));
-  const gmailRes = await fetch(
-    `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${query}&maxResults=50`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
-  );
+  const rawQuery = buildGmailQuery(lastSyncedAt);
+  console.log("[Gmail Sync] Search query:", rawQuery);
+  console.log("[Gmail Sync] lastSyncedAt:", lastSyncedAt);
+  
+  const query = encodeURIComponent(rawQuery);
+  const gmailUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${query}&maxResults=50`;
+  console.log("[Gmail Sync] Gmail API URL:", gmailUrl);
+  
+  const gmailRes = await fetch(gmailUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
 
   if (!gmailRes.ok) {
     const errText = await gmailRes.text();
@@ -168,6 +174,7 @@ export async function syncGmailJobs(options: {
 
   const gmailData = await gmailRes.json();
   const messageIds = (gmailData.messages || []).map((m: any) => m.id);
+  console.log("[Gmail Sync] Messages found:", messageIds.length);
 
   if (messageIds.length === 0) {
     await adminClient
