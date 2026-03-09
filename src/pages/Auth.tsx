@@ -99,10 +99,10 @@ const Auth = () => {
       <div className="hidden lg:flex lg:w-1/2 bg-card border-r border-border items-center justify-center p-16">
         <div className="max-w-sm">
           <div className="flex items-center gap-2 mb-10">
-            <div className="w-8 h-8 rounded-[5px] flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #FF6B6B, #EE5A24, #F0932B)' }}>
+            <div className="w-8 h-8 rounded-[5px] flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #E84393, #E74C3C)' }}>
               <span className="text-white text-[9px] font-bold">CC</span>
             </div>
-            <span className="font-serif italic text-xl bg-gradient-to-r from-[#FF6B6B] via-[#EE5A24] to-[#F0932B] bg-clip-text text-transparent">Career Compass</span>
+            <span className="font-serif italic text-xl bg-gradient-to-r from-[#E84393] to-[#E74C3C] bg-clip-text text-transparent">Career Compass</span>
           </div>
           <h2 className="font-serif text-2xl mb-3">Your AI career mentor.</h2>
           <p className="text-muted-foreground text-sm leading-relaxed">
@@ -115,10 +115,10 @@ const Auth = () => {
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-sm">
           <div className="lg:hidden flex items-center gap-2 mb-10">
-            <div className="w-6 h-6 rounded-[5px] flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #FF6B6B, #EE5A24, #F0932B)' }}>
+            <div className="w-6 h-6 rounded-[5px] flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #E84393, #E74C3C)' }}>
               <span className="text-white text-[9px] font-bold">CC</span>
             </div>
-            <span className="font-serif italic text-[15px] bg-gradient-to-r from-[#FF6B6B] via-[#EE5A24] to-[#F0932B] bg-clip-text text-transparent">Career Compass</span>
+            <span className="font-serif italic text-[15px] bg-gradient-to-r from-[#E84393] to-[#E74C3C] bg-clip-text text-transparent">Career Compass</span>
           </div>
 
           <h1 className="text-xl font-semibold mb-1">{isLogin ? "Welcome back" : "Create account"}</h1>

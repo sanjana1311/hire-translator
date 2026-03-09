@@ -172,10 +172,10 @@ const Onboarding = () => {
       <div className="w-full max-w-lg">
         {/* Header */}
         <div className="flex items-center gap-2 mb-8">
-          <div className="w-7 h-7 rounded-[5px] flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #FF6B6B, #EE5A24, #F0932B)' }}>
+          <div className="w-7 h-7 rounded-[5px] flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #E84393, #E74C3C)' }}>
             <span className="text-white text-[9px] font-bold">CC</span>
           </div>
-          <span className="font-serif italic text-lg bg-gradient-to-r from-[#FF6B6B] via-[#EE5A24] to-[#F0932B] bg-clip-text text-transparent">Career Compass</span>
+          <span className="font-serif italic text-lg bg-gradient-to-r from-[#E84393] to-[#E74C3C] bg-clip-text text-transparent">Career Compass</span>
         </div>
 
         <h1 className="font-serif text-[28px] leading-tight mb-8">
