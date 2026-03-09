@@ -165,7 +165,7 @@ const Onboarding = () => {
   const showAddButton = resumes.length < 3 && resumes[0].text.trim().length > 0;
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6 relative">
+    <div className="min-h-screen flex items-center justify-center p-6 relative" style={{ background: 'linear-gradient(180deg, hsl(320 40% 92%) 0%, hsl(340 50% 90%) 30%, hsl(30 60% 92%) 60%, hsl(270 30% 90%) 100%)' }}>
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
