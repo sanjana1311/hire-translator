@@ -158,7 +158,11 @@ Return: {
       <h1 className="font-serif text-[26px] font-normal mb-1">Networking Intelligence</h1>
       <p className="text-xs text-muted-foreground mb-5">Pick a role — get exactly who to find on LinkedIn, what to say, and how to get on their radar</p>
       <div className="flex flex-col gap-1.5">
-        {INITIAL_JOBS.map(job => (
+        {jobs.length === 0 ? (
+          <div className="bg-card border border-dashed border-border rounded-[9px] p-12 text-center">
+            <p className="text-sm text-muted-foreground">No imported jobs yet. Sync your Gmail on the Roles page to get started.</p>
+          </div>
+        ) : jobs.map(job => (
           <div
             key={job.id}
             onClick={() => { setNetJob(job); if (!netResult[job.id]) generateNetworking(job); }}
@@ -166,7 +170,7 @@ Return: {
           >
             <div>
               <div className="text-sm font-semibold mb-0.5">{job.title}</div>
-              <div className="text-xs text-muted-foreground">{job.company} · {job.location}</div>
+              <div className="text-xs text-muted-foreground">{job.company} · {job.location || "Remote"}</div>
             </div>
             <span className="text-xs text-muted-foreground">Get connections →</span>
           </div>

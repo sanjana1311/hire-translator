@@ -260,7 +260,11 @@ Include 6 questions across categories like: system design, infrastructure, progr
       <h1 className="font-serif text-[26px] font-normal mb-1">Interview Preparation</h1>
       <p className="text-xs text-muted-foreground mb-6">Select a role to build your end-to-end preparation plan — company research, signal analysis, behavioral & technical prep, and mock interviews.</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {INITIAL_JOBS.map(job => (
+        {jobs.length === 0 ? (
+          <div className="bg-card border border-dashed border-border rounded-xl p-12 text-center col-span-2">
+            <p className="text-sm text-muted-foreground">No imported jobs yet. Sync your Gmail on the Roles page to get started.</p>
+          </div>
+        ) : jobs.map(job => (
           <div
             key={job.id}
             onClick={() => selectJob(job)}
@@ -271,7 +275,7 @@ Include 6 questions across categories like: system design, infrastructure, progr
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-semibold truncate">{job.title}</div>
-              <div className="text-xs text-muted-foreground">{job.company} · {job.location}</div>
+              <div className="text-xs text-muted-foreground">{job.company} · {job.location || "Remote"}</div>
             </div>
             <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors shrink-0">Prep →</span>
           </div>
