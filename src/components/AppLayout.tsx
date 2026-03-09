@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Outlet, useNavigate, useLocation, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
 import { toast } from "sonner";
 
 const NAV_ITEMS = [
@@ -96,13 +97,16 @@ const AppLayout = () => {
           })}
         </div>
 
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground text-xs transition-colors"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-          Sign out
-        </button>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground text-xs transition-colors"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            Sign out
+          </button>
+        </div>
       </nav>
 
       {/* Main content */}

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile } from "@/hooks/use-profile";
 import { toast } from "sonner";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface ResumeEntry {
   label: string;
@@ -137,7 +138,10 @@ const Onboarding = () => {
   const showAddButton = resumes.length < 3 && resumes[0].text.trim().length > 0;
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6">
+    <div className="min-h-screen bg-background flex items-center justify-center p-6 relative">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
       <div className="w-full max-w-lg">
         {/* Header */}
         <div className="flex items-center gap-2 mb-8">
