@@ -99,10 +99,10 @@ const Auth = () => {
       <div className="hidden lg:flex lg:w-1/2 bg-card border-r border-border items-center justify-center p-16">
         <div className="max-w-sm">
           <div className="flex items-center gap-2 mb-10">
-            <div className="w-8 h-8 bg-foreground rounded-[5px] flex items-center justify-center">
-              <span className="text-background text-[9px] font-bold">CC</span>
+            <div className="w-8 h-8 rounded-[5px] flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #FF6B6B, #EE5A24, #F0932B)' }}>
+              <span className="text-white text-[9px] font-bold">CC</span>
             </div>
-            <span className="font-serif italic text-xl">Career Compass</span>
+            <span className="font-serif italic text-xl bg-gradient-to-r from-[#FF6B6B] via-[#EE5A24] to-[#F0932B] bg-clip-text text-transparent">Career Compass</span>
           </div>
           <h2 className="font-serif text-2xl mb-3">Your AI career mentor.</h2>
           <p className="text-muted-foreground text-sm leading-relaxed">
