@@ -15,15 +15,27 @@ const Auth = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
+    const checkAndRedirect = async (session: any) => {
+      if (!session) return;
+      // Check if onboarded
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("onboarded")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+
+      if (profile && (profile as any).onboarded) {
         navigate("/dashboard", { replace: true });
+      } else {
+        navigate("/onboarding", { replace: true });
       }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) checkAndRedirect(session);
     });
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        navigate("/dashboard", { replace: true });
-      }
+      if (session) checkAndRedirect(session);
     });
     return () => subscription.unsubscribe();
   }, [navigate]);
