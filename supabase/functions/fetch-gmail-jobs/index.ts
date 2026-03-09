@@ -37,7 +37,7 @@ async function refreshAccessToken(refreshToken: string): Promise<string> {
 /** Build Gmail search query using last sync timestamp */
 function buildGmailQuery(lastSyncedAt: string | null): string {
   const subjects =
-    '(job alert OR new jobs OR jobs for you OR new openings OR jobs matching OR roles for you OR hiring alert OR job recommendations)';
+    '(job alert OR new jobs OR new job OR jobs for you OR job for you OR new openings OR jobs matching OR roles for you OR hiring alert OR job recommendations OR recommended jobs OR recommended job)';
 
   if (lastSyncedAt) {
     const daysSinceSync = Math.max(
