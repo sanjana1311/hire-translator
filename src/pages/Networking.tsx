@@ -1,11 +1,22 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { callAI } from "@/lib/ai";
-import { INITIAL_JOBS, initials, scoreColor, type Job } from "@/data/seed";
+import { initials, scoreColor } from "@/data/seed";
+import { useProfile } from "@/hooks/use-profile";
+import { supabase } from "@/integrations/supabase/client";
 
 const Spinner = ({ size = 16 }: { size?: number }) => (
   <div className="border-2 border-border border-t-foreground rounded-full animate-spin" style={{ width: size, height: size }} />
 );
+
+interface Job {
+  id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  description: string | null;
+  snippet: string | null;
+}
 
 interface NetResult {
   connectionAngles?: string[];
@@ -18,22 +29,39 @@ interface NetResult {
 
 const Networking = () => {
   const [searchParams] = useSearchParams();
+  const { data: profile } = useProfile();
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [netJob, setNetJob] = useState<Job | null>(null);
-  const [netResult, setNetResult] = useState<Record<number, NetResult>>({});
-  const [netLoading, setNetLoading] = useState<number | null>(null);
+  const [netResult, setNetResult] = useState<Record<string, NetResult>>({});
+  const [netLoading, setNetLoading] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Load jobs from DB
+  useEffect(() => {
+    if (!profile?.id) return;
+    const load = async () => {
+      const { data } = await supabase
+        .from("imported_jobs")
+        .select("id, title, company, location, description, snippet")
+        .eq("profile_id", profile.id)
+        .order("imported_at", { ascending: false })
+        .limit(50);
+      if (data) setJobs(data);
+    };
+    load();
+  }, [profile?.id]);
 
   // Auto-select job from URL param
   useEffect(() => {
     const jobId = searchParams.get("jobId");
-    if (jobId && !netJob) {
-      const job = INITIAL_JOBS.find(j => j.id === Number(jobId));
+    if (jobId && !netJob && jobs.length > 0) {
+      const job = jobs.find(j => j.id === jobId);
       if (job) {
         setNetJob(job);
         if (!netResult[job.id]) generateNetworking(job);
       }
     }
-  }, [searchParams]);
+  }, [searchParams, jobs]);
 
   const copy = (t: string) => { navigator.clipboard.writeText(t); setCopied(true); setTimeout(() => setCopied(false), 2500); };
 
