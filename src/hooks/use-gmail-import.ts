@@ -246,7 +246,13 @@ export function useGmailImport(profileId: string | null) {
     log("Exchanging OAuth code for Gmail tokens");
     
     try {
-      const redirectUri = window.location.origin + "/gmail-callback";
+      const origin = window.location.origin;
+      let redirectOrigin = origin;
+      const iframeMatch = origin.match(/^https:\/\/([a-f0-9-]+)\.lovableproject\.com$/);
+      if (iframeMatch) {
+        redirectOrigin = `https://id-preview--${iframeMatch[1]}.lovable.app`;
+      }
+      const redirectUri = redirectOrigin + "/gmail-callback";
       const res = await supabase.functions.invoke("gmail-oauth-exchange", {
         body: { code, redirectUri },
       });
