@@ -322,6 +322,8 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          onboarded: boolean | null
+          target_roles: string | null
           updated_at: string
           user_id: string
         }
@@ -330,6 +332,8 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          onboarded?: boolean | null
+          target_roles?: string | null
           updated_at?: string
           user_id: string
         }
@@ -338,6 +342,8 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          onboarded?: boolean | null
+          target_roles?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -350,6 +356,7 @@ export type Database = {
           education: Json | null
           experience: Json | null
           id: string
+          label: string | null
           profile_id: string
           projects: Json | null
           raw_text: string | null
@@ -363,6 +370,7 @@ export type Database = {
           education?: Json | null
           experience?: Json | null
           id?: string
+          label?: string | null
           profile_id: string
           projects?: Json | null
           raw_text?: string | null
@@ -376,6 +384,7 @@ export type Database = {
           education?: Json | null
           experience?: Json | null
           id?: string
+          label?: string | null
           profile_id?: string
           projects?: Json | null
           raw_text?: string | null
@@ -387,7 +396,7 @@ export type Database = {
           {
             foreignKeyName: "resumes_profile_id_fkey"
             columns: ["profile_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
