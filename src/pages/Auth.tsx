@@ -91,7 +91,10 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="min-h-screen bg-background flex relative">
+      <div className="absolute top-4 right-4 z-10">
+        <ThemeToggle />
+      </div>
       {/* Left panel */}
       <div className="hidden lg:flex lg:w-1/2 bg-card border-r border-border items-center justify-center p-16">
         <div className="max-w-sm">
