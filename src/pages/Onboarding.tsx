@@ -115,6 +115,8 @@ const Onboarding = () => {
     setSaving(true);
 
     try {
+      // Deduplicate roles
+      const dedupedRoles = [...new Set(targetRoles.map((r) => r.trim()).filter(Boolean))];
       // 1. Update profile with target_roles and onboarded flag
       const { error: profileError } = await supabase
         .from("profiles")
