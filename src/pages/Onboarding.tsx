@@ -172,18 +172,15 @@ const Onboarding = () => {
       <div className="w-full max-w-lg">
         {/* Header */}
         <div className="flex items-center gap-2 mb-8">
-          <div className="w-7 h-7 bg-foreground rounded-[5px] flex items-center justify-center">
-            <span className="text-background text-[9px] font-bold">CC</span>
+          <div className="w-7 h-7 rounded-[5px] flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #FF6B6B, #EE5A24, #F0932B)' }}>
+            <span className="text-white text-[9px] font-bold">CC</span>
           </div>
-          <span className="font-serif italic text-lg">Career Compass</span>
+          <span className="font-serif italic text-lg bg-gradient-to-r from-[#FF6B6B] via-[#EE5A24] to-[#F0932B] bg-clip-text text-transparent">Career Compass</span>
         </div>
 
-        <h1 className="font-serif text-[28px] leading-tight mb-1.5">
+        <h1 className="font-serif text-[28px] leading-tight mb-8">
           Welcome. Two things and you're in.
         </h1>
-        <p className="text-sm text-muted-foreground mb-8">
-          This takes about 20 seconds.
-        </p>
 
         {/* Section 1 — Target Roles */}
         <div className="mb-8">
