@@ -168,18 +168,22 @@ export async function syncGmailJobs(options: {
   }
 
   const gmailData = await gmailRes.json();
-  const messageIds = (gmailData.messages || []).map((m: any) => m.id);
-  console.log("[Gmail Sync] Messages found:", messageIds.length);
+  console.log("[Gmail Sync] Raw Gmail API response:", JSON.stringify(gmailData).slice(0, 500));
+  console.log("[Gmail Sync] resultSizeEstimate:", gmailData.resultSizeEstimate);
 
-  if (messageIds.length === 0) {
+  if (!gmailData.messages?.length) {
+    console.log("[Gmail Sync] Zero messages returned. resultSizeEstimate:", gmailData.resultSizeEstimate);
     await adminClient
       .from("gmail_sync_metadata")
       .upsert(
         { profile_id: profileId, last_synced_at: new Date().toISOString() },
         { onConflict: "profile_id" }
       );
-    return { jobs: [], emailCount: 0 };
+    return { jobs: [], emailCount: 0, query: rawQuery, resultSizeEstimate: gmailData.resultSizeEstimate };
   }
+
+  const messageIds = gmailData.messages.map((m: any) => m.id);
+  console.log("[Gmail Sync] Messages found:", messageIds.length);
 
   // Step 2 — Fetch each email body
   const emails: { subject: string; body: string }[] = [];
