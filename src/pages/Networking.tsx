@@ -70,8 +70,8 @@ const Networking = () => {
     try {
       const raw = await callAI(`You are a career networking strategist. Return ONLY valid JSON.
 Candidate: Sanjana Ravikumar — PM at Tesla, GenAI communication systems, PMP certified, ASU MS Engineering Management.
-Target role: ${job.title} at ${job.company} in ${job.location}
-Job description: ${job.description}
+Target role: ${job.title} at ${job.company} in ${job.location || "Remote"}
+Job description: ${job.description || job.snippet || "No description available"}
 
 Return: {
   "connectionAngles": ["3 specific types of people to find at ${job.company} on LinkedIn"],
