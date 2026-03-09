@@ -26,9 +26,6 @@ const Onboarding = () => {
     }
   }, [profile, profileLoading, navigate]);
 
-const Onboarding = () => {
-  const navigate = useNavigate();
-  const { data: profile } = useProfile();
   const [targetRoles, setTargetRoles] = useState("");
   const [resumes, setResumes] = useState<ResumeEntry[]>([{ label: "", text: "" }]);
   const [saving, setSaving] = useState(false);
