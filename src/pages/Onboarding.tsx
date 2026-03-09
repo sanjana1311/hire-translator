@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile } from "@/hooks/use-profile";
 import { toast } from "sonner";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface ResumeEntry {
   label: string;
