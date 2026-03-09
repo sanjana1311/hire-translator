@@ -27,14 +27,33 @@ const Onboarding = () => {
     }
   }, [profile, profileLoading, navigate]);
 
-  const [targetRoles, setTargetRoles] = useState("");
+  const [targetRoles, setTargetRoles] = useState<string[]>([""]);
   const [resumes, setResumes] = useState<ResumeEntry[]>([{ label: "", text: "" }]);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const canSubmit =
-    targetRoles.trim().length > 0 &&
+    targetRoles.some((r) => r.trim().length >= 3) &&
     resumes.some((r) => r.text.trim().length >= 150);
+
+  const updateRole = (idx: number, value: string) => {
+    setTargetRoles((prev) => prev.map((r, i) => (i === idx ? value : r)));
+    if (errors[`role_${idx}`]) {
+      setErrors((prev) => { const next = { ...prev }; delete next[`role_${idx}`]; return next; });
+    }
+  };
+
+  const addRole = () => {
+    if (targetRoles.length >= 5) return;
+    setTargetRoles([...targetRoles, ""]);
+  };
+
+  const removeRole = (idx: number) => {
+    setTargetRoles(targetRoles.filter((_, i) => i !== idx));
+    setErrors((prev) => { const next = { ...prev }; delete next[`role_${idx}`]; return next; });
+  };
+
+  const showAddRoleButton = targetRoles.length < 5 && targetRoles[0].trim().length > 0;
 
   const addResume = () => {
     if (resumes.length >= 3) return;
