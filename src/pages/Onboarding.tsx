@@ -85,9 +85,15 @@ const Onboarding = () => {
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
-    if (!targetRoles.trim()) {
-      newErrors.targetRoles = "Please enter at least one target role.";
+    const validRoles = targetRoles.filter((r) => r.trim().length > 0);
+    if (validRoles.length === 0) {
+      newErrors.role_0 = "Please enter at least one target role.";
     }
+    targetRoles.forEach((r, i) => {
+      if (r.trim().length > 0 && r.trim().length < 3) {
+        newErrors[`role_${i}`] = "Role must be at least 3 characters.";
+      }
+    });
     resumes.forEach((r, i) => {
       if (r.text.trim().length > 0 && r.text.trim().length < 150) {
         newErrors[`resume_${i}`] = "Paste your full resume — this looks too short";
