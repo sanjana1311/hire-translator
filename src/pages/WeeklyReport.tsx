@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { callAI } from "@/lib/ai";
 import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/integrations/supabase/client";
-import { INITIAL_APPLICATIONS, INITIAL_JOBS, fmtDate, daysSince } from "@/data/seed";
+import { fmtDate, daysSince } from "@/data/seed";
 
 const Spinner = ({ size = 16 }: { size?: number }) => (
   <div className="border-2 border-border border-t-foreground rounded-full animate-spin" style={{ width: size, height: size }} />
