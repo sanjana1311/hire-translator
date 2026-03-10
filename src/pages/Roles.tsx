@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { callAI } from "@/lib/ai";
 import { useGmailImport } from "@/hooks/use-gmail-import";
@@ -10,6 +10,8 @@ import {
   RESUME_TEXT, BUCKET_META,
   initials, scoreColor, scoreBg, scoreBorder,
 } from "@/data/seed";
+import { classifyRole, getRoleFamilyLabel, ROLE_FAMILIES, type RoleFamilyKey } from "@/lib/role-classifier";
+import { ChevronDown, ChevronRight, Filter, X } from "lucide-react";
 
 const Spinner = ({ size = 16 }: { size?: number }) => (
   <div
