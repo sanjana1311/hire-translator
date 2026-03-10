@@ -743,78 +743,192 @@ Output complete rewritten resume:`, 4000);
         ) : null}
       </div>
 
-      <div className="flex gap-0.5 border-b border-border mb-4">
-        {[
-          ["all", `All (${jobs.length})`],
-          ["must", `Must Apply (${buckets.must.length})`],
-          ["tweak", `Needs Tweaking (${buckets.tweak.length})`],
-          ["low", `Low (${buckets.low.length})`],
-        ].map(([k, lbl]) => (
+      {/* Filters */}
+      <div className="mb-4">
+        <div className="flex items-center gap-2 mb-2">
           <button
-            key={k}
-            onClick={() => setJobTab(k)}
-            className={`text-[12.5px] px-3 py-1.5 -mb-px transition-colors ${
-              jobTab === k ? "text-foreground font-semibold border-b-2 border-foreground" : "text-muted-foreground border-b-2 border-transparent"
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-[6px] border transition-colors ${
+              activeFilterCount > 0
+                ? "bg-primary/10 border-primary/30 text-primary"
+                : "bg-secondary border-border text-secondary-foreground hover:bg-accent"
             }`}
           >
-            {lbl}
+            <Filter className="w-3 h-3" />
+            Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
           </button>
-        ))}
+          {activeFilterCount > 0 && (
+            <button onClick={clearFilters} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+              <X className="w-3 h-3" /> Clear
+            </button>
+          )}
+          <div className="ml-auto flex gap-1">
+            {([["must", "hsl(153 40% 30%)", buckets.must.length], ["tweak", "hsl(25 84% 31%)", buckets.tweak.length], ["low", "hsl(348 46% 28%)", buckets.low.length]] as const).map(([k, c, n]) => (
+              <div key={k} className="flex items-center gap-1 bg-secondary border border-border rounded-full px-2.5 py-0.5">
+                <div className="w-1.5 h-1.5 rounded-full" style={{ background: c as string }} />
+                <span className="text-[11px] text-secondary-foreground font-medium">{n as number}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {showFilters && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-card border border-border rounded-[9px] p-3 animate-fade-up">
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1 block">Role Family</label>
+              <select
+                value={filterFamily}
+                onChange={e => setFilterFamily(e.target.value as any)}
+                className="w-full text-xs bg-secondary border border-border rounded-[5px] px-2 py-1.5 text-foreground"
+              >
+                <option value="all">All Families</option>
+                {ROLE_FAMILIES.map(f => (
+                  <option key={f.key} value={f.key}>{f.label}</option>
+                ))}
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1 block">Score Bucket</label>
+              <select
+                value={filterBucket}
+                onChange={e => setFilterBucket(e.target.value)}
+                className="w-full text-xs bg-secondary border border-border rounded-[5px] px-2 py-1.5 text-foreground"
+              >
+                <option value="all">All Buckets</option>
+                <option value="must">Must Apply</option>
+                <option value="tweak">Needs Tweaking</option>
+                <option value="low">Low Alignment</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1 block">Company</label>
+              <select
+                value={filterCompany}
+                onChange={e => setFilterCompany(e.target.value)}
+                className="w-full text-xs bg-secondary border border-border rounded-[5px] px-2 py-1.5 text-foreground"
+              >
+                <option value="all">All Companies</option>
+                {uniqueCompanies.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1 block">Location</label>
+              <select
+                value={filterLocation}
+                onChange={e => setFilterLocation(e.target.value)}
+                className="w-full text-xs bg-secondary border border-border rounded-[5px] px-2 py-1.5 text-foreground"
+              >
+                <option value="all">All Locations</option>
+                {uniqueLocations.map(l => (
+                  <option key={l} value={l}>{l}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        {visibleJobs.map((job, i) => {
-          const r = results[job.id];
-          const bm = r ? BUCKET_META[r.bucket] : null;
-          return (
-            <div
-              key={job.id}
-              onClick={() => setSelected(job)}
-              className="animate-fade-up bg-card border border-border rounded-[9px] p-4 grid cursor-pointer hover:shadow-sm hover:-translate-y-px transition-all"
-              style={{ gridTemplateColumns: "38px 1fr 100px", gap: 12, alignItems: "center", animationDelay: `${i * 0.04}s` }}
-            >
-              <div className="w-[38px] h-[38px] bg-secondary border border-border rounded-lg flex items-center justify-center">
-                <span className="text-[10px] font-bold text-secondary-foreground">{initials(job.company)}</span>
-              </div>
-              <div>
-                <div className="flex items-center flex-wrap gap-1.5 mb-0.5">
-                  <span className="text-sm font-semibold">{job.title}</span>
-                  {bm && (
-                    <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-px text-[10.5px] font-semibold" style={{ background: bm.bg, border: `1px solid ${bm.border}`, color: bm.text }}>
-                      <span className="w-1 h-1 rounded-full inline-block" style={{ background: bm.dot }} />
-                      {bm.label}
-                    </span>
-                  )}
-                  {job.source && <span className="text-[10px] text-muted-foreground bg-secondary border border-border rounded px-1.5 py-0.5">{job.source}</span>}
-                </div>
-                <div className="text-xs text-muted-foreground">{job.company} · {job.location || "Remote"}{job.salary ? ` · ${job.salary}` : ""}</div>
-                {r && (
-                  <div className="flex flex-wrap gap-0.5 mt-1.5">
-                    {r.missingKeywords?.slice(0, 4).map(kw => <Tag key={kw}>{kw}</Tag>)}
+      {/* Grouped job list */}
+      {filteredJobs.length === 0 ? (
+        <div className="bg-card border border-dashed border-border rounded-[11px] p-10 text-center">
+          <p className="text-sm text-muted-foreground">No roles match your filters.</p>
+          <button onClick={clearFilters} className="text-xs text-primary hover:underline mt-2">Clear filters</button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {groupedData.map(({ familyKey, label, jobs: familyJobs, bucketGroups }) => {
+            const isCollapsed = collapsedFamilies.has(familyKey);
+            return (
+              <div key={familyKey}>
+                {/* Family header */}
+                <button
+                  onClick={() => toggleFamily(familyKey)}
+                  className="flex items-center gap-2 w-full text-left mb-2 group"
+                >
+                  {isCollapsed ? <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
+                  <h2 className="font-serif text-[17px] font-normal">{label}</h2>
+                  <span className="text-[11px] text-muted-foreground">({familyJobs.length})</span>
+                </button>
+
+                {!isCollapsed && (
+                  <div className="flex flex-col gap-3 ml-5">
+                    {(["must", "tweak", "low", "unscored"] as const).map(bucketKey => {
+                      const bucketJobs = bucketGroups[bucketKey];
+                      if (bucketJobs.length === 0) return null;
+                      const bm = bucketKey !== "unscored" ? BUCKET_META[bucketKey] : null;
+                      return (
+                        <div key={bucketKey}>
+                          {/* Bucket sub-header */}
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            {bm ? (
+                              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold" style={{ background: bm.bg, border: `1px solid ${bm.border}`, color: bm.text }}>
+                                <span className="w-1.5 h-1.5 rounded-full" style={{ background: bm.dot }} />
+                                {bm.label} ({bucketJobs.length})
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-muted-foreground font-medium">Scoring… ({bucketJobs.length})</span>
+                            )}
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            {bucketJobs.map((job, i) => {
+                              const r = results[job.id];
+                              const jobBm = r ? BUCKET_META[r.bucket] : null;
+                              return (
+                                <div
+                                  key={job.id}
+                                  onClick={() => setSelected(job)}
+                                  className="animate-fade-up bg-card border border-border rounded-[9px] p-4 grid cursor-pointer hover:shadow-sm hover:-translate-y-px transition-all"
+                                  style={{ gridTemplateColumns: "38px 1fr 100px", gap: 12, alignItems: "center", animationDelay: `${i * 0.04}s` }}
+                                >
+                                  <div className="w-[38px] h-[38px] bg-secondary border border-border rounded-lg flex items-center justify-center">
+                                    <span className="text-[10px] font-bold text-secondary-foreground">{initials(job.company)}</span>
+                                  </div>
+                                  <div>
+                                    <div className="flex items-center flex-wrap gap-1.5 mb-0.5">
+                                      <span className="text-sm font-semibold">{job.title}</span>
+                                      {job.source && <span className="text-[10px] text-muted-foreground bg-secondary border border-border rounded px-1.5 py-0.5">{job.source}</span>}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">{job.company} · {job.location || "Remote"}{job.salary ? ` · ${job.salary}` : ""}</div>
+                                    {r && (
+                                      <div className="flex flex-wrap gap-0.5 mt-1.5">
+                                        {r.missingKeywords?.slice(0, 4).map(kw => <Tag key={kw}>{kw}</Tag>)}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="text-right">
+                                    {aLoading.has(job.id) ? (
+                                      <div className="flex flex-col items-end gap-1">
+                                        <Spinner size={14} />
+                                        <span className="animate-pulse-dot text-[10px] text-muted-foreground">Scoring…</span>
+                                      </div>
+                                    ) : r ? (
+                                      <div>
+                                        <div className="font-serif text-2xl leading-none" style={{ color: scoreColor(r.score) }}>{r.score}</div>
+                                        <div className="text-[10px] text-muted-foreground">
+                                          {rLoading.has(job.id) ? <span className="animate-pulse-dot">writing…</span> : "ready"}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <Spinner size={14} />
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
-              <div className="text-right">
-                {aLoading.has(job.id) ? (
-                  <div className="flex flex-col items-end gap-1">
-                    <Spinner size={14} />
-                    <span className="animate-pulse-dot text-[10px] text-muted-foreground">Scoring…</span>
-                  </div>
-                ) : r ? (
-                  <div>
-                    <div className="font-serif text-2xl leading-none" style={{ color: scoreColor(r.score) }}>{r.score}</div>
-                    <div className="text-[10px] text-muted-foreground">
-                      {rLoading.has(job.id) ? <span className="animate-pulse-dot">writing…</span> : "ready"}
-                    </div>
-                  </div>
-                ) : (
-                  <Spinner size={14} />
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Sync Log - hidden in production, only visible in dev/preview */}
       {syncLog.length > 0 && import.meta.env.DEV && (
