@@ -249,16 +249,97 @@ Output complete rewritten resume:`, 4000);
 
   const copy = (t: string) => { navigator.clipboard.writeText(t); setCopied(true); setTimeout(() => setCopied(false), 2500); };
 
+  // Filters
+  const [filterFamily, setFilterFamily] = useState<RoleFamilyKey | "all">("all");
+  const [filterBucket, setFilterBucket] = useState<string>("all");
+  const [filterCompany, setFilterCompany] = useState<string>("all");
+  const [filterLocation, setFilterLocation] = useState<string>("all");
+  const [showFilters, setShowFilters] = useState(false);
+  const [collapsedFamilies, setCollapsedFamilies] = useState<Set<string>>(new Set());
+
+  const toggleFamily = (key: string) => {
+    setCollapsedFamilies(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
+
+  // Classify all jobs
+  const classifiedJobs = useMemo(() =>
+    jobs.map(job => ({ ...job, roleFamily: classifyRole(job.title) })),
+    [jobs]
+  );
+
+  // Unique values for filter dropdowns
+  const uniqueCompanies = useMemo(() =>
+    [...new Set(jobs.map(j => j.company))].sort(),
+    [jobs]
+  );
+  const uniqueLocations = useMemo(() =>
+    [...new Set(jobs.map(j => j.location || "Remote"))].sort(),
+    [jobs]
+  );
+
+  // Apply filters
+  const filteredJobs = useMemo(() => {
+    return classifiedJobs.filter(job => {
+      if (filterFamily !== "all" && job.roleFamily !== filterFamily) return false;
+      if (filterBucket !== "all") {
+        const r = results[job.id];
+        if (!r || r.bucket !== filterBucket) return false;
+      }
+      if (filterCompany !== "all" && job.company !== filterCompany) return false;
+      if (filterLocation !== "all" && (job.location || "Remote") !== filterLocation) return false;
+      return true;
+    });
+  }, [classifiedJobs, filterFamily, filterBucket, filterCompany, filterLocation, results]);
+
+  // Group by role family, then by bucket
+  const groupedData = useMemo(() => {
+    const familyMap: Record<string, typeof filteredJobs> = {};
+    for (const job of filteredJobs) {
+      const key = job.roleFamily;
+      if (!familyMap[key]) familyMap[key] = [];
+      familyMap[key].push(job);
+    }
+
+    // Sort families: defined order first, "other" last
+    const familyOrder = [...ROLE_FAMILIES.map(f => f.key), "other"];
+    const sortedFamilies = Object.keys(familyMap).sort(
+      (a, b) => familyOrder.indexOf(a) - familyOrder.indexOf(b)
+    );
+
+    return sortedFamilies.map(familyKey => {
+      const familyJobs = familyMap[familyKey];
+      const bucketGroups = {
+        must: familyJobs.filter(j => results[j.id]?.bucket === "must"),
+        tweak: familyJobs.filter(j => results[j.id]?.bucket === "tweak"),
+        low: familyJobs.filter(j => results[j.id]?.bucket === "low"),
+        unscored: familyJobs.filter(j => !results[j.id]),
+      };
+      return { familyKey: familyKey as RoleFamilyKey, label: getRoleFamilyLabel(familyKey as RoleFamilyKey), jobs: familyJobs, bucketGroups };
+    });
+  }, [filteredJobs, results]);
+
   const buckets = {
     must: jobs.filter(j => results[j.id]?.bucket === "must"),
     tweak: jobs.filter(j => results[j.id]?.bucket === "tweak"),
     low: jobs.filter(j => results[j.id]?.bucket === "low"),
   };
 
+  const activeFilterCount = [filterFamily, filterBucket, filterCompany, filterLocation].filter(v => v !== "all").length;
+
+  const clearFilters = () => {
+    setFilterFamily("all");
+    setFilterBucket("all");
+    setFilterCompany("all");
+    setFilterLocation("all");
+  };
+
   const analysisInProgress = aLoading.size > 0;
   const isRunning = aLoading.size > 0 || rLoading.size > 0;
   const pct = jobs.length > 0 ? Math.round((doneCount / jobs.length) * 100) : 0;
-  const visibleJobs = jobTab === "all" ? jobs : (buckets[jobTab as keyof typeof buckets] || []);
 
   // Loading state
   if (initialLoading) {
