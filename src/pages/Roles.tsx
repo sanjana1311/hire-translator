@@ -62,7 +62,7 @@ const Roles = () => {
   const [rLoading, setRL] = useState<Set<string>>(new Set());
   const [doneCount, setDone] = useState(0);
   const [selected, setSelected] = useState<ImportedJob | null>(null);
-  const [jobTab, setJobTab] = useState("all"); // kept for potential future use
+  
   const [rtab, setRtab] = useState("tailored");
   const [copied, setCopied] = useState(false);
   const [appliedJobs, setAppliedJobs] = useState<Set<string>>(new Set());
