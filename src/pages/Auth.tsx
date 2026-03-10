@@ -115,10 +115,10 @@ const Auth = () => {
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-sm">
           <div className="lg:hidden flex items-center gap-2 mb-10">
-            <div className="w-6 h-6 rounded-[5px] flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #E84393, #E74C3C)' }}>
+            <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #9B59B6, #E84393)' }}>
               <span className="text-white text-[9px] font-bold">CC</span>
             </div>
-            <span className="font-serif italic text-[15px] bg-gradient-to-r from-[#E84393] to-[#E74C3C] bg-clip-text text-transparent">Career Compass</span>
+            <span className="font-serif italic text-[15px] bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(135deg, #9B59B6, #E84393)' }}>Career Compass</span>
           </div>
 
           <h1 className="text-xl font-semibold mb-1">{isLogin ? "Welcome back" : "Create account"}</h1>
