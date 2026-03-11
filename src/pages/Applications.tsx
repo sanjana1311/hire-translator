@@ -3,7 +3,7 @@ import { callAI } from "@/lib/ai";
 import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  INITIAL_APPLICATIONS, STATUS_META,
+  STATUS_META,
   initials, daysSince, fmtDate,
   type Application,
 } from "@/data/seed";
