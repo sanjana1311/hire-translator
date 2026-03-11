@@ -150,7 +150,7 @@ Include exactly 3 improved bullets.`, 2000);
     try {
       const raw = await callAI(`Expert behavioral interview coach. Return ONLY valid JSON. Generate STAR prompts for ${job.title} at ${job.company}.
 
-Candidate resume: ${RESUME_TEXT.slice(0, 800)}
+Candidate resume: ${resumeText.slice(0, 800)}
 JD: ${job.description}
 
 Return: {"questions":[{"scenario":"short category label","question":"the behavioral question","whyAsked":"why interviewers ask this","strongAnswer":"what a strong answer looks like","suggestedAngle":"suggested personal story angle based on the candidate resume"}]}
