@@ -50,7 +50,7 @@ const toApplication = (db: DBApplication): Application => ({
 
 const Applications = () => {
   const { data: profile } = useProfile();
-  const [applications, setApps] = useState<Application[]>(INITIAL_APPLICATIONS);
+  const [applications, setApps] = useState<Application[]>([]);
   const [dbApps, setDbApps] = useState<DBApplication[]>([]);
   const [selApp, setSelApp] = useState<Application | null>(null);
   const [fuLoading, setFUL] = useState<number | null>(null);
