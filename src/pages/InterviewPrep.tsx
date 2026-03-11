@@ -131,7 +131,7 @@ Return: {
     try {
       const raw = await callAI(`ATS resume analyst. Return ONLY valid JSON. Compare this resume against the JD.
 
-RESUME: ${RESUME_TEXT}
+RESUME: ${resumeText}
 JD: ${job.title} at ${job.company} — ${job.description || job.snippet || "No description available"}
 
 Return: {
