@@ -36,6 +36,8 @@ interface PrepState {
 const InterviewPrep = () => {
   const [searchParams] = useSearchParams();
   const { data: profile } = useProfile();
+  const { data: resumeData } = useResume();
+  const resumeText = resumeData?.raw_text || "";
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [state, setState] = useState<PrepState>({ company: null, signals: null, alignment: null, behavioral: null, technical: null });
