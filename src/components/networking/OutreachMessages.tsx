@@ -50,7 +50,7 @@ const OutreachMessages = ({ data, loading, jobTitle, company }: Props) => {
     try {
       const raw = await callAI(`Write a personalized networking outreach message for a candidate applying to ${jobTitle} at ${company}.
 Target: ${m.persona} (${m.category})
-Candidate: PM at Tesla, GenAI, PMP, ASU grad.
+Candidate: Job seeker with relevant experience.
 Tone: warm, professional, concise. 4-5 sentences. Include a specific ask. Do NOT include subject line, just the message body.`, 300);
       const updated = [...displayData];
       updated[idx] = { ...updated[idx], message: raw };

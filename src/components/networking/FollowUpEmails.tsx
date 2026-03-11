@@ -40,7 +40,7 @@ const FollowUpEmails = ({ jobTitle, company, appliedDate, userName }: Props) => 
       application: `Write a professional follow-up email from a candidate (${userName}) who applied for ${jobTitle} at ${company}${appliedDate ? ` on ${appliedDate}` : ""}. 
 The email should:
 - Be written from the CANDIDATE's perspective (they are following up on their own application)
-- Reference their relevant experience (PM at Tesla, GenAI, PMP certified)
+- Reference their relevant experience
 - Be warm, professional, concise (4-5 sentences)
 - Include a specific ask for status update
 - Do NOT include subject line, just the body. Start with "Hi [Name],"
