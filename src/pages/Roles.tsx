@@ -154,11 +154,11 @@ const Roles = () => {
     }
   }, [syncStatus, profile?.id, loadJobsFromDB]);
 
-  // Auto-score unscored jobs after DB load
+  // Auto-score unscored jobs after DB load — only jobs with status "new" AND no saved analysis
   useEffect(() => {
     if (!dbLoaded || didAutoScore.current || jobs.length === 0) return;
     didAutoScore.current = true;
-    const unscored = jobs.filter(j => j.status === "new" && !results[j.id]);
+    const unscored = jobs.filter(j => j.status === "new" && !j.analysis && !results[j.id]);
     if (unscored.length === 0) return;
     console.log(`[Roles] Auto-scoring ${unscored.length} new jobs`);
     unscored.forEach((job, i) => setTimeout(() => analyzeJob(job), i * 400));
