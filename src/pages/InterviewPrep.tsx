@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { callAI } from "@/lib/ai";
-import { RESUME_TEXT } from "@/data/seed";
+import { useResume } from "@/hooks/use-resume";
 import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/integrations/supabase/client";
 import SectionShell from "@/components/prep/SectionShell";
@@ -36,6 +36,8 @@ interface PrepState {
 const InterviewPrep = () => {
   const [searchParams] = useSearchParams();
   const { data: profile } = useProfile();
+  const { data: resumeData } = useResume();
+  const resumeText = resumeData?.raw_text || "";
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [state, setState] = useState<PrepState>({ company: null, signals: null, alignment: null, behavioral: null, technical: null });
@@ -129,7 +131,7 @@ Return: {
     try {
       const raw = await callAI(`ATS resume analyst. Return ONLY valid JSON. Compare this resume against the JD.
 
-RESUME: ${RESUME_TEXT}
+RESUME: ${resumeText}
 JD: ${job.title} at ${job.company} — ${job.description || job.snippet || "No description available"}
 
 Return: {
@@ -148,7 +150,7 @@ Include exactly 3 improved bullets.`, 2000);
     try {
       const raw = await callAI(`Expert behavioral interview coach. Return ONLY valid JSON. Generate STAR prompts for ${job.title} at ${job.company}.
 
-Candidate resume: ${RESUME_TEXT.slice(0, 800)}
+Candidate resume: ${resumeText.slice(0, 800)}
 JD: ${job.description}
 
 Return: {"questions":[{"scenario":"short category label","question":"the behavioral question","whyAsked":"why interviewers ask this","strongAnswer":"what a strong answer looks like","suggestedAngle":"suggested personal story angle based on the candidate resume"}]}
@@ -229,7 +231,7 @@ Include 6 questions across categories like: system design, infrastructure, progr
               jobTitle={selectedJob.title}
               company={selectedJob.company}
               jobDescription={selectedJob.description}
-              resumeText={RESUME_TEXT}
+              resumeText={resumeText}
             />
           </SectionShell>
 

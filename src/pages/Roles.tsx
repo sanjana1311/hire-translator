@@ -7,7 +7,7 @@ import { useResume } from "@/hooks/use-resume";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
-  RESUME_TEXT, BUCKET_META,
+  BUCKET_META,
   initials, scoreColor, scoreBg, scoreBorder,
 } from "@/data/seed";
 import { classifyRole, getRoleFamilyLabel, ROLE_FAMILIES, type RoleFamilyKey } from "@/lib/role-classifier";
@@ -75,8 +75,8 @@ const Roles = () => {
   const { triggerSync, connectGmail, signOut, loading: gmailLoading, lastSyncedAt, jobsImportedCount, syncStatus, syncLog } = useGmailImport(profile?.id ?? null);
   const [showSyncLog, setShowSyncLog] = useState(false);
 
-  // Get resume text - prefer DB resume, fallback to seed
-  const resumeText = resumeData?.raw_text || RESUME_TEXT;
+  // Get resume text from DB only
+  const resumeText = resumeData?.raw_text || "";
 
   // Load jobs from imported_jobs table
   const loadJobsFromDB = useCallback(async () => {

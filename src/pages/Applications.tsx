@@ -3,7 +3,7 @@ import { callAI } from "@/lib/ai";
 import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  INITIAL_APPLICATIONS, STATUS_META,
+  STATUS_META,
   initials, daysSince, fmtDate,
   type Application,
 } from "@/data/seed";
@@ -50,7 +50,7 @@ const toApplication = (db: DBApplication): Application => ({
 
 const Applications = () => {
   const { data: profile } = useProfile();
-  const [applications, setApps] = useState<Application[]>(INITIAL_APPLICATIONS);
+  const [applications, setApps] = useState<Application[]>([]);
   const [dbApps, setDbApps] = useState<DBApplication[]>([]);
   const [selApp, setSelApp] = useState<Application | null>(null);
   const [fuLoading, setFUL] = useState<number | null>(null);
@@ -84,9 +84,7 @@ const Applications = () => {
       if (data) {
         setDbApps(data as DBApplication[]);
         const dbConverted = (data as DBApplication[]).map(toApplication);
-        const dbJobIds = new Set(dbConverted.map(a => a.jobId));
-        const seedOnly = INITIAL_APPLICATIONS.filter(a => !dbJobIds.has(a.jobId));
-        setApps([...dbConverted, ...seedOnly]);
+        setApps(dbConverted);
       }
     };
     load();
@@ -99,7 +97,7 @@ const Applications = () => {
     setFUL(app.jobId);
     try {
       const draft = await callAI(`Career coach writing a follow-up email. Short, human, confident. 3-4 sentences. No sycophancy. No placeholders.
-Candidate: Sanjana Ravikumar, PM at Tesla working on GenAI communication systems.
+Candidate: ${profile?.full_name || "Job seeker"}.
 Applied for: ${app.title} at ${app.company}
 Applied: ${fmtDate(app.appliedDate)} (${daysSince(app.appliedDate)} days ago)
 Notes: ${app.notes || "none"}
