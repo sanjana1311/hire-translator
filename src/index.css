@@ -156,4 +156,12 @@
   .animate-pulse-dot {
     animation: pulse-dot 1.4s ease infinite;
   }
+
+  .bg-gradient-hero {
+    background: linear-gradient(180deg, hsl(280 40% 92%) 0%, hsl(330 50% 90%) 35%, hsl(20 60% 93%) 70%, hsl(37 24% 95%) 100%);
+  }
+
+  .dark .bg-gradient-hero {
+    background: linear-gradient(180deg, hsl(280 20% 14%) 0%, hsl(330 20% 12%) 35%, hsl(20 15% 10%) 70%, hsl(20 10% 8%) 100%);
+  }
 }

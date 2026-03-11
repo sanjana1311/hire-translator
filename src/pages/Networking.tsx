@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { callAI } from "@/lib/ai";
-import { initials, scoreColor } from "@/data/seed";
+import { initials } from "@/data/seed";
 import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/integrations/supabase/client";
+import GroupedJobList from "@/components/GroupedJobList";
 
 const Spinner = ({ size = 16 }: { size?: number }) => (
   <div className="border-2 border-border border-t-foreground rounded-full animate-spin" style={{ width: size, height: size }} />
@@ -36,7 +37,6 @@ const Networking = () => {
   const [netLoading, setNetLoading] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Load jobs from DB
   useEffect(() => {
     if (!profile?.id) return;
     const load = async () => {
@@ -51,7 +51,6 @@ const Networking = () => {
     load();
   }, [profile?.id]);
 
-  // Auto-select job from URL param
   useEffect(() => {
     const jobId = searchParams.get("jobId");
     if (jobId && !netJob && jobs.length > 0) {
@@ -83,6 +82,11 @@ Return: {
       setNetResult(prev => ({ ...prev, [job.id]: JSON.parse(raw) }));
     } catch { setNetResult(prev => ({ ...prev, [job.id]: { error: true } })); }
     setNetLoading(null);
+  };
+
+  const handleSelectJob = (job: Job) => {
+    setNetJob(job);
+    if (!netResult[job.id]) generateNetworking(job);
   };
 
   if (netJob) {
@@ -133,17 +137,17 @@ Return: {
               ))}
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-[11px] p-4" style={{ background: "hsl(150 38% 96%)", border: "1px solid hsl(152 34% 82%)" }}>
-                <div className="text-[10px] font-bold uppercase tracking-wide mb-2.5" style={{ color: "hsl(153 40% 30%)" }}>Smart Questions to Ask</div>
+              <div className="rounded-[11px] p-4" style={{ background: "hsl(var(--success-bg))", border: "1px solid hsl(var(--success-border))" }}>
+                <div className="text-[10px] font-bold uppercase tracking-wide mb-2.5" style={{ color: "hsl(var(--success))" }}>Smart Questions to Ask</div>
                 {n.insiderQuestions?.map((q, i) => (
-                  <div key={i} className="flex gap-1.5 mb-2 text-xs leading-relaxed" style={{ color: "hsl(153 30% 25%)" }}>
-                    <span style={{ color: "hsl(153 40% 30%)" }}>Q{i + 1}</span>{q}
+                  <div key={i} className="flex gap-1.5 mb-2 text-xs leading-relaxed text-foreground">
+                    <span style={{ color: "hsl(var(--success))" }}>Q{i + 1}</span>{q}
                   </div>
                 ))}
               </div>
-              <div className="rounded-[11px] p-4" style={{ background: "hsl(37 60% 97%)", border: "1px solid hsl(37 40% 80%)" }}>
-                <div className="text-[10px] font-bold uppercase tracking-wide mb-2.5" style={{ color: "hsl(25 84% 31%)" }}>LinkedIn Content Angle</div>
-                <p className="text-xs leading-relaxed" style={{ color: "hsl(25 50% 22%)" }}>{n.contentAngle}</p>
+              <div className="rounded-[11px] p-4" style={{ background: "hsl(var(--warning-bg))", border: "1px solid hsl(var(--warning-border))" }}>
+                <div className="text-[10px] font-bold uppercase tracking-wide mb-2.5" style={{ color: "hsl(var(--warning))" }}>LinkedIn Content Angle</div>
+                <p className="text-xs leading-relaxed text-foreground">{n.contentAngle}</p>
                 <button onClick={() => copy(n.contentAngle || "")} className="mt-2.5 bg-card border border-border text-secondary-foreground rounded-[5px] px-2.5 py-1 text-[11.5px]">Copy idea</button>
               </div>
             </div>
@@ -157,25 +161,11 @@ Return: {
     <div className="max-w-[880px] mx-auto p-7 pt-9">
       <h1 className="font-serif text-[26px] font-normal mb-1">Networking Intelligence</h1>
       <p className="text-xs text-muted-foreground mb-5">Pick a role — get exactly who to find on LinkedIn, what to say, and how to get on their radar</p>
-      <div className="flex flex-col gap-1.5">
-        {jobs.length === 0 ? (
-          <div className="bg-card border border-dashed border-border rounded-[9px] p-12 text-center">
-            <p className="text-sm text-muted-foreground">No imported jobs yet. Sync your Gmail on the Roles page to get started.</p>
-          </div>
-        ) : jobs.map(job => (
-          <div
-            key={job.id}
-            onClick={() => { setNetJob(job); if (!netResult[job.id]) generateNetworking(job); }}
-            className="bg-card border border-border rounded-[9px] p-4 flex items-center justify-between cursor-pointer hover:shadow-sm hover:-translate-y-px transition-all"
-          >
-            <div>
-              <div className="text-sm font-semibold mb-0.5">{job.title}</div>
-              <div className="text-xs text-muted-foreground">{job.company} · {job.location || "Remote"}</div>
-            </div>
-            <span className="text-xs text-muted-foreground">Get connections →</span>
-          </div>
-        ))}
-      </div>
+      <GroupedJobList
+        jobs={jobs}
+        onSelect={handleSelectJob}
+        ctaLabel="Get connections →"
+      />
     </div>
   );
 };
