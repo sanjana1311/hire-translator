@@ -68,14 +68,14 @@ const Networking = () => {
     setNetLoading(job.id);
     try {
       const raw = await callAI(`You are a career networking strategist. Return ONLY valid JSON.
-Candidate: Sanjana Ravikumar — PM at Tesla, GenAI communication systems, PMP certified, ASU MS Engineering Management.
+Candidate: ${profile?.full_name || "Job seeker"}.
 Target role: ${job.title} at ${job.company} in ${job.location || "Remote"}
 Job description: ${job.description || job.snippet || "No description available"}
 
 Return: {
   "connectionAngles": ["3 specific types of people to find at ${job.company} on LinkedIn"],
   "searchQueries": ["3 exact LinkedIn search strings"],
-  "outreachMessages": [{"persona": "type of person", "message": "short warm DM, 3 sentences, specific to Sanjana's Tesla GenAI background"}],
+  "outreachMessages": [{"persona": "type of person", "message": "short warm DM, 3 sentences, specific to the candidate's background"}],
   "insiderQuestions": ["4 smart questions to ask connections"],
   "contentAngle": "one LinkedIn post idea to get on ${job.company} employees' radar"
 }`, 900);

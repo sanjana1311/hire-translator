@@ -2,7 +2,6 @@ import { useState } from "react";
 import { callAI } from "@/lib/ai";
 import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/integrations/supabase/client";
-import { INITIAL_APPLICATIONS } from "@/data/seed";
 
 const Spinner = ({ size = 16 }: { size?: number }) => (
   <div className="border-2 border-border border-t-foreground rounded-full animate-spin" style={{ width: size, height: size }} />
@@ -23,12 +22,11 @@ const RejectionAnalysis = () => {
   const { data: profile } = useProfile();
   const [rejection, setRejection] = useState<RejectionData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [rejCount, setRejCount] = useState(INITIAL_APPLICATIONS.filter(a => a.status === "rejected").length);
+  const [rejCount, setRejCount] = useState(0);
 
   const analyze = async () => {
     setLoading(true);
     try {
-      // Load real applications from DB
       let allApps: { company: string; title: string; status: string; notes: string }[] = [];
 
       if (profile?.id) {
@@ -46,21 +44,26 @@ const RejectionAnalysis = () => {
         }
       }
 
-      // Fall back to seed data
       if (allApps.length === 0) {
-        allApps = INITIAL_APPLICATIONS.map(a => ({
-          company: a.company,
-          title: a.title,
-          status: a.status,
-          notes: a.notes,
-        }));
+        setRejection({ error: true });
+        setLoading(false);
+        return;
       }
 
       const rejected = allApps.filter(a => a.status === "rejected");
       setRejCount(rejected.length);
 
+      if (rejected.length === 0) {
+        setRejection({ error: true });
+        setLoading(false);
+        return;
+      }
+
+      const candidateName = profile?.full_name || "Job seeker";
+      const targetRoles = profile?.target_roles || "PM/TPM roles";
+
       const raw = await callAI(`Career strategist. Analyze rejection patterns. Return ONLY valid JSON.
-Candidate: Sanjana Ravikumar — PM at Tesla GenAI, PMP, 4+ yrs, targeting senior PM/TPM at big tech.
+Candidate: ${candidateName} — targeting ${targetRoles}.
 REJECTIONS:
 ${rejected.map(a => `${a.company}: ${a.title}. Notes: ${a.notes}`).join("\n")}
 
@@ -69,8 +72,8 @@ ALL APPLICATIONS: ${allApps.length} total, ${rejected.length} rejected, ${allApp
 Return: {
   "patterns": ["3 specific patterns"],
   "likelyRootCause": "single most likely reason — be direct",
-  "titleMismatch": "is Program Manager title hurting her targeting Product Manager roles?",
-  "quickFixes": ["3 things she can change immediately"],
+  "titleMismatch": "is their current title hurting their targeting?",
+  "quickFixes": ["3 things they can change immediately"],
   "deeperFixes": ["2 longer-term positioning changes"],
   "roleToTarget": "what role type to target",
   "companiesToAvoid": "types of companies to avoid"
@@ -161,7 +164,7 @@ Return: {
 
       {rejection?.error && (
         <div className="rounded-[9px] p-4 text-xs" style={{ background: "hsl(0 38% 97%)", border: "1px solid hsl(348 28% 85%)", color: "hsl(348 46% 28%)" }}>
-          Could not analyze — please retry.
+          No rejection data found — track some applications first.
         </div>
       )}
     </div>

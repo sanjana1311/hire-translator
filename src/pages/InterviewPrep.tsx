@@ -231,7 +231,7 @@ Include 6 questions across categories like: system design, infrastructure, progr
               jobTitle={selectedJob.title}
               company={selectedJob.company}
               jobDescription={selectedJob.description}
-              resumeText={RESUME_TEXT}
+              resumeText={resumeText}
             />
           </SectionShell>
 

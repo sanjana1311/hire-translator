@@ -75,8 +75,8 @@ const Roles = () => {
   const { triggerSync, connectGmail, signOut, loading: gmailLoading, lastSyncedAt, jobsImportedCount, syncStatus, syncLog } = useGmailImport(profile?.id ?? null);
   const [showSyncLog, setShowSyncLog] = useState(false);
 
-  // Get resume text - prefer DB resume, fallback to seed
-  const resumeText = resumeData?.raw_text || RESUME_TEXT;
+  // Get resume text from DB only
+  const resumeText = resumeData?.raw_text || "";
 
   // Load jobs from imported_jobs table
   const loadJobsFromDB = useCallback(async () => {

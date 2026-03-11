@@ -97,7 +97,7 @@ const Applications = () => {
     setFUL(app.jobId);
     try {
       const draft = await callAI(`Career coach writing a follow-up email. Short, human, confident. 3-4 sentences. No sycophancy. No placeholders.
-Candidate: Sanjana Ravikumar, PM at Tesla working on GenAI communication systems.
+Candidate: ${profile?.full_name || "Job seeker"}.
 Applied for: ${app.title} at ${app.company}
 Applied: ${fmtDate(app.appliedDate)} (${daysSince(app.appliedDate)} days ago)
 Notes: ${app.notes || "none"}
