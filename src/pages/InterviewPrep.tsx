@@ -14,6 +14,7 @@ import MockInterview from "@/components/prep/MockInterview";
 import ReadinessScore from "@/components/prep/ReadinessScore";
 import PrepSpinner from "@/components/prep/PrepSpinner";
 import { initials } from "@/data/seed";
+import GroupedJobList from "@/components/GroupedJobList";
 
 interface Job {
   id: string;
@@ -41,7 +42,6 @@ const InterviewPrep = () => {
   const [loading, setLoading] = useState({ company: false, signals: false, alignment: false, behavioral: false, technical: false });
   const [mockCompleted, setMockCompleted] = useState(false);
 
-  // Load jobs from DB
   useEffect(() => {
     if (!profile?.id) return;
     const load = async () => {
@@ -56,7 +56,6 @@ const InterviewPrep = () => {
     load();
   }, [profile?.id]);
 
-  // Auto-select job from URL
   useEffect(() => {
     const jobId = searchParams.get("jobId");
     if (jobId && !selectedJob && jobs.length > 0) {
@@ -69,7 +68,6 @@ const InterviewPrep = () => {
     setSelectedJob(job);
     setState({ company: null, signals: null, alignment: null, behavioral: null, technical: null });
     setMockCompleted(false);
-    // Fire all generation calls in parallel
     generateCompany(job);
     generateSignals(job);
     generateAlignment(job);
@@ -189,7 +187,6 @@ Include 6 questions across categories like: system design, infrastructure, progr
           ← All roles
         </button>
 
-        {/* Header */}
         <div className="bg-card border border-border rounded-xl p-5 mb-4 flex items-center gap-4">
           <div className="w-12 h-12 bg-foreground rounded-lg flex items-center justify-center shrink-0">
             <span className="text-background text-xs font-bold">{initials(selectedJob.company)}</span>
@@ -206,7 +203,6 @@ Include 6 questions across categories like: system design, infrastructure, progr
           )}
         </div>
 
-        {/* Sections */}
         <div className="space-y-3">
           <SectionShell number={1} title="Company Deep Dive" subtitle="Strategic context, news, and talking points" icon="🏢" defaultOpen={true}>
             <CompanyDeepDive data={state.company} loading={loading.company} />
@@ -254,33 +250,15 @@ Include 6 questions across categories like: system design, infrastructure, progr
     );
   }
 
-  // Role selection list
   return (
     <div className="max-w-[900px] mx-auto p-7 pt-9">
       <h1 className="font-serif text-[26px] font-normal mb-1">Interview Preparation</h1>
       <p className="text-xs text-muted-foreground mb-6">Select a role to build your end-to-end preparation plan — company research, signal analysis, behavioral & technical prep, and mock interviews.</p>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {jobs.length === 0 ? (
-          <div className="bg-card border border-dashed border-border rounded-xl p-12 text-center col-span-2">
-            <p className="text-sm text-muted-foreground">No imported jobs yet. Sync your Gmail on the Roles page to get started.</p>
-          </div>
-        ) : jobs.map(job => (
-          <div
-            key={job.id}
-            onClick={() => selectJob(job)}
-            className="bg-card border border-border rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all group"
-          >
-            <div className="w-10 h-10 bg-foreground rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <span className="text-background text-[10px] font-bold">{initials(job.company)}</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold truncate">{job.title}</div>
-              <div className="text-xs text-muted-foreground">{job.company} · {job.location || "Remote"}</div>
-            </div>
-            <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors shrink-0">Prep →</span>
-          </div>
-        ))}
-      </div>
+      <GroupedJobList
+        jobs={jobs}
+        onSelect={selectJob}
+        ctaLabel="Prep →"
+      />
     </div>
   );
 };

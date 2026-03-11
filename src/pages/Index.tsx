@@ -59,16 +59,11 @@ const Index = () => {
         </div>
       </nav>
 
-      {/* Hero with gradient background */}
-      <section
-        className="relative pt-24 pb-20 px-7 overflow-hidden"
-        style={{
-          background: 'linear-gradient(180deg, hsl(280 40% 92%) 0%, hsl(330 50% 90%) 35%, hsl(20 60% 93%) 70%, hsl(37 24% 95%) 100%)',
-        }}
-      >
+      {/* Hero with gradient background — dark-mode aware */}
+      <section className="relative pt-24 pb-20 px-7 overflow-hidden bg-gradient-hero">
         <div className="max-w-2xl mx-auto text-center">
           <motion.h1
-            className="font-serif text-4xl md:text-5xl leading-[1.15] mb-4"
+            className="font-serif text-4xl md:text-5xl leading-[1.15] mb-4 text-foreground"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
