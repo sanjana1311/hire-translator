@@ -84,9 +84,7 @@ const Applications = () => {
       if (data) {
         setDbApps(data as DBApplication[]);
         const dbConverted = (data as DBApplication[]).map(toApplication);
-        const dbJobIds = new Set(dbConverted.map(a => a.jobId));
-        const seedOnly = INITIAL_APPLICATIONS.filter(a => !dbJobIds.has(a.jobId));
-        setApps([...dbConverted, ...seedOnly]);
+        setApps(dbConverted);
       }
     };
     load();
