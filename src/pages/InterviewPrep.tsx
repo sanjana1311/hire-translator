@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { callAI } from "@/lib/ai";
-import { RESUME_TEXT } from "@/data/seed";
+import { useResume } from "@/hooks/use-resume";
 import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/integrations/supabase/client";
 import SectionShell from "@/components/prep/SectionShell";
