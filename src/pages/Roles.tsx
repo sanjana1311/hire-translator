@@ -428,6 +428,12 @@ Output complete rewritten resume:`, 4000, "roles");
                 >
                   Interview Prep
                 </button>
+                <button
+                  onClick={() => handleDeleteJob(selected)}
+                  className="text-xs font-medium px-3 py-1 rounded-[6px] border border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
+                >
+                  Delete
+                </button>
               </div>
             </div>
 
