@@ -548,10 +548,24 @@ bucket: must if score>=75, tweak if 40-74, low if <40`, 800, "roles");
                   </div>
                 ) : resumes[selected.id] ? (
                   <pre className="font-sans text-[11.5px] leading-[1.85] whitespace-pre-wrap break-words text-secondary-foreground">{resumes[selected.id]}</pre>
-                ) : (
+                ) : rLoading.has(selected.id) ? (
                   <div className="text-center py-16">
                     <Spinner size={18} />
                     <p className="animate-pulse-dot font-serif italic text-sm text-muted-foreground mt-3">Writing your tailored resume…</p>
+                  </div>
+                ) : r ? (
+                  <div className="text-center py-16">
+                    <p className="text-sm text-muted-foreground mb-3">Tailored resume not generated yet.</p>
+                    <button
+                      onClick={() => generateTailoredResume(selected)}
+                      className="text-xs font-medium px-4 py-2 rounded-[6px] bg-foreground text-background hover:opacity-90 transition-opacity"
+                    >
+                      Generate Tailored Resume
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-center py-16">
+                    <p className="text-sm text-muted-foreground">Score the job first to generate a tailored resume.</p>
                   </div>
                 )
               ) : (
