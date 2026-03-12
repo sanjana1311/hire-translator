@@ -234,26 +234,7 @@ bucket: must if score>=75, tweak if 40-74, low if <40`, 800, "roles");
     setDone(prev => prev + 1);
     setAL(prev => { const s = new Set(prev); s.delete(job.id); return s; });
 
-    if (!scoreResult || scoreResult.error) return;
-
-    setRL(prev => new Set([...prev, job.id]));
-    try {
-      const tailoredResume = await callAI(`Expert ATS resume writer. Rewrite for this specific job. Keep all real facts. Plain text only, no markdown.
-ORIGINAL: ${resumeText}
-TARGET: ${job.title} at ${job.company}
-JD: ${jobDesc}
-WEAVE IN: ${scoreResult.missingKeywords?.join(", ")}
-Output complete rewritten resume:`, 4000, "roles");
-      setResumes(prev => ({ ...prev, [job.id]: tailoredResume }));
-      // Save tailored resume to DB
-      await supabase
-        .from("imported_jobs")
-        .update({ tailored_resume: tailoredResume })
-        .eq("id", job.id);
-    } catch (e: any) {
-      console.error('Resume rewrite failed:', e);
-    }
-    setRL(prev => { const s = new Set(prev); s.delete(job.id); return s; });
+    // Tailored resume is now generated on-demand when user clicks a job
   };
 
   const handleMarkApplied = async (job: ImportedJob) => {
