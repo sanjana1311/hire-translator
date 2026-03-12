@@ -393,7 +393,7 @@ Output complete rewritten resume:`, 4000, "roles");
                   <span className="text-background text-xs font-bold">{initials(selected.company)}</span>
                 </div>
                 <div className="flex-1">
-                  <h2 className="font-serif text-[22px] leading-tight mb-1">{selected.title}</h2>
+                  <h2 className="font-serif text-[22px] leading-tight mb-1">{cleanText(selected.title)}</h2>
                   <div className="text-xs text-muted-foreground">
                     {selected.company} · {selected.location || "Remote"}{selected.salary ? ` · ${selected.salary}/yr` : ""}
                   </div>
