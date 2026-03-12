@@ -748,13 +748,21 @@ Output complete rewritten resume:`, 4000, "roles");
             </div>
           </div>
         ) : (
-          <div className="flex gap-1">
-            {([["must", "hsl(153 40% 30%)", buckets.must.length], ["tweak", "hsl(25 84% 31%)", buckets.tweak.length], ["low", "hsl(348 46% 28%)", buckets.low.length]] as const).map(([k, c, n]) => (
-              <div key={k} className="flex items-center gap-1 bg-secondary border border-border rounded-full px-2.5 py-0.5">
-                <div className="w-1.5 h-1.5 rounded-full" style={{ background: c as string }} />
-                <span className="text-[11px] text-secondary-foreground font-medium">{n as number}</span>
-              </div>
-            ))}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRescoreAll}
+              className="text-[11px] font-medium px-3 py-1 rounded-[6px] border border-border bg-secondary text-secondary-foreground hover:bg-accent transition-colors"
+            >
+              Re-score All
+            </button>
+            <div className="flex gap-1">
+              {([["must", "hsl(153 40% 30%)", buckets.must.length], ["tweak", "hsl(25 84% 31%)", buckets.tweak.length], ["low", "hsl(348 46% 28%)", buckets.low.length]] as const).map(([k, c, n]) => (
+                <div key={k} className="flex items-center gap-1 bg-secondary border border-border rounded-full px-2.5 py-0.5">
+                  <div className="w-1.5 h-1.5 rounded-full" style={{ background: c as string }} />
+                  <span className="text-[11px] text-secondary-foreground font-medium">{n as number}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
