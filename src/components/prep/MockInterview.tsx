@@ -72,7 +72,7 @@ Candidate resume: ${resumeText.slice(0, 600)}
 Conversation:
 ${convo}
 
-Return: {"clarity":0-100,"depth":0-100,"structure":0-100,"relevance":0-100,"feedback":"2-3 sentences of overall assessment"}`, 400);
+Return: {"clarity":0-100,"depth":0-100,"structure":0-100,"relevance":0-100,"feedback":"2-3 sentences of overall assessment"}`, 400, "interview");
         const parsed = JSON.parse(raw);
         setEvaluation(parsed);
       } catch {
