@@ -902,8 +902,8 @@ Output complete rewritten resume:`, 4000, "roles");
                                 <div
                                   key={job.id}
                                   onClick={() => setSelected(job)}
-                                  className="animate-fade-up bg-card border border-border rounded-[9px] p-4 grid cursor-pointer hover:shadow-sm hover:-translate-y-px transition-all"
-                                  style={{ gridTemplateColumns: "38px 1fr 100px", gap: 12, alignItems: "center", animationDelay: `${i * 0.04}s` }}
+                                  className="group animate-fade-up bg-card border border-border rounded-[9px] p-4 grid cursor-pointer hover:shadow-sm hover:-translate-y-px transition-all"
+                                  style={{ gridTemplateColumns: "38px 1fr auto 100px", gap: 12, alignItems: "center", animationDelay: `${i * 0.04}s` }}
                                 >
                                   <div className="w-[38px] h-[38px] bg-secondary border border-border rounded-lg flex items-center justify-center">
                                     <span className="text-[10px] font-bold text-secondary-foreground">{initials(job.company)}</span>
@@ -920,15 +920,14 @@ Output complete rewritten resume:`, 4000, "roles");
                                       </div>
                                     )}
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); handleDeleteJob(job); }}
-                                      className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
-                                      title="Delete job"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                    <div className="text-right">
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteJob(job); }}
+                                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
+                                    title="Delete job"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <div className="text-right">
                                     {aLoading.has(job.id) ? (
                                       <div className="flex flex-col items-end gap-1">
                                         <Spinner size={14} />
