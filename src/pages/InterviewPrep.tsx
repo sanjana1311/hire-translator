@@ -139,7 +139,7 @@ Return: {
   "weakAreas":["3-4 weak areas or missing signals"],
   "improvedBullets":[{"original":"original bullet from resume","improved":"rewritten bullet tailored to this role","why":"why this is better"}]
 }
-Include exactly 3 improved bullets.`, 2000);
+Include exactly 3 improved bullets.`, 2000, "interview");
       setState(p => ({ ...p, alignment: parseJSON(raw) }));
     } catch (e) { console.error("Alignment gen failed:", e); }
     setLoading(p => ({ ...p, alignment: false }));
