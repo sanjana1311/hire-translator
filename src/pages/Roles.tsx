@@ -910,7 +910,7 @@ Output complete rewritten resume:`, 4000, "roles");
                                   </div>
                                   <div>
                                     <div className="flex items-center flex-wrap gap-1.5 mb-0.5">
-                                      <span className="text-sm font-semibold">{job.title}</span>
+                                      <span className="text-sm font-semibold">{cleanText(job.title)}</span>
                                       {job.source && <span className="text-[10px] text-muted-foreground bg-secondary border border-border rounded px-1.5 py-0.5">{job.source}</span>}
                                     </div>
                                     <div className="text-xs text-muted-foreground">{job.company} · {job.location || "Remote"}{job.salary ? ` · ${job.salary}` : ""}</div>
