@@ -134,7 +134,8 @@ function collectMessageBodies(payload: any): { textPlain: string[]; textHtml: st
     const data = part.body?.data;
 
     if (typeof data === "string" && data.length > 0) {
-      const decoded = decodeQuotedPrintable(decodeBase64UrlToUtf8(data));
+      // Base64url data is already binary — decode to UTF-8 directly
+      const decoded = decodeBase64UrlToUtf8(data);
       if (mimeType === "text/plain") textPlain.push(decoded);
       if (mimeType === "text/html") textHtml.push(decoded);
     }
