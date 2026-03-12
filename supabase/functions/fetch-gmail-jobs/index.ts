@@ -114,10 +114,12 @@ function fallbackExtractJobsFromEmail(email: {
   const { subject, body, snippet } = email;
   const combined = `${subject} ${snippet} ${body}`.replace(/\s+/g, " ").trim();
   const source = inferSource(combined);
-  const url = extractFirstJobUrl(combined);
+  const allJobUrls = extractJobUrls(combined);
+  const fallbackUrl = extractFirstJobUrl(combined);
 
   const jobs: any[] = [];
   const seen = new Set<string>();
+  let urlIndex = 0;
 
   const pushJob = (titleRaw: string, companyRaw: string, locationRaw?: string | null) => {
     const title = titleRaw?.replace(/\s+/g, " ").trim();
@@ -125,6 +127,8 @@ function fallbackExtractJobsFromEmail(email: {
     const location = locationRaw?.replace(/\s+/g, " ").trim() || null;
 
     if (!title || !company || title.length < 3 || company.length < 2) return;
+    // Skip generic/boilerplate strings
+    if (/^(view|see|apply|click|sign|log|unsubscribe)/i.test(title)) return;
 
     const key = `${title.toLowerCase()}__${company.toLowerCase()}`;
     if (seen.has(key)) return;
@@ -135,34 +139,46 @@ function fallbackExtractJobsFromEmail(email: {
       company,
       location,
       salary: null,
-      url,
+      url: allJobUrls[urlIndex++] || fallbackUrl,
       source,
-      snippet: snippet || null,
+      snippet: null,
     });
   };
 
-  const atPattern = /([A-Z][A-Za-z0-9&+/'(),.\-\s]{2,80}?)\s+at\s+([A-Z][A-Za-z0-9&+/'(),.\-\s]{2,80}?)(?:\s+(?:in|,|·)\s+([A-Za-z0-9,.\-\s]{2,80}))?(?:\s|$)/i;
-  const atMatch = combined.match(atPattern);
-  if (atMatch) {
-    pushJob(atMatch[1], atMatch[2], atMatch[3] || null);
+  // Pattern 1: LinkedIn-style "Title Company · Location" blocks in body
+  // LinkedIn emails typically have: JobTitle\nCompany · City, State
+  const linkedinPattern = /([A-Z][A-Za-z0-9&+\/'(),.\-–—\s]{2,120}?)\s+([A-Z][A-Za-z0-9&+\/'(),.\-\s]{1,60})\s*·\s*([A-Za-z0-9,.\-\s]{2,80}?)(?:\s+(?:\d+\s+connect|company alumni|fast growing|actively hiring|promoted|early applicant)|\s*$)/gi;
+  for (const m of combined.matchAll(linkedinPattern)) {
+    pushJob(m[1], m[2], m[3]);
   }
 
-  const dashPattern = /^(.{3,100}?)\s*[\-–|]\s*([A-Za-z0-9&+/'(),.\-\s]{2,80})(?:\s*[·|\-–]\s*([A-Za-z0-9,.\-\s]{2,80}))?/i;
+  // Pattern 2: "Title at Company" (matchAll for all occurrences)
+  const atPattern = /([A-Z][A-Za-z0-9&+\/'(),.\-–—\s]{2,100}?)\s+at\s+([A-Z][A-Za-z0-9&+\/'(),.\-\s]{2,80}?)(?:\s+(?:in|,|·)\s+([A-Za-z0-9,.\-\s]{2,80}))?(?=\s|$|\.)/gi;
+  for (const m of combined.matchAll(atPattern)) {
+    pushJob(m[1], m[2], m[3] || null);
+  }
+
+  // Pattern 3: Subject line with dash/pipe separator
+  const dashPattern = /^(.{3,100}?)\s*[\-–|]\s*([A-Za-z0-9&+\/'(),.\-\s]{2,80})(?:\s*[·|\-–]\s*([A-Za-z0-9,.\-\s]{2,80}))?/i;
   const dashMatch = subject.match(dashPattern);
   if (dashMatch) {
     pushJob(dashMatch[1], dashMatch[2], dashMatch[3] || null);
   }
 
-  const companyLocMatch = snippet.match(/([A-Z][A-Za-z0-9&+/'(),.\-\s]{2,80})\s*[·|]\s*([A-Za-z0-9,.\-\s]{2,80})/);
+  // Pattern 4: "Company · Location" pairs followed by job-like text  
+  // This catches remaining LinkedIn format where title is on previous line
+  const companyLocPairs = [...combined.matchAll(/([A-Z][A-Za-z0-9&+\/'(),.\-\s]{1,60})\s*·\s*([A-Za-z][A-Za-z0-9,.\-\s]{2,60}?)(?:\s*\((?:On-site|Remote|Hybrid)\))?/gi)];
 
+  // Fallback: if no jobs found, use subject line
   if (jobs.length === 0) {
     const cleanedTitle = cleanupJobTitle(subject);
     if (cleanedTitle) {
-      pushJob(cleanedTitle, companyLocMatch?.[1] || source, companyLocMatch?.[2] || null);
+      const firstPair = companyLocPairs[0];
+      pushJob(cleanedTitle, firstPair?.[1] || source, firstPair?.[2] || null);
     }
   }
 
-  return jobs.slice(0, 3);
+  return jobs.slice(0, 25);
 }
 
 /** Fetch full job description from a URL */
