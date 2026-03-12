@@ -33,7 +33,7 @@ Answer: ${answer}
 Provide:
 1. What's strong about this answer (1-2 sentences)
 2. What's missing or weak (1-2 sentences)
-3. A rewritten, stronger version of the answer using STAR format (3-4 sentences)`, 800);
+3. A rewritten, stronger version of the answer using STAR format (3-4 sentences)`, 800, "interview");
       setFeedback(prev => ({ ...prev, [idx]: fb }));
     } catch {
       setFeedback(prev => ({ ...prev, [idx]: "Could not generate feedback." }));

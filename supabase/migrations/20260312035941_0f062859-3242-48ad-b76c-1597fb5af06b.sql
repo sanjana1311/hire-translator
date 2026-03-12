@@ -1,0 +1,1 @@
+ALTER TABLE public.ai_usage ADD COLUMN feature text NOT NULL DEFAULT 'general';

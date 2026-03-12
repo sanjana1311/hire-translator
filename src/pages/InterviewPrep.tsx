@@ -98,7 +98,7 @@ Return: {
   "roleContext":"how this role fits into the org",
   "whyHiring":"why they are likely hiring for this role",
   "talkingPoints":["5 insights the candidate should mention in interviews"]
-}`, 2000);
+}`, 2000, "interview");
       setState(p => ({ ...p, company: parseJSON(raw) }));
     } catch (e) { console.error("Company gen failed:", e); }
     setLoading(p => ({ ...p, company: false }));
@@ -120,7 +120,7 @@ Return: {
   "mustDemonstrate":["things candidate MUST demonstrate"],
   "niceToDemonstrate":["nice to have demonstrations"],
   "redFlags":["potential red flags or traps to avoid"]
-}`, 1500);
+}`, 1500, "interview");
       setState(p => ({ ...p, signals: parseJSON(raw) }));
     } catch (e) { console.error("Signals gen failed:", e); }
     setLoading(p => ({ ...p, signals: false }));
@@ -139,7 +139,7 @@ Return: {
   "weakAreas":["3-4 weak areas or missing signals"],
   "improvedBullets":[{"original":"original bullet from resume","improved":"rewritten bullet tailored to this role","why":"why this is better"}]
 }
-Include exactly 3 improved bullets.`, 2000);
+Include exactly 3 improved bullets.`, 2000, "interview");
       setState(p => ({ ...p, alignment: parseJSON(raw) }));
     } catch (e) { console.error("Alignment gen failed:", e); }
     setLoading(p => ({ ...p, alignment: false }));
@@ -154,7 +154,7 @@ Candidate resume: ${resumeText.slice(0, 800)}
 JD: ${job.description}
 
 Return: {"questions":[{"scenario":"short category label","question":"the behavioral question","whyAsked":"why interviewers ask this","strongAnswer":"what a strong answer looks like","suggestedAngle":"suggested personal story angle based on the candidate resume"}]}
-Include exactly 5 questions covering: ambiguous programs, stakeholder conflict, large-scale initiatives, handling failures, cross-functional leadership.`, 3000);
+Include exactly 5 questions covering: ambiguous programs, stakeholder conflict, large-scale initiatives, handling failures, cross-functional leadership.`, 3000, "interview");
       const parsed = parseJSON(raw);
       setState(p => ({ ...p, behavioral: parsed.questions || parsed }));
     } catch (e) { console.error("Behavioral gen failed:", e); }
@@ -169,7 +169,7 @@ Include exactly 5 questions covering: ambiguous programs, stakeholder conflict, 
 JD: ${job.description}
 
 Return: {"questions":[{"category":"category name","question":"the question","whatTheyTest":"what the interviewer is evaluating","frameworks":"key frameworks or models to use","answerStructure":"suggested answer structure"}]}
-Include 6 questions across categories like: system design, infrastructure, program execution, technical tradeoffs, domain knowledge, estimation.`, 2500);
+Include 6 questions across categories like: system design, infrastructure, program execution, technical tradeoffs, domain knowledge, estimation.`, 2500, "interview");
       const parsed = parseJSON(raw);
       setState(p => ({ ...p, technical: parsed.questions || parsed }));
     } catch (e) { console.error("Technical gen failed:", e); }

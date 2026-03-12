@@ -30,7 +30,7 @@ Role: ${jobTitle}
 Question: ${question}
 Answer: ${answer}
 
-Evaluate: depth, structure, relevance. Provide 2-3 sentences of feedback and suggest improvements.`, 600);
+Evaluate: depth, structure, relevance. Provide 2-3 sentences of feedback and suggest improvements.`, 600, "interview");
       setFeedback(prev => ({ ...prev, [idx]: fb }));
     } catch {
       setFeedback(prev => ({ ...prev, [idx]: "Could not generate feedback." }));

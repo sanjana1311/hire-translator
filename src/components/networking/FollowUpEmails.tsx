@@ -64,7 +64,7 @@ The email should:
     };
 
     try {
-      const raw = await callAI(prompts[type], 400);
+      const raw = await callAI(prompts[type], 400, "networking");
       setEmail(raw);
     } catch {
       setEmail("Could not generate email. Please try again.");

@@ -42,7 +42,7 @@ const MockInterview = ({ jobTitle, company, jobDescription, resumeText }: Props)
     try {
       const modeLabel = selectedMode === "hiring_manager" ? "hiring manager" : "technical interviewer";
       const raw = await callAI(`You are a ${modeLabel} at ${company} interviewing for ${jobTitle}. Start with a warm opening and ask your first interview question. Be realistic. One question only. 2-3 sentences max.
-JD context: ${jobDescription.slice(0, 500)}`, 300);
+JD context: ${jobDescription.slice(0, 500)}`, 300, "interview");
       setTurns([{ role: "interviewer", text: raw }]);
       setQuestionCount(1);
     } catch {
@@ -72,7 +72,7 @@ Candidate resume: ${resumeText.slice(0, 600)}
 Conversation:
 ${convo}
 
-Return: {"clarity":0-100,"depth":0-100,"structure":0-100,"relevance":0-100,"feedback":"2-3 sentences of overall assessment"}`, 400);
+Return: {"clarity":0-100,"depth":0-100,"structure":0-100,"relevance":0-100,"feedback":"2-3 sentences of overall assessment"}`, 400, "interview");
         const parsed = JSON.parse(raw);
         setEvaluation(parsed);
       } catch {
@@ -89,7 +89,7 @@ Return: {"clarity":0-100,"depth":0-100,"structure":0-100,"relevance":0-100,"feed
       const raw = await callAI(`You are a ${modeLabel} at ${company} for ${jobTitle}. Continue the interview. Brief acknowledgment of the answer, then ask your next question. 2-3 sentences. Question ${nextQ} of 5.
 
 Recent conversation:
-${convo}`, 300);
+${convo}`, 300, "interview");
       setTurns([...newTurns, { role: "interviewer", text: raw }]);
       setQuestionCount(nextQ);
     } catch {

@@ -16,16 +16,19 @@ export type Database = {
     Tables: {
       ai_usage: {
         Row: {
+          feature: string
           id: string
           used_at: string
           user_id: string
         }
         Insert: {
+          feature?: string
           id?: string
           used_at?: string
           user_id: string
         }
         Update: {
+          feature?: string
           id?: string
           used_at?: string
           user_id?: string

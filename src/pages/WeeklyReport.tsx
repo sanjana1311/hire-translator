@@ -112,7 +112,7 @@ Return: {
   "thisWeekActions": ["5 concrete actions referencing actual companies"],
   "roleToDoubleDown": "which role to focus on and why",
   "encouragement": "1 genuine non-generic sentence"
-}`, 2000);
+}`, 2000, "weekly_report");
       setReport(JSON.parse(raw));
     } catch (e: any) {
       console.error("Report error:", e);

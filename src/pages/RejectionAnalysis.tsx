@@ -77,7 +77,7 @@ Return: {
   "deeperFixes": ["2 longer-term positioning changes"],
   "roleToTarget": "what role type to target",
   "companiesToAvoid": "types of companies to avoid"
-}`, 700);
+}`, 700, "rejection");
       setRejection(JSON.parse(raw));
     } catch { setRejection({ error: true }); }
     setLoading(false);

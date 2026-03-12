@@ -176,7 +176,7 @@ RESUME: ${resumeText}
 JOB: ${job.title} at ${job.company}
 ${jobDesc}
 Return: {"score":0,"bucket":"must","matchSummary":"","strengths":["","",""],"gaps":["","",""],"missingKeywords":["","","","",""]}
-bucket: must>=75, tweak 40-74, low<40`, 600);
+bucket: must>=75, tweak 40-74, low<40`, 600, "roles");
       console.log('Raw scoring response:', raw);
       try {
         const parsed = JSON.parse(raw);
@@ -213,7 +213,7 @@ ORIGINAL: ${resumeText}
 TARGET: ${job.title} at ${job.company}
 JD: ${jobDesc}
 WEAVE IN: ${scoreResult.missingKeywords?.join(", ")}
-Output complete rewritten resume:`, 4000);
+Output complete rewritten resume:`, 4000, "roles");
       setResumes(prev => ({ ...prev, [job.id]: tailoredResume }));
       // Save tailored resume to DB
       await supabase
