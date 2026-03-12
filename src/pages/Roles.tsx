@@ -4,14 +4,16 @@ import { callAI } from "@/lib/ai";
 import { useGmailImport } from "@/hooks/use-gmail-import";
 import { useProfile } from "@/hooks/use-profile";
 import { useResume } from "@/hooks/use-resume";
+import { useAIUsage } from "@/hooks/use-ai-usage";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { cleanText } from "@/lib/clean-text";
 import {
   BUCKET_META,
   initials, scoreColor, scoreBg, scoreBorder,
 } from "@/data/seed";
 import { classifyRole, getRoleFamilyLabel, ROLE_FAMILIES, type RoleFamilyKey } from "@/lib/role-classifier";
-import { ChevronDown, ChevronRight, Filter, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Filter, X, Trash2 } from "lucide-react";
 
 const Spinner = ({ size = 16 }: { size?: number }) => (
   <div
