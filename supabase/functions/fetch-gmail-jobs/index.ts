@@ -101,14 +101,25 @@ function decodeBase64UrlToUtf8(base64Url: string): string {
   return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
 }
 
-function decodeQuotedPrintable(input: string): string {
-  const binary = input
-    .replace(/=\r?\n/g, "")
-    .replace(/=([A-Fa-f0-9]{2})/g, (_, hex) =>
-      String.fromCharCode(parseInt(hex, 16))
-    );
+function decodeQuotedPrintableRaw(input: string): Uint8Array {
+  // Decode QP to raw bytes WITHOUT interpreting as text
+  const cleaned = input.replace(/=\r?\n/g, "");
+  const parts: number[] = [];
+  let i = 0;
+  while (i < cleaned.length) {
+    if (cleaned[i] === '=' && i + 2 < cleaned.length && /[A-Fa-f0-9]{2}/.test(cleaned.slice(i + 1, i + 3))) {
+      parts.push(parseInt(cleaned.slice(i + 1, i + 3), 16));
+      i += 3;
+    } else {
+      parts.push(cleaned.charCodeAt(i));
+      i++;
+    }
+  }
+  return new Uint8Array(parts);
+}
 
-  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+function decodeQuotedPrintable(input: string): string {
+  const bytes = decodeQuotedPrintableRaw(input);
   return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
 }
 
