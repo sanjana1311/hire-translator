@@ -7,6 +7,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const DAILY_LIMIT = 10;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -14,7 +16,6 @@ serve(async (req) => {
     const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
     if (!GROQ_API_KEY) throw new Error("GROQ_API_KEY not configured");
 
-    // Verify auth
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("Not authenticated");
 
@@ -27,7 +28,11 @@ serve(async (req) => {
     const { data: { user } } = await anonClient.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
-    // Rate limit: 10 AI calls per day per user
+    const { prompt, maxTokens, feature } = await req.json();
+    if (!prompt) throw new Error("prompt required");
+    const feat = feature || "general";
+
+    // Rate limit: 10 AI calls per day per user per feature
     const adminClient = createClient(supabaseUrl, serviceKey);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -35,17 +40,15 @@ serve(async (req) => {
       .from("ai_usage")
       .select("*", { count: "exact", head: true })
       .eq("user_id", user.id)
+      .eq("feature", feat)
       .gte("used_at", today.toISOString());
     if (countErr) console.error("Usage count error:", countErr);
-    if ((count ?? 0) >= 10) {
-      return new Response(JSON.stringify({ error: "Daily AI limit reached (10/day). Try again tomorrow." }), {
+    if ((count ?? 0) >= DAILY_LIMIT) {
+      return new Response(JSON.stringify({ error: `Daily AI limit reached for ${feat} (${DAILY_LIMIT}/day). Try again tomorrow.` }), {
         status: 429,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const { prompt, maxTokens } = await req.json();
-    if (!prompt) throw new Error("prompt required");
 
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -58,9 +61,7 @@ serve(async (req) => {
         temperature: 0.3,
         top_p: 0.8,
         max_tokens: maxTokens || 1000,
-        messages: [
-          { role: "user", content: prompt },
-        ],
+        messages: [{ role: "user", content: prompt }],
       }),
     });
 
@@ -75,8 +76,8 @@ serve(async (req) => {
     const data = await res.json();
     const text = data.choices?.[0]?.message?.content || "";
 
-    // Record usage
-    await adminClient.from("ai_usage").insert({ user_id: user.id });
+    // Record usage with feature tag
+    await adminClient.from("ai_usage").insert({ user_id: user.id, feature: feat });
 
     return new Response(JSON.stringify({ text }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
