@@ -101,7 +101,7 @@ Candidate: ${profile?.full_name || "Job seeker"}.
 Applied for: ${app.title} at ${app.company}
 Applied: ${fmtDate(app.appliedDate)} (${daysSince(app.appliedDate)} days ago)
 Notes: ${app.notes || "none"}
-Write email body only:`, 350);
+Write email body only:`, 350, "applications");
       setFUD(prev => ({ ...prev, [app.jobId]: draft }));
     } catch { setFUD(prev => ({ ...prev, [app.jobId]: "Could not generate — retry." })); }
     setFUL(null);

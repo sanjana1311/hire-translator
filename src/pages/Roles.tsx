@@ -213,7 +213,7 @@ ORIGINAL: ${resumeText}
 TARGET: ${job.title} at ${job.company}
 JD: ${jobDesc}
 WEAVE IN: ${scoreResult.missingKeywords?.join(", ")}
-Output complete rewritten resume:`, 4000);
+Output complete rewritten resume:`, 4000, "roles");
       setResumes(prev => ({ ...prev, [job.id]: tailoredResume }));
       // Save tailored resume to DB
       await supabase

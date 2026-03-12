@@ -78,7 +78,7 @@ Return: {
   "outreachMessages": [{"persona": "type of person", "message": "short warm DM, 3 sentences, specific to the candidate's background"}],
   "insiderQuestions": ["4 smart questions to ask connections"],
   "contentAngle": "one LinkedIn post idea to get on ${job.company} employees' radar"
-}`, 900);
+}`, 900, "networking");
       setNetResult(prev => ({ ...prev, [job.id]: JSON.parse(raw) }));
     } catch { setNetResult(prev => ({ ...prev, [job.id]: { error: true } })); }
     setNetLoading(null);

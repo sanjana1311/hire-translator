@@ -169,7 +169,7 @@ Include exactly 5 questions covering: ambiguous programs, stakeholder conflict, 
 JD: ${job.description}
 
 Return: {"questions":[{"category":"category name","question":"the question","whatTheyTest":"what the interviewer is evaluating","frameworks":"key frameworks or models to use","answerStructure":"suggested answer structure"}]}
-Include 6 questions across categories like: system design, infrastructure, program execution, technical tradeoffs, domain knowledge, estimation.`, 2500);
+Include 6 questions across categories like: system design, infrastructure, program execution, technical tradeoffs, domain knowledge, estimation.`, 2500, "interview");
       const parsed = parseJSON(raw);
       setState(p => ({ ...p, technical: parsed.questions || parsed }));
     } catch (e) { console.error("Technical gen failed:", e); }

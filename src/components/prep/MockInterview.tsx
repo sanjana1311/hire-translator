@@ -89,7 +89,7 @@ Return: {"clarity":0-100,"depth":0-100,"structure":0-100,"relevance":0-100,"feed
       const raw = await callAI(`You are a ${modeLabel} at ${company} for ${jobTitle}. Continue the interview. Brief acknowledgment of the answer, then ask your next question. 2-3 sentences. Question ${nextQ} of 5.
 
 Recent conversation:
-${convo}`, 300);
+${convo}`, 300, "interview");
       setTurns([...newTurns, { role: "interviewer", text: raw }]);
       setQuestionCount(nextQ);
     } catch {
