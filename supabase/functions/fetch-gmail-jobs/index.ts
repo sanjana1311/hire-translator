@@ -272,8 +272,14 @@ function fallbackExtractJobsFromEmail(email: {
     const company = cleanTextLine(companyRaw);
     const location = locationRaw ? cleanTextLine(locationRaw) : null;
 
+    const combined = `${title} ${company}`;
     if (!looksLikeJobTitle(title)) return;
-    if (!company || company.length < 2 || /^(email alert|linkedin)$/i.test(company)) return;
+    if (!company || company.length < 2) return;
+    if (!/[A-Za-z]/.test(company) || !/[A-Z]/.test(company)) return;
+    if (/^(email alert|linkedin|and more|a glance)$/i.test(company)) return;
+    if (/(see all jobs|install linkedin|stay updated|unsubscribe|jobs at a glance|linkedin widgets|connections? you may know)/i.test(combined)) {
+      return;
+    }
 
     const key = `${title.toLowerCase()}__${company.toLowerCase()}`;
     if (seen.has(key)) return;
@@ -307,6 +313,14 @@ function fallbackExtractJobsFromEmail(email: {
   const atPattern = /([A-Z][A-Za-z0-9&+\/'(),.\-–—\s]{2,100}?)\s+at\s+([A-Z][A-Za-z0-9&+\/'(),.\-\s]{2,80}?)(?:\s+(?:in|,|·)\s+([A-Za-z0-9,.\-\s]{2,80}))?(?=\s|$|\.)/gi;
   for (const m of normalized.matchAll(atPattern)) {
     pushJob(m[1], m[2], m[3] || null);
+  }
+
+  // Subject format: "keyword": Company - Role and more
+  const linkedInSubjectMatch = subject.match(
+    /[“"]?[^:"”]+[”"]?\s*:\s*([A-Z][A-Za-z0-9&+\/'(),.\-\s]{1,80})\s*-\s*([^|]+?)(?:\s+and\s+more)?$/i
+  );
+  if (linkedInSubjectMatch) {
+    pushJob(linkedInSubjectMatch[2], linkedInSubjectMatch[1], null);
   }
 
   // Last-resort from subject
