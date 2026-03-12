@@ -63,9 +63,99 @@ const JOB_SIGNALS = [
   "new opening",
 ];
 
-function looksLikeJobEmail(body: string): boolean {
-  const lower = body.toLowerCase();
+function looksLikeJobEmail(text: string): boolean {
+  const lower = text.toLowerCase();
   return JOB_SIGNALS.some((s) => lower.includes(s));
+}
+
+function inferSource(text: string): string {
+  const lower = text.toLowerCase();
+  if (lower.includes("linkedin")) return "LinkedIn";
+  if (lower.includes("indeed")) return "Indeed";
+  if (lower.includes("glassdoor")) return "Glassdoor";
+  if (lower.includes("ziprecruiter")) return "ZipRecruiter";
+  return "Email Alert";
+}
+
+function extractFirstJobUrl(text: string): string | null {
+  const matches = text.match(/https?:\/\/[^\s"'<>]+/gi) || [];
+  const preferred = matches.find((u) =>
+    /(linkedin\.com\/jobs|\/jobs\/|\/job\/|\/careers\/|\/apply\/)/i.test(u)
+  );
+  const picked = preferred || matches[0];
+  return picked ? picked.replace(/[),.;]+$/, "") : null;
+}
+
+function cleanupJobTitle(subject: string): string {
+  return subject
+    .replace(/\s*[|\-–]\s*LinkedIn.*$/i, "")
+    .replace(/\bLinkedIn\b/gi, "")
+    .replace(/\b(?:your\s+)?job\s+alert\b[:\-\s]*/gi, "")
+    .replace(/\bnew\s+jobs?\s+for\s+you\b[:\-\s]*/gi, "")
+    .replace(/\bjobs?\s+for\s+you\b[:\-\s]*/gi, "")
+    .replace(/\bjob\s+recommendations?\b[:\-\s]*/gi, "")
+    .replace(/\bhiring\s+alert\b[:\-\s]*/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function fallbackExtractJobsFromEmail(email: {
+  subject: string;
+  body: string;
+  snippet: string;
+}): any[] {
+  const { subject, body, snippet } = email;
+  const combined = `${subject} ${snippet} ${body}`.replace(/\s+/g, " ").trim();
+  const source = inferSource(combined);
+  const url = extractFirstJobUrl(combined);
+
+  const jobs: any[] = [];
+  const seen = new Set<string>();
+
+  const pushJob = (titleRaw: string, companyRaw: string, locationRaw?: string | null) => {
+    const title = titleRaw?.replace(/\s+/g, " ").trim();
+    const company = companyRaw?.replace(/\s+/g, " ").trim();
+    const location = locationRaw?.replace(/\s+/g, " ").trim() || null;
+
+    if (!title || !company || title.length < 3 || company.length < 2) return;
+
+    const key = `${title.toLowerCase()}__${company.toLowerCase()}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+
+    jobs.push({
+      title,
+      company,
+      location,
+      salary: null,
+      url,
+      source,
+      snippet: snippet || null,
+    });
+  };
+
+  const atPattern = /([A-Z][A-Za-z0-9&+/'(),.\-\s]{2,80}?)\s+at\s+([A-Z][A-Za-z0-9&+/'(),.\-\s]{2,80}?)(?:\s+(?:in|,|·)\s+([A-Za-z0-9,.\-\s]{2,80}))?(?:\s|$)/i;
+  const atMatch = combined.match(atPattern);
+  if (atMatch) {
+    pushJob(atMatch[1], atMatch[2], atMatch[3] || null);
+  }
+
+  const dashPattern = /^(.{3,100}?)\s*[\-–|]\s*([A-Za-z0-9&+/'(),.\-\s]{2,80})(?:\s*[·|\-–]\s*([A-Za-z0-9,.\-\s]{2,80}))?/i;
+  const dashMatch = subject.match(dashPattern);
+  if (dashMatch) {
+    pushJob(dashMatch[1], dashMatch[2], dashMatch[3] || null);
+  }
+
+  const companyLocMatch = snippet.match(/([A-Z][A-Za-z0-9&+/'(),.\-\s]{2,80})\s*[·|]\s*([A-Za-z0-9,.\-\s]{2,80})/);
+
+  if (jobs.length === 0) {
+    const cleanedTitle = cleanupJobTitle(subject);
+    if (cleanedTitle) {
+      pushJob(cleanedTitle, companyLocMatch?.[1] || source, companyLocMatch?.[2] || null);
+    }
+  }
+
+  return jobs.slice(0, 3);
 }
 
 /** Fetch full job description from a URL */
