@@ -154,7 +154,7 @@ Candidate resume: ${resumeText.slice(0, 800)}
 JD: ${job.description}
 
 Return: {"questions":[{"scenario":"short category label","question":"the behavioral question","whyAsked":"why interviewers ask this","strongAnswer":"what a strong answer looks like","suggestedAngle":"suggested personal story angle based on the candidate resume"}]}
-Include exactly 5 questions covering: ambiguous programs, stakeholder conflict, large-scale initiatives, handling failures, cross-functional leadership.`, 3000);
+Include exactly 5 questions covering: ambiguous programs, stakeholder conflict, large-scale initiatives, handling failures, cross-functional leadership.`, 3000, "interview");
       const parsed = parseJSON(raw);
       setState(p => ({ ...p, behavioral: parsed.questions || parsed }));
     } catch (e) { console.error("Behavioral gen failed:", e); }
