@@ -93,6 +93,50 @@ function extractFirstJobUrl(text: string): string | null {
   return allUrls.length > 0 ? allUrls[0].replace(/[),.;]+$/, "") : null;
 }
 
+function decodeBase64UrlToUtf8(base64Url: string): string {
+  const normalized = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+  const padding = "=".repeat((4 - (normalized.length % 4)) % 4);
+  const binary = atob(normalized + padding);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+}
+
+function decodeQuotedPrintable(input: string): string {
+  const binary = input
+    .replace(/=\r?\n/g, "")
+    .replace(/=([A-Fa-f0-9]{2})/g, (_, hex) =>
+      String.fromCharCode(parseInt(hex, 16))
+    );
+
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+}
+
+function collectMessageBodies(payload: any): { textPlain: string[]; textHtml: string[] } {
+  const textPlain: string[] = [];
+  const textHtml: string[] = [];
+
+  const visit = (part: any) => {
+    if (!part) return;
+
+    const mimeType = String(part.mimeType || "").toLowerCase();
+    const data = part.body?.data;
+
+    if (typeof data === "string" && data.length > 0) {
+      const decoded = decodeQuotedPrintable(decodeBase64UrlToUtf8(data));
+      if (mimeType === "text/plain") textPlain.push(decoded);
+      if (mimeType === "text/html") textHtml.push(decoded);
+    }
+
+    if (Array.isArray(part.parts)) {
+      for (const child of part.parts) visit(child);
+    }
+  };
+
+  visit(payload);
+  return { textPlain, textHtml };
+}
+
 function htmlToTextWithLineBreaks(raw: string): string {
   return raw
     .replace(/=\r?\n/g, "")
