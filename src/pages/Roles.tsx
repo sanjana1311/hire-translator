@@ -76,6 +76,7 @@ const Roles = () => {
   const { data: resumeData } = useResume();
   const { triggerSync, connectGmail, signOut, loading: gmailLoading, lastSyncedAt, jobsImportedCount, syncStatus, syncLog } = useGmailImport(profile?.id ?? null);
   const [showSyncLog, setShowSyncLog] = useState(false);
+  const { remaining: aiRemaining, limit: aiLimit, refresh: refreshAIUsage } = useAIUsage("roles");
 
   // Get resume text from DB only
   const resumeText = resumeData?.raw_text || "";
