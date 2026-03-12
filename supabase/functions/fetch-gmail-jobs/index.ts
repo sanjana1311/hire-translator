@@ -468,20 +468,17 @@ export async function syncGmailJobs(options: {
 
     const snippet = (msg.snippet || "").replace(/\s+/g, " ").trim();
 
+    const { textPlain, textHtml } = collectMessageBodies(msg.payload);
+
     let rawBody = "";
-    if (msg.payload?.body?.data) {
-      rawBody = atob(
-        msg.payload.body.data.replace(/-/g, "+").replace(/_/g, "/")
+    if (textPlain.length > 0) {
+      rawBody = textPlain.join("\n");
+    } else if (textHtml.length > 0) {
+      rawBody = textHtml.join("\n");
+    } else if (msg.payload?.body?.data) {
+      rawBody = decodeQuotedPrintable(
+        decodeBase64UrlToUtf8(msg.payload.body.data)
       );
-    } else if (msg.payload?.parts) {
-      const textPart =
-        msg.payload.parts.find((p: any) => p.mimeType === "text/plain") ||
-        msg.payload.parts.find((p: any) => p.mimeType === "text/html");
-      if (textPart?.body?.data) {
-        rawBody = atob(
-          textPart.body.data.replace(/-/g, "+").replace(/_/g, "/")
-        );
-      }
     }
 
     const bodyText = htmlToTextWithLineBreaks(rawBody);
