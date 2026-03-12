@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_usage: {
+        Row: {
+          id: string
+          used_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          used_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          used_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       applications: {
         Row: {
           applied_date: string | null
