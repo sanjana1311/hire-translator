@@ -120,7 +120,7 @@ Return: {
   "mustDemonstrate":["things candidate MUST demonstrate"],
   "niceToDemonstrate":["nice to have demonstrations"],
   "redFlags":["potential red flags or traps to avoid"]
-}`, 1500);
+}`, 1500, "interview");
       setState(p => ({ ...p, signals: parseJSON(raw) }));
     } catch (e) { console.error("Signals gen failed:", e); }
     setLoading(p => ({ ...p, signals: false }));
