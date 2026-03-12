@@ -77,13 +77,20 @@ function inferSource(text: string): string {
   return "Email Alert";
 }
 
-function extractFirstJobUrl(text: string): string | null {
+function extractJobUrls(text: string): string[] {
   const matches = text.match(/https?:\/\/[^\s"'<>]+/gi) || [];
-  const preferred = matches.find((u) =>
-    /(linkedin\.com\/jobs|\/jobs\/|\/job\/|\/careers\/|\/apply\/)/i.test(u)
-  );
-  const picked = preferred || matches[0];
-  return picked ? picked.replace(/[),.;]+$/, "") : null;
+  return matches
+    .filter((u) =>
+      /(linkedin\.com\/jobs|\/jobs\/|\/job\/|\/careers\/|\/apply\/)/i.test(u)
+    )
+    .map((u) => u.replace(/[),.;]+$/, ""));
+}
+
+function extractFirstJobUrl(text: string): string | null {
+  const jobUrls = extractJobUrls(text);
+  if (jobUrls.length > 0) return jobUrls[0];
+  const allUrls = text.match(/https?:\/\/[^\s"'<>]+/gi) || [];
+  return allUrls.length > 0 ? allUrls[0].replace(/[),.;]+$/, "") : null;
 }
 
 function cleanupJobTitle(subject: string): string {
