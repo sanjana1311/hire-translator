@@ -640,6 +640,9 @@ Output complete rewritten resume:`, 4000, "roles");
           <h1 className="font-serif text-[26px] font-normal mb-1">Today's Roles</h1>
           <p className="text-xs text-muted-foreground mb-5">
             {isRunning ? `Analyzing ${jobs.length} roles…` : `${jobs.length} roles ready · click to review your tailored resume`}
+            {aiRemaining !== null && (
+              <span className="ml-2 text-muted-foreground/70">· {aiRemaining}/{aiLimit} AI calls left today</span>
+            )}
             {lastSyncedAt && (
               <span className="ml-2 text-muted-foreground/70">
                 · Last synced {(() => {
