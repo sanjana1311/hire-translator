@@ -157,29 +157,46 @@ const Roles = () => {
     }
   }, [syncStatus, profile?.id, loadJobsFromDB]);
 
-  // Auto-score unscored jobs after DB load — only jobs with status "new" AND no saved analysis
+  // Auto-score unscored jobs after DB load — only when resume is also loaded
   useEffect(() => {
-    if (!dbLoaded || didAutoScore.current || jobs.length === 0) return;
+    if (!dbLoaded || didAutoScore.current || jobs.length === 0 || !resumeText) return;
     didAutoScore.current = true;
     const unscored = jobs.filter(j => j.status === "new" && !j.analysis && !results[j.id]);
     if (unscored.length === 0) return;
-    console.log(`[Roles] Auto-scoring ${unscored.length} new jobs`);
+    console.log(`[Roles] Auto-scoring ${unscored.length} new jobs (resume: ${resumeText.length} chars)`);
     unscored.forEach((job, i) => setTimeout(() => analyzeJob(job), i * 400));
-  }, [dbLoaded, jobs]);
+  }, [dbLoaded, jobs, resumeText]);
 
   const analyzeJob = async (job: ImportedJob) => {
+    if (!resumeText) {
+      console.warn(`[Roles] Skipping ${job.title} — no resume loaded`);
+      return;
+    }
     setAL(prev => new Set([...prev, job.id]));
     let scoreResult: AnalysisResult | null = null;
 
     const jobDesc = job.description || job.snippet || `${job.title} at ${job.company}`;
 
     try {
-      const raw = await callAI(`ATS resume expert. Return ONLY valid JSON.
-RESUME: ${resumeText}
-JOB: ${job.title} at ${job.company}
+      const raw = await callAI(`You are an ATS resume scoring expert. Score this specific resume against this specific job. Each job MUST get a DIFFERENT score based on how well the resume matches THAT particular role's requirements, skills, and keywords. Do NOT give the same score to different jobs. Return ONLY valid JSON.
+
+RESUME:
+${resumeText}
+
+JOB TITLE: ${job.title}
+COMPANY: ${job.company}
+JOB DESCRIPTION:
 ${jobDesc}
+
+Scoring rules:
+- Compare the resume's skills, experience, and keywords against THIS specific job's requirements
+- A high score (75+) means the resume closely matches this job's specific needs
+- A medium score (40-74) means partial match with clear gaps for THIS role
+- A low score (<40) means significant mismatch for THIS specific role
+- Focus on: keyword overlap, experience relevance, skill alignment, seniority match
+
 Return: {"score":0,"bucket":"must","matchSummary":"","strengths":["","",""],"gaps":["","",""],"missingKeywords":["","","","",""]}
-bucket: must>=75, tweak 40-74, low<40`, 600, "roles");
+bucket: must if score>=75, tweak if 40-74, low if <40`, 600, "roles");
       console.log('Raw scoring response:', raw);
       try {
         const parsed = JSON.parse(raw);
