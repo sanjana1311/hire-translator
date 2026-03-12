@@ -186,32 +186,65 @@ function cleanupJobTitle(subject: string): string {
 
 function cleanTextLine(line: string): string {
   return line
-    .replace(/[•▪●►]/g, " ")
+    .replace(/[•▪●►]/g, " · ")
     .replace(/\u00a0/g, " ")
+    .replace(/\u00c2/g, "")
+    .replace(/Â/g, "")
+    .replace(/â€["“”]/g, "-")
+    .replace(/â€[˜™]/g, "'")
     .replace(/\s+/g, " ")
     .trim();
 }
 
 function looksLikeJobTitle(line: string): boolean {
   const l = cleanTextLine(line);
-  if (!l || l.length < 4 || l.length > 120) return false;
+  if (!l || l.length < 4 || l.length > 140) return false;
   if (/https?:\/\//i.test(l)) return false;
-  if (/^(your job alert|new jobs in|see all jobs|install linkedin|stay updated|unsubscribe)/i.test(l)) return false;
-  if (/(connections?|company alumni|fast growing|early applicant|promoted)/i.test(l)) return false;
 
-  return /(manager|engineer|analyst|developer|designer|scientist|architect|specialist|director|coordinator|consultant|lead|intern|operations|product|program|project|data|security|cloud|research|marketing|sales)/i.test(l);
+  if (
+    /^(your job alert|new jobs in|see all jobs|view all jobs|install linkedin|stay updated|unsubscribe|jobs at a glance|top applicants|promoted)/i.test(
+      l
+    )
+  ) {
+    return false;
+  }
+
+  if (/(connections?|company alumni|fast growing|early applicant)/i.test(l)) {
+    return false;
+  }
+
+  const keywordMatch =
+    /(manager|engineer|analyst|developer|designer|scientist|architect|specialist|director|coordinator|consultant|lead|intern|operations|product|program|project|data|security|cloud|research|marketing|sales|recruiter|account executive|administrator|technician|owner)/i.test(
+      l
+    );
+
+  if (keywordMatch) return true;
+
+  // Backup heuristic for title-like lines when keywords are absent
+  return /^[A-Z][A-Za-z0-9&+\/'(),.\-–—\s]{3,140}$/.test(l) && l.split(" ").length >= 2;
 }
 
 function parseCompanyLocation(line: string): { company: string; location: string | null } | null {
   const l = cleanTextLine(line);
-  if (!l || l.length < 3 || l.length > 120) return null;
+  if (!l || l.length < 3 || l.length > 160) return null;
   if (/https?:\/\//i.test(l)) return null;
 
-  const parts = l.split("·").map((p) => cleanTextLine(p)).filter(Boolean);
+  const parts = l
+    .split(/\s(?:·|•|\||–|—|-)\s/)
+    .map((p) => cleanTextLine(p))
+    .filter(Boolean);
+
   if (parts.length >= 2) {
     const company = parts[0];
     const location = parts.slice(1).join(" · ") || null;
-    if (company.length < 2 || /^(linkedin|see all jobs|view all jobs)$/i.test(company)) return null;
+
+    if (
+      company.length < 2 ||
+      /^(linkedin|see all jobs|view all jobs|jobs at a glance|and more|a glance)$/i.test(company)
+    ) {
+      return null;
+    }
+
     return { company, location };
   }
 
