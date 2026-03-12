@@ -93,6 +93,50 @@ function extractFirstJobUrl(text: string): string | null {
   return allUrls.length > 0 ? allUrls[0].replace(/[),.;]+$/, "") : null;
 }
 
+function decodeBase64UrlToUtf8(base64Url: string): string {
+  const normalized = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+  const padding = "=".repeat((4 - (normalized.length % 4)) % 4);
+  const binary = atob(normalized + padding);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+}
+
+function decodeQuotedPrintable(input: string): string {
+  const binary = input
+    .replace(/=\r?\n/g, "")
+    .replace(/=([A-Fa-f0-9]{2})/g, (_, hex) =>
+      String.fromCharCode(parseInt(hex, 16))
+    );
+
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+}
+
+function collectMessageBodies(payload: any): { textPlain: string[]; textHtml: string[] } {
+  const textPlain: string[] = [];
+  const textHtml: string[] = [];
+
+  const visit = (part: any) => {
+    if (!part) return;
+
+    const mimeType = String(part.mimeType || "").toLowerCase();
+    const data = part.body?.data;
+
+    if (typeof data === "string" && data.length > 0) {
+      const decoded = decodeQuotedPrintable(decodeBase64UrlToUtf8(data));
+      if (mimeType === "text/plain") textPlain.push(decoded);
+      if (mimeType === "text/html") textHtml.push(decoded);
+    }
+
+    if (Array.isArray(part.parts)) {
+      for (const child of part.parts) visit(child);
+    }
+  };
+
+  visit(payload);
+  return { textPlain, textHtml };
+}
+
 function htmlToTextWithLineBreaks(raw: string): string {
   return raw
     .replace(/=\r?\n/g, "")
@@ -103,6 +147,7 @@ function htmlToTextWithLineBreaks(raw: string): string {
     .replace(/<li[^>]*>/gi, "\n")
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
+    .replace(/&middot;/gi, " · ")
     .replace(/&amp;/gi, "&")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
@@ -111,6 +156,9 @@ function htmlToTextWithLineBreaks(raw: string): string {
     .replace(/\u00a0/g, " ")
     .replace(/\u00c2/g, "")
     .replace(/Â/g, "")
+    .replace(/â€["“”]/g, "-")
+    .replace(/â€[˜™]/g, "'")
+    .replace(/â€¦/g, "...")
     .replace(/\r/g, "")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n[ \t]+/g, "\n")
@@ -138,32 +186,65 @@ function cleanupJobTitle(subject: string): string {
 
 function cleanTextLine(line: string): string {
   return line
-    .replace(/[•▪●►]/g, " ")
+    .replace(/[•▪●►]/g, " · ")
     .replace(/\u00a0/g, " ")
+    .replace(/\u00c2/g, "")
+    .replace(/Â/g, "")
+    .replace(/â€["“”]/g, "-")
+    .replace(/â€[˜™]/g, "'")
     .replace(/\s+/g, " ")
     .trim();
 }
 
 function looksLikeJobTitle(line: string): boolean {
   const l = cleanTextLine(line);
-  if (!l || l.length < 4 || l.length > 120) return false;
+  if (!l || l.length < 4 || l.length > 140) return false;
   if (/https?:\/\//i.test(l)) return false;
-  if (/^(your job alert|new jobs in|see all jobs|install linkedin|stay updated|unsubscribe)/i.test(l)) return false;
-  if (/(connections?|company alumni|fast growing|early applicant|promoted)/i.test(l)) return false;
 
-  return /(manager|engineer|analyst|developer|designer|scientist|architect|specialist|director|coordinator|consultant|lead|intern|operations|product|program|project|data|security|cloud|research|marketing|sales)/i.test(l);
+  if (
+    /^(your job alert|new jobs in|see all jobs|view all jobs|install linkedin|stay updated|unsubscribe|jobs at a glance|top applicants|promoted)/i.test(
+      l
+    )
+  ) {
+    return false;
+  }
+
+  if (/(connections?|company alumni|fast growing|early applicant)/i.test(l)) {
+    return false;
+  }
+
+  const keywordMatch =
+    /(manager|engineer|analyst|developer|designer|scientist|architect|specialist|director|coordinator|consultant|lead|intern|operations|product|program|project|data|security|cloud|research|marketing|sales|recruiter|account executive|administrator|technician|owner)/i.test(
+      l
+    );
+
+  if (keywordMatch) return true;
+
+  // Backup heuristic for title-like lines when keywords are absent
+  return /^[A-Z][A-Za-z0-9&+\/'(),.\-–—\s]{3,140}$/.test(l) && l.split(" ").length >= 2;
 }
 
 function parseCompanyLocation(line: string): { company: string; location: string | null } | null {
   const l = cleanTextLine(line);
-  if (!l || l.length < 3 || l.length > 120) return null;
+  if (!l || l.length < 3 || l.length > 160) return null;
   if (/https?:\/\//i.test(l)) return null;
 
-  const parts = l.split("·").map((p) => cleanTextLine(p)).filter(Boolean);
+  const parts = l
+    .split(/\s(?:·|•|\||–|—|-)\s/)
+    .map((p) => cleanTextLine(p))
+    .filter(Boolean);
+
   if (parts.length >= 2) {
     const company = parts[0];
     const location = parts.slice(1).join(" · ") || null;
-    if (company.length < 2 || /^(linkedin|see all jobs|view all jobs)$/i.test(company)) return null;
+
+    if (
+      company.length < 2 ||
+      /^(linkedin|see all jobs|view all jobs|jobs at a glance|and more|a glance)$/i.test(company)
+    ) {
+      return null;
+    }
+
     return { company, location };
   }
 
@@ -176,7 +257,7 @@ function fallbackExtractJobsFromEmail(email: {
   bodyText: string;
   snippet: string;
 }): any[] {
-  const { subject, body, bodyText, snippet } = email;
+  const { subject, bodyText, snippet } = email;
   const normalized = `${subject}\n${snippet}\n${bodyText}`;
   const source = inferSource(normalized);
   const allJobUrls = extractJobUrls(normalized);
@@ -191,8 +272,14 @@ function fallbackExtractJobsFromEmail(email: {
     const company = cleanTextLine(companyRaw);
     const location = locationRaw ? cleanTextLine(locationRaw) : null;
 
+    const combined = `${title} ${company}`;
     if (!looksLikeJobTitle(title)) return;
-    if (!company || company.length < 2 || /^(email alert|linkedin)$/i.test(company)) return;
+    if (!company || company.length < 2) return;
+    if (!/[A-Za-z]/.test(company) || !/[A-Z]/.test(company)) return;
+    if (/^(email alert|linkedin|and more|a glance)$/i.test(company)) return;
+    if (/(see all jobs|install linkedin|stay updated|unsubscribe|jobs at a glance|linkedin widgets|connections? you may know)/i.test(combined)) {
+      return;
+    }
 
     const key = `${title.toLowerCase()}__${company.toLowerCase()}`;
     if (seen.has(key)) return;
@@ -226,6 +313,14 @@ function fallbackExtractJobsFromEmail(email: {
   const atPattern = /([A-Z][A-Za-z0-9&+\/'(),.\-–—\s]{2,100}?)\s+at\s+([A-Z][A-Za-z0-9&+\/'(),.\-\s]{2,80}?)(?:\s+(?:in|,|·)\s+([A-Za-z0-9,.\-\s]{2,80}))?(?=\s|$|\.)/gi;
   for (const m of normalized.matchAll(atPattern)) {
     pushJob(m[1], m[2], m[3] || null);
+  }
+
+  // Subject format: "keyword": Company - Role and more
+  const linkedInSubjectMatch = subject.match(
+    /[“"]?[^:"”]+[”"]?\s*:\s*([A-Z][A-Za-z0-9&+\/'(),.\-\s]{1,80})\s*-\s*([^|]+?)(?:\s+and\s+more)?$/i
+  );
+  if (linkedInSubjectMatch) {
+    pushJob(linkedInSubjectMatch[2], linkedInSubjectMatch[1], null);
   }
 
   // Last-resort from subject
@@ -373,20 +468,17 @@ export async function syncGmailJobs(options: {
 
     const snippet = (msg.snippet || "").replace(/\s+/g, " ").trim();
 
+    const { textPlain, textHtml } = collectMessageBodies(msg.payload);
+
     let rawBody = "";
-    if (msg.payload?.body?.data) {
-      rawBody = atob(
-        msg.payload.body.data.replace(/-/g, "+").replace(/_/g, "/")
+    if (textPlain.length > 0) {
+      rawBody = textPlain.join("\n");
+    } else if (textHtml.length > 0) {
+      rawBody = textHtml.join("\n");
+    } else if (msg.payload?.body?.data) {
+      rawBody = decodeQuotedPrintable(
+        decodeBase64UrlToUtf8(msg.payload.body.data)
       );
-    } else if (msg.payload?.parts) {
-      const textPart =
-        msg.payload.parts.find((p: any) => p.mimeType === "text/plain") ||
-        msg.payload.parts.find((p: any) => p.mimeType === "text/html");
-      if (textPart?.body?.data) {
-        rawBody = atob(
-          textPart.body.data.replace(/-/g, "+").replace(/_/g, "/")
-        );
-      }
     }
 
     const bodyText = htmlToTextWithLineBreaks(rawBody);
@@ -420,6 +512,7 @@ export async function syncGmailJobs(options: {
   if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
   const allExtractedJobs: any[] = [];
+  let aiUnavailable = false;
 
   for (const email of relevantEmails) {
     const { subject, body, snippet } = email;
@@ -461,11 +554,16 @@ Rules:
           j._sourceSubject = subject;
         }
         allExtractedJobs.push(...fallbackJobs);
-        console.log(
-          `[Gmail Sync] Fallback extracted ${fallbackJobs.length} jobs from: ${subject.slice(0, 60)}`
-        );
       }
+      console.log(
+        `[Gmail Sync] Fallback extracted ${fallbackJobs.length} jobs from: ${subject.slice(0, 60)}`
+      );
     };
+
+    if (aiUnavailable) {
+      pushFallbackJobs();
+      continue;
+    }
 
     try {
       const aiRes = await fetch(
@@ -490,6 +588,9 @@ Rules:
         if (status === 429) {
           console.warn("Rate limited, pausing...");
           await new Promise((r) => setTimeout(r, 2000));
+        } else if (status === 402) {
+          aiUnavailable = true;
+          console.warn("AI unavailable (402). Falling back to parser for all remaining emails.");
         } else {
           console.error("AI error:", status);
         }
