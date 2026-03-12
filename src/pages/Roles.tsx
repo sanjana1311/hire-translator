@@ -920,7 +920,15 @@ Output complete rewritten resume:`, 4000, "roles");
                                       </div>
                                     )}
                                   </div>
-                                  <div className="text-right">
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleDeleteJob(job); }}
+                                      className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
+                                      title="Delete job"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <div className="text-right">
                                     {aLoading.has(job.id) ? (
                                       <div className="flex flex-col items-end gap-1">
                                         <Spinner size={14} />
