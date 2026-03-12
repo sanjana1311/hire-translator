@@ -276,7 +276,7 @@ export async function syncGmailJobs(options: {
   console.log("[Gmail Sync] Messages found:", messageIds.length);
 
   // Step 2 — Fetch each email body
-  const emails: { subject: string; body: string }[] = [];
+  const emails: { subject: string; body: string; snippet: string }[] = [];
   for (const msgId of messageIds) {
     const msgRes = await fetch(
       `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=full`,
@@ -289,6 +289,8 @@ export async function syncGmailJobs(options: {
       msg.payload?.headers?.find(
         (h: any) => h.name.toLowerCase() === "subject"
       )?.value || "";
+
+    const snippet = (msg.snippet || "").replace(/\s+/g, " ").trim();
 
     let rawBody = "";
     if (msg.payload?.body?.data) {
@@ -312,11 +314,13 @@ export async function syncGmailJobs(options: {
       .replace(/\s+/g, " ")
       .trim();
 
-    emails.push({ subject, body });
+    emails.push({ subject, body, snippet });
   }
 
   // Step 3 — Pre-filter: only emails with job signals
-  const relevantEmails = emails.filter(({ body }) => looksLikeJobEmail(body));
+  const relevantEmails = emails.filter(({ subject, body, snippet }) =>
+    looksLikeJobEmail(`${subject} ${snippet} ${body}`)
+  );
   console.log(
     `Emails fetched: ${emails.length}, relevant after filter: ${relevantEmails.length}`
   );
