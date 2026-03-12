@@ -257,7 +257,7 @@ function fallbackExtractJobsFromEmail(email: {
   bodyText: string;
   snippet: string;
 }): any[] {
-  const { subject, body, bodyText, snippet } = email;
+  const { subject, bodyText, snippet } = email;
   const normalized = `${subject}\n${snippet}\n${bodyText}`;
   const source = inferSource(normalized);
   const allJobUrls = extractJobUrls(normalized);
