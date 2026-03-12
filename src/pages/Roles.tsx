@@ -178,25 +178,35 @@ const Roles = () => {
     const jobDesc = job.description || job.snippet || `${job.title} at ${job.company}`;
 
     try {
-      const raw = await callAI(`You are an ATS resume scoring expert. Score this specific resume against this specific job. Each job MUST get a DIFFERENT score based on how well the resume matches THAT particular role's requirements, skills, and keywords. Do NOT give the same score to different jobs. Return ONLY valid JSON.
+      const raw = await callAI(`You are a strict ATS resume matcher. You must analyze the SPECIFIC requirements of this job and compare them against the candidate's ACTUAL skills and experience. Think step-by-step before scoring.
+
+STEP 1: List the top 5 hard skills/technologies this job requires.
+STEP 2: For each, check if the resume explicitly mentions it.
+STEP 3: Assess seniority alignment (years of experience, leadership level).
+STEP 4: Calculate a score based on match percentage.
 
 RESUME:
 ${resumeText}
 
-JOB TITLE: ${job.title}
-COMPANY: ${job.company}
-JOB DESCRIPTION:
+---
+JOB: ${job.title} at ${job.company}
+DESCRIPTION:
 ${jobDesc}
+---
 
-Scoring rules:
-- Compare the resume's skills, experience, and keywords against THIS specific job's requirements
-- A high score (75+) means the resume closely matches this job's specific needs
-- A medium score (40-74) means partial match with clear gaps for THIS role
-- A low score (<40) means significant mismatch for THIS specific role
-- Focus on: keyword overlap, experience relevance, skill alignment, seniority match
+SCORING GUIDE:
+- 85-100: Resume matches 80%+ of required skills AND seniority level
+- 70-84: Most skills match but missing 1-2 key requirements  
+- 55-69: Partial match, several gaps in required skills/experience
+- 40-54: Weak match, major skill gaps
+- Below 40: Poor fit, different domain/seniority
 
-Return: {"score":0,"bucket":"must","matchSummary":"","strengths":["","",""],"gaps":["","",""],"missingKeywords":["","","","",""]}
-bucket: must if score>=75, tweak if 40-74, low if <40`, 600, "roles");
+CRITICAL: Your score MUST reflect how many of THIS job's specific requirements appear in the resume. A generic software engineer resume should NOT score 90+ for a specialized ML Engineer role.
+
+Return ONLY this JSON (no other text):
+{"score":<number>,"bucket":"<must|tweak|low>","matchSummary":"<2 sentences explaining why this specific score>","strengths":["<3 specific matches>"],"gaps":["<3 specific gaps for THIS role>"],"missingKeywords":["<5 keywords from JD not in resume>"]}
+
+bucket: must if score>=75, tweak if 40-74, low if <40`, 800, "roles");
       console.log('Raw scoring response:', raw);
       try {
         const parsed = JSON.parse(raw);
@@ -224,24 +234,31 @@ bucket: must if score>=75, tweak if 40-74, low if <40`, 600, "roles");
     setDone(prev => prev + 1);
     setAL(prev => { const s = new Set(prev); s.delete(job.id); return s; });
 
-    if (!scoreResult || scoreResult.error) return;
+    // Tailored resume is now generated on-demand when user clicks a job
+  };
 
+  const generateTailoredResume = async (job: ImportedJob) => {
+    if (!resumeText) return;
+    const r = results[job.id];
+    if (!r || r.error) return;
+    const jobDesc = job.description || job.snippet || `${job.title} at ${job.company}`;
     setRL(prev => new Set([...prev, job.id]));
     try {
       const tailoredResume = await callAI(`Expert ATS resume writer. Rewrite for this specific job. Keep all real facts. Plain text only, no markdown.
 ORIGINAL: ${resumeText}
 TARGET: ${job.title} at ${job.company}
 JD: ${jobDesc}
-WEAVE IN: ${scoreResult.missingKeywords?.join(", ")}
+WEAVE IN: ${r.missingKeywords?.join(", ")}
 Output complete rewritten resume:`, 4000, "roles");
       setResumes(prev => ({ ...prev, [job.id]: tailoredResume }));
-      // Save tailored resume to DB
       await supabase
         .from("imported_jobs")
         .update({ tailored_resume: tailoredResume })
         .eq("id", job.id);
+      refreshAIUsage();
     } catch (e: any) {
       console.error('Resume rewrite failed:', e);
+      toast.error(e.message || "Failed to generate tailored resume");
     }
     setRL(prev => { const s = new Set(prev); s.delete(job.id); return s; });
   };
@@ -557,10 +574,24 @@ Output complete rewritten resume:`, 4000, "roles");
                   </div>
                 ) : resumes[selected.id] ? (
                   <pre className="font-sans text-[11.5px] leading-[1.85] whitespace-pre-wrap break-words text-secondary-foreground">{resumes[selected.id]}</pre>
-                ) : (
+                ) : rLoading.has(selected.id) ? (
                   <div className="text-center py-16">
                     <Spinner size={18} />
                     <p className="animate-pulse-dot font-serif italic text-sm text-muted-foreground mt-3">Writing your tailored resume…</p>
+                  </div>
+                ) : r ? (
+                  <div className="text-center py-16">
+                    <p className="text-sm text-muted-foreground mb-3">Tailored resume not generated yet.</p>
+                    <button
+                      onClick={() => generateTailoredResume(selected)}
+                      className="text-xs font-medium px-4 py-2 rounded-[6px] bg-foreground text-background hover:opacity-90 transition-opacity"
+                    >
+                      Generate Tailored Resume
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-center py-16">
+                    <p className="text-sm text-muted-foreground">Score the job first to generate a tailored resume.</p>
                   </div>
                 )
               ) : (
