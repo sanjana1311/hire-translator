@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { callAI } from "@/lib/ai";
+import { AIQuotaBadge } from "@/components/AIQuotaBadge";
 import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtDate, daysSince } from "@/data/seed";
@@ -126,7 +127,7 @@ Return: {
       <div className="flex items-start justify-between mb-2">
         <div>
           <h1 className="font-serif text-[26px] font-normal mb-1">Weekly Mentor Session</h1>
-          <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} · Pulled from your real data</p>
+          <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} · Pulled from your real data <AIQuotaBadge feature="weekly_report" /></p>
         </div>
         <button
           onClick={generateReport}

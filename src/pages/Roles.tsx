@@ -4,14 +4,16 @@ import { callAI } from "@/lib/ai";
 import { useGmailImport } from "@/hooks/use-gmail-import";
 import { useProfile } from "@/hooks/use-profile";
 import { useResume } from "@/hooks/use-resume";
+import { useAIUsage } from "@/hooks/use-ai-usage";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { cleanText } from "@/lib/clean-text";
 import {
   BUCKET_META,
   initials, scoreColor, scoreBg, scoreBorder,
 } from "@/data/seed";
 import { classifyRole, getRoleFamilyLabel, ROLE_FAMILIES, type RoleFamilyKey } from "@/lib/role-classifier";
-import { ChevronDown, ChevronRight, Filter, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Filter, X, Trash2 } from "lucide-react";
 
 const Spinner = ({ size = 16 }: { size?: number }) => (
   <div
@@ -74,6 +76,7 @@ const Roles = () => {
   const { data: resumeData } = useResume();
   const { triggerSync, connectGmail, signOut, loading: gmailLoading, lastSyncedAt, jobsImportedCount, syncStatus, syncLog } = useGmailImport(profile?.id ?? null);
   const [showSyncLog, setShowSyncLog] = useState(false);
+  const { remaining: aiRemaining, limit: aiLimit, refresh: refreshAIUsage } = useAIUsage("roles");
 
   // Get resume text from DB only
   const resumeText = resumeData?.raw_text || "";
@@ -247,6 +250,25 @@ Output complete rewritten resume:`, 4000, "roles");
     }
   };
 
+  const handleDeleteJob = async (job: ImportedJob) => {
+    if (!profile?.id) return;
+    try {
+      const { error } = await supabase
+        .from("imported_jobs")
+        .delete()
+        .eq("id", job.id)
+        .eq("profile_id", profile.id);
+      if (error) throw error;
+      setJobs(prev => prev.filter(j => j.id !== job.id));
+      setResults(prev => { const n = { ...prev }; delete n[job.id]; return n; });
+      setResumes(prev => { const n = { ...prev }; delete n[job.id]; return n; });
+      if (selected?.id === job.id) setSelected(null);
+      toast.success("Job deleted");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to delete job");
+    }
+  };
+
   const copy = (t: string) => { navigator.clipboard.writeText(t); setCopied(true); setTimeout(() => setCopied(false), 2500); };
 
   // Filters
@@ -371,7 +393,7 @@ Output complete rewritten resume:`, 4000, "roles");
                   <span className="text-background text-xs font-bold">{initials(selected.company)}</span>
                 </div>
                 <div className="flex-1">
-                  <h2 className="font-serif text-[22px] leading-tight mb-1">{selected.title}</h2>
+                  <h2 className="font-serif text-[22px] leading-tight mb-1">{cleanText(selected.title)}</h2>
                   <div className="text-xs text-muted-foreground">
                     {selected.company} · {selected.location || "Remote"}{selected.salary ? ` · ${selected.salary}/yr` : ""}
                   </div>
@@ -405,6 +427,12 @@ Output complete rewritten resume:`, 4000, "roles");
                   className="text-xs font-medium px-3 py-1 rounded-[6px] border border-border bg-secondary text-secondary-foreground hover:bg-accent transition-colors"
                 >
                   Interview Prep
+                </button>
+                <button
+                  onClick={() => handleDeleteJob(selected)}
+                  className="text-xs font-medium px-3 py-1 rounded-[6px] border border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
+                >
+                  Delete
                 </button>
               </div>
             </div>
@@ -618,6 +646,9 @@ Output complete rewritten resume:`, 4000, "roles");
           <h1 className="font-serif text-[26px] font-normal mb-1">Today's Roles</h1>
           <p className="text-xs text-muted-foreground mb-5">
             {isRunning ? `Analyzing ${jobs.length} roles…` : `${jobs.length} roles ready · click to review your tailored resume`}
+            {aiRemaining !== null && (
+              <span className="ml-2 text-muted-foreground/70">· {aiRemaining}/{aiLimit} AI calls left today</span>
+            )}
             {lastSyncedAt && (
               <span className="ml-2 text-muted-foreground/70">
                 · Last synced {(() => {
@@ -880,15 +911,15 @@ Output complete rewritten resume:`, 4000, "roles");
                                 <div
                                   key={job.id}
                                   onClick={() => setSelected(job)}
-                                  className="animate-fade-up bg-card border border-border rounded-[9px] p-4 grid cursor-pointer hover:shadow-sm hover:-translate-y-px transition-all"
-                                  style={{ gridTemplateColumns: "38px 1fr 100px", gap: 12, alignItems: "center", animationDelay: `${i * 0.04}s` }}
+                                  className="group animate-fade-up bg-card border border-border rounded-[9px] p-4 grid cursor-pointer hover:shadow-sm hover:-translate-y-px transition-all"
+                                  style={{ gridTemplateColumns: "38px 1fr auto 100px", gap: 12, alignItems: "center", animationDelay: `${i * 0.04}s` }}
                                 >
                                   <div className="w-[38px] h-[38px] bg-secondary border border-border rounded-lg flex items-center justify-center">
                                     <span className="text-[10px] font-bold text-secondary-foreground">{initials(job.company)}</span>
                                   </div>
                                   <div>
                                     <div className="flex items-center flex-wrap gap-1.5 mb-0.5">
-                                      <span className="text-sm font-semibold">{job.title}</span>
+                                      <span className="text-sm font-semibold">{cleanText(job.title)}</span>
                                       {job.source && <span className="text-[10px] text-muted-foreground bg-secondary border border-border rounded px-1.5 py-0.5">{job.source}</span>}
                                     </div>
                                     <div className="text-xs text-muted-foreground">{job.company} · {job.location || "Remote"}{job.salary ? ` · ${job.salary}` : ""}</div>
@@ -898,6 +929,13 @@ Output complete rewritten resume:`, 4000, "roles");
                                       </div>
                                     )}
                                   </div>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteJob(job); }}
+                                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
+                                    title="Delete job"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
                                   <div className="text-right">
                                     {aLoading.has(job.id) ? (
                                       <div className="flex flex-col items-end gap-1">

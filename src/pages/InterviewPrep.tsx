@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
+import { AIQuotaBadge } from "@/components/AIQuotaBadge";
 import { callAI } from "@/lib/ai";
 import { useResume } from "@/hooks/use-resume";
 import { useProfile } from "@/hooks/use-profile";
@@ -255,7 +256,7 @@ Include 6 questions across categories like: system design, infrastructure, progr
   return (
     <div className="max-w-[900px] mx-auto p-7 pt-9">
       <h1 className="font-serif text-[26px] font-normal mb-1">Interview Preparation</h1>
-      <p className="text-xs text-muted-foreground mb-6">Select a role to build your end-to-end preparation plan — company research, signal analysis, behavioral & technical prep, and mock interviews.</p>
+      <p className="text-xs text-muted-foreground mb-6">Select a role to build your end-to-end preparation plan — company research, signal analysis, behavioral & technical prep, and mock interviews. <AIQuotaBadge feature="interview" /></p>
       <GroupedJobList
         jobs={jobs}
         onSelect={selectJob}

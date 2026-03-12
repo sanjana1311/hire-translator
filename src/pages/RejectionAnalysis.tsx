@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { callAI } from "@/lib/ai";
+import { AIQuotaBadge } from "@/components/AIQuotaBadge";
 import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -88,7 +89,7 @@ Return: {
       <div className="flex items-start justify-between mb-5">
         <div>
           <h1 className="font-serif text-[26px] font-normal mb-1">Rejection Analysis</h1>
-          <p className="text-xs text-muted-foreground">{rejCount} rejections analyzed for patterns</p>
+          <p className="text-xs text-muted-foreground">{rejCount} rejections analyzed for patterns <AIQuotaBadge feature="rejection" /></p>
         </div>
         <button
           onClick={analyze}
