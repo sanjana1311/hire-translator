@@ -254,7 +254,7 @@ Write email body only:`, 350, "applications");
     <div className="max-w-[920px] mx-auto p-7 pt-9">
       <h1 className="font-serif text-[26px] font-normal mb-1">Applications</h1>
       <p className="text-xs text-muted-foreground mb-5">
-        {applications.length} tracked · {needsFollowUp.length > 0 ? `${needsFollowUp.length} follow-up${needsFollowUp.length > 1 ? "s" : ""} overdue` : "all follow-ups current"}
+        {applications.length} tracked · {needsFollowUp.length > 0 ? `${needsFollowUp.length} follow-up${needsFollowUp.length > 1 ? "s" : ""} overdue` : "all follow-ups current"} <AIQuotaBadge feature="applications" />
       </p>
 
       {needsFollowUp.length > 0 && (

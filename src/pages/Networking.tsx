@@ -161,7 +161,7 @@ Return: {
   return (
     <div className="max-w-[880px] mx-auto p-7 pt-9">
       <h1 className="font-serif text-[26px] font-normal mb-1">Networking Intelligence</h1>
-      <p className="text-xs text-muted-foreground mb-5">Pick a role — get exactly who to find on LinkedIn, what to say, and how to get on their radar</p>
+      <p className="text-xs text-muted-foreground mb-5">Pick a role — get exactly who to find on LinkedIn, what to say, and how to get on their radar <AIQuotaBadge feature="networking" /></p>
       <GroupedJobList
         jobs={jobs}
         onSelect={handleSelectJob}
