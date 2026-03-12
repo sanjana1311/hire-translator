@@ -19,12 +19,30 @@ serve(async (req) => {
     if (!authHeader) throw new Error("Not authenticated");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseKey = Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? serviceKey;
     const anonClient = createClient(supabaseUrl, supabaseKey, {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: { user } } = await anonClient.auth.getUser();
     if (!user) throw new Error("Not authenticated");
+
+    // Rate limit: 10 AI calls per day per user
+    const adminClient = createClient(supabaseUrl, serviceKey);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const { count, error: countErr } = await adminClient
+      .from("ai_usage")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .gte("used_at", today.toISOString());
+    if (countErr) console.error("Usage count error:", countErr);
+    if ((count ?? 0) >= 10) {
+      return new Response(JSON.stringify({ error: "Daily AI limit reached (10/day). Try again tomorrow." }), {
+        status: 429,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const { prompt, maxTokens } = await req.json();
     if (!prompt) throw new Error("prompt required");
