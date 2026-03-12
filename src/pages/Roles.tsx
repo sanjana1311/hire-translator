@@ -176,7 +176,7 @@ RESUME: ${resumeText}
 JOB: ${job.title} at ${job.company}
 ${jobDesc}
 Return: {"score":0,"bucket":"must","matchSummary":"","strengths":["","",""],"gaps":["","",""],"missingKeywords":["","","","",""]}
-bucket: must>=75, tweak 40-74, low<40`, 600);
+bucket: must>=75, tweak 40-74, low<40`, 600, "roles");
       console.log('Raw scoring response:', raw);
       try {
         const parsed = JSON.parse(raw);
