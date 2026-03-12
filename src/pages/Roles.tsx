@@ -250,6 +250,25 @@ Output complete rewritten resume:`, 4000, "roles");
     }
   };
 
+  const handleDeleteJob = async (job: ImportedJob) => {
+    if (!profile?.id) return;
+    try {
+      const { error } = await supabase
+        .from("imported_jobs")
+        .delete()
+        .eq("id", job.id)
+        .eq("profile_id", profile.id);
+      if (error) throw error;
+      setJobs(prev => prev.filter(j => j.id !== job.id));
+      setResults(prev => { const n = { ...prev }; delete n[job.id]; return n; });
+      setResumes(prev => { const n = { ...prev }; delete n[job.id]; return n; });
+      if (selected?.id === job.id) setSelected(null);
+      toast.success("Job deleted");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to delete job");
+    }
+  };
+
   const copy = (t: string) => { navigator.clipboard.writeText(t); setCopied(true); setTimeout(() => setCopied(false), 2500); };
 
   // Filters
