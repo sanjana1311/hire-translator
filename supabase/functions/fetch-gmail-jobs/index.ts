@@ -512,6 +512,7 @@ export async function syncGmailJobs(options: {
   if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
   const allExtractedJobs: any[] = [];
+  let aiUnavailable = false;
 
   for (const email of relevantEmails) {
     const { subject, body, snippet } = email;
@@ -553,11 +554,16 @@ Rules:
           j._sourceSubject = subject;
         }
         allExtractedJobs.push(...fallbackJobs);
-        console.log(
-          `[Gmail Sync] Fallback extracted ${fallbackJobs.length} jobs from: ${subject.slice(0, 60)}`
-        );
       }
+      console.log(
+        `[Gmail Sync] Fallback extracted ${fallbackJobs.length} jobs from: ${subject.slice(0, 60)}`
+      );
     };
+
+    if (aiUnavailable) {
+      pushFallbackJobs();
+      continue;
+    }
 
     try {
       const aiRes = await fetch(
@@ -582,6 +588,9 @@ Rules:
         if (status === 429) {
           console.warn("Rate limited, pausing...");
           await new Promise((r) => setTimeout(r, 2000));
+        } else if (status === 402) {
+          aiUnavailable = true;
+          console.warn("AI unavailable (402). Falling back to parser for all remaining emails.");
         } else {
           console.error("AI error:", status);
         }
