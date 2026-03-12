@@ -303,7 +303,30 @@ Output complete rewritten resume:`, 4000, "roles");
     }
   };
 
-  const copy = (t: string) => { navigator.clipboard.writeText(t); setCopied(true); setTimeout(() => setCopied(false), 2500); };
+  const handleRescoreAll = async () => {
+    if (!resumeText) {
+      toast.error("Upload your resume first before scoring");
+      return;
+    }
+    // Clear all existing analyses in DB
+    const jobIds = jobs.map(j => j.id);
+    for (const id of jobIds) {
+      await supabase
+        .from("imported_jobs")
+        .update({ analysis: null, tailored_resume: null, status: "new" } as any)
+        .eq("id", id);
+    }
+    // Clear local state
+    setResults({});
+    setResumes({});
+    setDone(0);
+    didAutoScore.current = false;
+    // Reload to trigger auto-score
+    await loadJobsFromDB();
+    toast.success("Re-scoring all jobs…");
+  };
+
+
 
   // Filters
   const [filterFamily, setFilterFamily] = useState<RoleFamilyKey | "all">("all");
