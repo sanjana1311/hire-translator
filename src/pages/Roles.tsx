@@ -237,6 +237,32 @@ bucket: must if score>=75, tweak if 40-74, low if <40`, 800, "roles");
     // Tailored resume is now generated on-demand when user clicks a job
   };
 
+  const generateTailoredResume = async (job: ImportedJob) => {
+    if (!resumeText) return;
+    const r = results[job.id];
+    if (!r || r.error) return;
+    const jobDesc = job.description || job.snippet || `${job.title} at ${job.company}`;
+    setRL(prev => new Set([...prev, job.id]));
+    try {
+      const tailoredResume = await callAI(`Expert ATS resume writer. Rewrite for this specific job. Keep all real facts. Plain text only, no markdown.
+ORIGINAL: ${resumeText}
+TARGET: ${job.title} at ${job.company}
+JD: ${jobDesc}
+WEAVE IN: ${r.missingKeywords?.join(", ")}
+Output complete rewritten resume:`, 4000, "roles");
+      setResumes(prev => ({ ...prev, [job.id]: tailoredResume }));
+      await supabase
+        .from("imported_jobs")
+        .update({ tailored_resume: tailoredResume })
+        .eq("id", job.id);
+      refreshAIUsage();
+    } catch (e: any) {
+      console.error('Resume rewrite failed:', e);
+      toast.error(e.message || "Failed to generate tailored resume");
+    }
+    setRL(prev => { const s = new Set(prev); s.delete(job.id); return s; });
+  };
+
   const handleMarkApplied = async (job: ImportedJob) => {
     if (!profile?.id || appliedJobs.has(job.id)) return;
     setApplyLoading(true);
