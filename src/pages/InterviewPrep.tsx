@@ -98,7 +98,7 @@ Return: {
   "roleContext":"how this role fits into the org",
   "whyHiring":"why they are likely hiring for this role",
   "talkingPoints":["5 insights the candidate should mention in interviews"]
-}`, 2000);
+}`, 2000, "interview");
       setState(p => ({ ...p, company: parseJSON(raw) }));
     } catch (e) { console.error("Company gen failed:", e); }
     setLoading(p => ({ ...p, company: false }));
