@@ -354,7 +354,7 @@ export async function syncGmailJobs(options: {
   console.log("[Gmail Sync] Messages found:", messageIds.length);
 
   // Step 2 — Fetch each email body
-  const emails: { subject: string; body: string; snippet: string }[] = [];
+  const emails: { subject: string; body: string; bodyText: string; snippet: string }[] = [];
   for (const msgId of messageIds) {
     const msgRes = await fetch(
       `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=full`,
@@ -386,13 +386,12 @@ export async function syncGmailJobs(options: {
       }
     }
 
-    // Strip HTML tags for cleaner AI input
-    const body = rawBody
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
+    const bodyText = htmlToTextWithLineBreaks(rawBody);
 
-    emails.push({ subject, body, snippet });
+    // Compact version for AI prompt
+    const body = bodyText.replace(/\s+/g, " ").trim();
+
+    emails.push({ subject, body, bodyText, snippet });
   }
 
   // Step 3 — Pre-filter: only emails with job signals
