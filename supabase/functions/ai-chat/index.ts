@@ -11,8 +11,8 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+    if (!GROQ_API_KEY) throw new Error("GROQ_API_KEY not configured");
 
     // Verify auth
     const authHeader = req.headers.get("Authorization");
@@ -29,14 +29,14 @@ serve(async (req) => {
     const { prompt, maxTokens } = await req.json();
     if (!prompt) throw new Error("prompt required");
 
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${GROQ_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "llama-3.3-70b-versatile",
         temperature: 0.3,
         top_p: 0.8,
         max_tokens: maxTokens || 1000,
@@ -50,8 +50,7 @@ serve(async (req) => {
       const status = res.status;
       const errText = await res.text();
       if (status === 429) throw new Error("Rate limit exceeded. Please try again in a moment.");
-      if (status === 402) throw new Error("AI credits exhausted.");
-      console.error("AI gateway error:", status, errText);
+      console.error("Groq API error:", status, errText);
       throw new Error("AI call failed");
     }
 
