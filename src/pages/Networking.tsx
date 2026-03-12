@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
+import { AIQuotaBadge } from "@/components/AIQuotaBadge";
 import { callAI } from "@/lib/ai";
 import { initials } from "@/data/seed";
 import { useProfile } from "@/hooks/use-profile";

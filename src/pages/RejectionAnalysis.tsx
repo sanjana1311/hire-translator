@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { callAI } from "@/lib/ai";
+import { AIQuotaBadge } from "@/components/AIQuotaBadge";
 import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/integrations/supabase/client";
 
