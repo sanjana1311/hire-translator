@@ -75,6 +75,9 @@ serve(async (req) => {
     const data = await res.json();
     const text = data.choices?.[0]?.message?.content || "";
 
+    // Record usage
+    await adminClient.from("ai_usage").insert({ user_id: user.id });
+
     return new Response(JSON.stringify({ text }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
