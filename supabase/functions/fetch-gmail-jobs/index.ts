@@ -341,13 +341,16 @@ export async function syncGmailJobs(options: {
 
   const allExtractedJobs: any[] = [];
 
-  for (const { subject, body } of relevantEmails) {
+  for (const email of relevantEmails) {
+    const { subject, body, snippet } = email;
+
     // Limit body to keep prompt manageable but allow enough for multi-job emails
-    const truncatedBody = body.slice(0, 8000);
+    const truncatedBody = body.slice(0, 5000);
 
     const prompt = `You are parsing a job alert email. Extract every job listing mentioned. Return ONLY a valid JSON array, no other text, no markdown fences.
 
 EMAIL SUBJECT: ${subject}
+EMAIL SNIPPET: ${snippet}
 EMAIL BODY:
 ${truncatedBody}
 
@@ -371,6 +374,19 @@ Rules:
 - Keep snippet SHORT (under 100 chars) to avoid long output
 - Return raw JSON array only`;
 
+    const pushFallbackJobs = () => {
+      const fallbackJobs = fallbackExtractJobsFromEmail(email);
+      if (fallbackJobs.length > 0) {
+        for (const j of fallbackJobs) {
+          j._sourceSubject = subject;
+        }
+        allExtractedJobs.push(...fallbackJobs);
+        console.log(
+          `[Gmail Sync] Fallback extracted ${fallbackJobs.length} jobs from: ${subject.slice(0, 60)}`
+        );
+      }
+    };
+
     try {
       const aiRes = await fetch(
         "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -381,12 +397,10 @@ Rules:
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
+            model: "google/gemini-2.5-flash-lite",
             temperature: 0.0,
-            max_tokens: 8000,
-            messages: [
-              { role: "user", content: prompt },
-            ],
+            max_tokens: 1200,
+            messages: [{ role: "user", content: prompt }],
           }),
         }
       );
@@ -396,31 +410,36 @@ Rules:
         if (status === 429) {
           console.warn("Rate limited, pausing...");
           await new Promise((r) => setTimeout(r, 2000));
-          continue;
+        } else {
+          console.error("AI error:", status);
         }
-        console.error("AI error:", status);
+        pushFallbackJobs();
         continue;
       }
 
       const aiData = await aiRes.json();
       const raw = aiData.choices?.[0]?.message?.content || "";
       const finishReason = aiData.choices?.[0]?.finish_reason;
-      console.log(`[Gmail Sync] AI response for "${subject.slice(0, 50)}": ${raw.length} chars, finish_reason: ${finishReason}`);
-      
+      console.log(
+        `[Gmail Sync] AI response for "${subject.slice(0, 50)}": ${raw.length} chars, finish_reason: ${finishReason}`
+      );
+
       let cleaned = raw.replace(/```json|```/g, "").trim();
 
       // Repair truncated JSON: if the response was cut off, try to close the array
-      if (finishReason === "length" || (!cleaned.endsWith("]") && cleaned.includes("{"))) {
-        console.warn(`[Gmail Sync] Truncated AI response for: ${subject.slice(0, 50)}, attempting repair`);
-        // Find the last complete object by finding last "},"  or "}"
+      if (
+        finishReason === "length" ||
+        (!cleaned.endsWith("]") && cleaned.includes("{"))
+      ) {
+        console.warn(
+          `[Gmail Sync] Truncated AI response for: ${subject.slice(0, 50)}, attempting repair`
+        );
         const lastCompleteObj = cleaned.lastIndexOf("}");
         if (lastCompleteObj > 0) {
           cleaned = cleaned.slice(0, lastCompleteObj + 1);
-          // Ensure it ends with ]
           if (!cleaned.endsWith("]")) {
             cleaned += "]";
           }
-          // Ensure it starts with [
           if (!cleaned.startsWith("[")) {
             cleaned = "[" + cleaned;
           }
@@ -428,15 +447,20 @@ Rules:
       }
 
       const jobs = JSON.parse(cleaned);
-      if (Array.isArray(jobs)) {
+      if (Array.isArray(jobs) && jobs.length > 0) {
         for (const j of jobs) {
           j._sourceSubject = subject;
         }
         allExtractedJobs.push(...jobs);
-        console.log(`[Gmail Sync] Extracted ${jobs.length} jobs from: ${subject.slice(0, 60)}`);
+        console.log(
+          `[Gmail Sync] Extracted ${jobs.length} jobs from: ${subject.slice(0, 60)}`
+        );
+      } else {
+        pushFallbackJobs();
       }
     } catch (e) {
       console.error("AI extraction error for email:", subject, e);
+      pushFallbackJobs();
       continue;
     }
 
