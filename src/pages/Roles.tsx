@@ -325,7 +325,7 @@ Output complete rewritten resume:`, 4000, "roles");
     await loadJobsFromDB();
     toast.success("Re-scoring all jobs…");
   };
-
+  const copy = (t: string) => { navigator.clipboard.writeText(t); setCopied(true); setTimeout(() => setCopied(false), 2500); };
 
 
   // Filters
