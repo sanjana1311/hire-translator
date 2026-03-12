@@ -42,7 +42,7 @@ const MockInterview = ({ jobTitle, company, jobDescription, resumeText }: Props)
     try {
       const modeLabel = selectedMode === "hiring_manager" ? "hiring manager" : "technical interviewer";
       const raw = await callAI(`You are a ${modeLabel} at ${company} interviewing for ${jobTitle}. Start with a warm opening and ask your first interview question. Be realistic. One question only. 2-3 sentences max.
-JD context: ${jobDescription.slice(0, 500)}`, 300);
+JD context: ${jobDescription.slice(0, 500)}`, 300, "interview");
       setTurns([{ role: "interviewer", text: raw }]);
       setQuestionCount(1);
     } catch {
