@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.gmail-sync-cron]
 verify_jwt = false
+
+[functions.notify-waitlist]
+verify_jwt = false

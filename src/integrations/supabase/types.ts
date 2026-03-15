@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      access_requests: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          linkedin_url: string | null
+          reason: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name: string
+          id?: string
+          linkedin_url?: string | null
+          reason?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          linkedin_url?: string | null
+          reason?: string | null
+        }
+        Relationships: []
+      }
       ai_usage: {
         Row: {
           feature: string
