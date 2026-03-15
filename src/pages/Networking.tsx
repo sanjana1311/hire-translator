@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import GroupedJobList from "@/components/GroupedJobList";
 
 const Spinner = ({ size = 16 }: { size?: number }) => (
-  <div className="border-2 border-border border-t-foreground rounded-full animate-spin" style={{ width: size, height: size }} />
+  <div className="border-2 border-foreground/10 border-t-foreground/60 rounded-full animate-spin" style={{ width: size, height: size }} />
 );
 
 interface Job {
@@ -93,63 +93,63 @@ Return: {
   if (netJob) {
     const n = netResult[netJob.id];
     return (
-      <div className="max-w-[880px] mx-auto p-7 animate-fade-up">
-        <button onClick={() => setNetJob(null)} className="bg-transparent border border-border text-muted-foreground rounded-[6px] px-3 py-1 text-xs mb-5 hover:text-foreground transition-colors">
+      <div className="max-w-[880px] mx-auto px-6 py-10 animate-fade-up">
+        <button onClick={() => setNetJob(null)} className="text-xs text-muted-foreground hover:text-foreground transition-colors mb-6 flex items-center gap-1">
           ← All roles
         </button>
-        <div className="bg-card border border-border rounded-[11px] p-4 mb-3.5">
-          <div className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider mb-0.5">{netJob.company}</div>
-          <div className="font-serif text-lg">{netJob.title}</div>
+        <div className="apple-card p-5 mb-4">
+          <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-0.5">{netJob.company}</div>
+          <div className="text-lg font-semibold">{netJob.title}</div>
         </div>
 
         {netLoading === netJob.id ? (
-          <div className="text-center py-12 bg-card border border-border rounded-[11px]">
+          <div className="text-center py-14 apple-card">
             <Spinner size={20} />
             <p className="animate-pulse-dot text-xs text-muted-foreground mt-3">Finding your networking strategy…</p>
           </div>
         ) : n?.error ? (
-          <div className="text-xs text-muted-foreground p-5">Analysis failed — please retry.</div>
+          <div className="text-xs text-muted-foreground apple-card p-5">Analysis failed — please retry.</div>
         ) : n ? (
           <div className="flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-card border border-border rounded-[11px] p-4">
-                <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide mb-3">Who to Find on LinkedIn</div>
+              <div className="apple-card p-5">
+                <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-3">Who to Find on LinkedIn</div>
                 {n.connectionAngles?.map((a, i) => (
-                  <div key={i} className="flex gap-1.5 mb-2 text-xs leading-relaxed"><span className="font-bold shrink-0">{i + 1}.</span>{a}</div>
+                  <div key={i} className="flex gap-2 mb-2.5 text-xs leading-relaxed"><span className="font-semibold shrink-0 text-muted-foreground">{i + 1}.</span>{a}</div>
                 ))}
               </div>
-              <div className="bg-card border border-border rounded-[11px] p-4">
-                <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide mb-3">LinkedIn Search Strings</div>
+              <div className="apple-card p-5">
+                <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-3">LinkedIn Search Strings</div>
                 {n.searchQueries?.map((q, i) => (
-                  <div key={i} onClick={() => copy(q)} className="bg-secondary border border-border rounded-[6px] p-2 mb-2 text-xs font-mono cursor-pointer hover:bg-muted transition-colors">
+                  <div key={i} onClick={() => copy(q)} className="bg-background border border-border rounded-lg p-2.5 mb-2 text-xs font-mono cursor-pointer hover:bg-secondary/60 transition-colors">
                     {q} <span className="text-[10px] text-muted-foreground">· click to copy</span>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="bg-card border border-border rounded-[11px] p-4">
-              <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide mb-3">Outreach Messages</div>
+            <div className="apple-card p-5">
+              <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-3">Outreach Messages</div>
               {n.outreachMessages?.map((m, i) => (
-                <div key={i} className="bg-secondary border border-border rounded-lg p-3.5 mb-2.5">
+                <div key={i} className="bg-background border border-border rounded-xl p-4 mb-2.5">
                   <div className="text-[10.5px] text-muted-foreground font-semibold uppercase tracking-wide mb-2">{m.persona}</div>
-                  <p className="text-xs leading-relaxed mb-2">{m.message}</p>
-                  <button onClick={() => copy(m.message)} className="bg-card border border-border text-secondary-foreground rounded-[5px] px-2.5 py-1 text-[11.5px]">Copy message</button>
+                  <p className="text-xs leading-relaxed mb-3">{m.message}</p>
+                  <button onClick={() => copy(m.message)} className="bg-secondary text-secondary-foreground rounded-lg px-3 py-1.5 text-[11px] font-medium hover:bg-secondary/80 transition-colors">Copy message</button>
                 </div>
               ))}
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-[11px] p-4" style={{ background: "hsl(var(--success-bg))", border: "1px solid hsl(var(--success-border))" }}>
-                <div className="text-[10px] font-bold uppercase tracking-wide mb-2.5" style={{ color: "hsl(var(--success))" }}>Smart Questions to Ask</div>
+              <div className="rounded-xl p-5" style={{ background: "hsl(var(--success-bg))", border: "1px solid hsl(var(--success-border))" }}>
+                <div className="text-[10px] font-semibold uppercase tracking-wide mb-3 text-success">Smart Questions to Ask</div>
                 {n.insiderQuestions?.map((q, i) => (
-                  <div key={i} className="flex gap-1.5 mb-2 text-xs leading-relaxed text-foreground">
-                    <span style={{ color: "hsl(var(--success))" }}>Q{i + 1}</span>{q}
+                  <div key={i} className="flex gap-2 mb-2.5 text-xs leading-relaxed text-foreground">
+                    <span className="text-success font-medium">Q{i + 1}</span>{q}
                   </div>
                 ))}
               </div>
-              <div className="rounded-[11px] p-4" style={{ background: "hsl(var(--warning-bg))", border: "1px solid hsl(var(--warning-border))" }}>
-                <div className="text-[10px] font-bold uppercase tracking-wide mb-2.5" style={{ color: "hsl(var(--warning))" }}>LinkedIn Content Angle</div>
+              <div className="rounded-xl p-5" style={{ background: "hsl(var(--warning-bg))", border: "1px solid hsl(var(--warning-border))" }}>
+                <div className="text-[10px] font-semibold uppercase tracking-wide mb-3 text-warning">LinkedIn Content Angle</div>
                 <p className="text-xs leading-relaxed text-foreground">{n.contentAngle}</p>
-                <button onClick={() => copy(n.contentAngle || "")} className="mt-2.5 bg-card border border-border text-secondary-foreground rounded-[5px] px-2.5 py-1 text-[11.5px]">Copy idea</button>
+                <button onClick={() => copy(n.contentAngle || "")} className="mt-3 bg-card border border-border text-secondary-foreground rounded-lg px-3 py-1.5 text-[11px] font-medium hover:bg-secondary/80 transition-colors">Copy idea</button>
               </div>
             </div>
           </div>
@@ -159,9 +159,9 @@ Return: {
   }
 
   return (
-    <div className="max-w-[880px] mx-auto p-7 pt-9">
-      <h1 className="font-serif text-[26px] font-normal mb-1">Networking Intelligence</h1>
-      <p className="text-xs text-muted-foreground mb-5">Pick a role — get exactly who to find on LinkedIn, what to say, and how to get on their radar <AIQuotaBadge feature="networking" /></p>
+    <div className="max-w-[880px] mx-auto px-6 py-10">
+      <h1 className="text-2xl font-semibold tracking-tight mb-0.5">Networking Intelligence</h1>
+      <p className="text-xs text-muted-foreground mb-6">Pick a role — get exactly who to find on LinkedIn, what to say, and how to get on their radar <AIQuotaBadge feature="networking" /></p>
       <GroupedJobList
         jobs={jobs}
         onSelect={handleSelectJob}

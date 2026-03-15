@@ -182,20 +182,20 @@ Include 6 questions across categories like: system design, infrastructure, progr
 
   if (selectedJob) {
     return (
-      <div className="max-w-[900px] mx-auto p-7 animate-fade-up">
+      <div className="max-w-[900px] mx-auto px-6 py-10 animate-fade-up">
         <button
           onClick={() => setSelectedJob(null)}
-          className="bg-transparent border border-border text-muted-foreground rounded-[6px] px-3 py-1 text-xs mb-5 hover:text-foreground transition-colors"
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors mb-6 flex items-center gap-1"
         >
           ← All roles
         </button>
 
-        <div className="bg-card border border-border rounded-xl p-5 mb-4 flex items-center gap-4">
-          <div className="w-12 h-12 bg-foreground rounded-lg flex items-center justify-center shrink-0">
+        <div className="apple-card p-5 mb-5 flex items-center gap-4">
+          <div className="w-11 h-11 bg-foreground rounded-xl flex items-center justify-center shrink-0">
             <span className="text-background text-xs font-bold">{initials(selectedJob.company)}</span>
           </div>
           <div className="flex-1">
-            <h1 className="font-serif text-xl font-normal">{selectedJob.title}</h1>
+            <h1 className="text-lg font-semibold">{selectedJob.title}</h1>
             <p className="text-xs text-muted-foreground">{selectedJob.company} · {selectedJob.location}</p>
           </div>
           {anyLoading && (
@@ -254,8 +254,8 @@ Include 6 questions across categories like: system design, infrastructure, progr
   }
 
   return (
-    <div className="max-w-[900px] mx-auto p-7 pt-9">
-      <h1 className="font-serif text-[26px] font-normal mb-1">Interview Preparation</h1>
+    <div className="max-w-[900px] mx-auto px-6 py-10">
+      <h1 className="text-2xl font-semibold tracking-tight mb-0.5">Interview Preparation</h1>
       <p className="text-xs text-muted-foreground mb-6">Select a role to build your end-to-end preparation plan — company research, signal analysis, behavioral & technical prep, and mock interviews. <AIQuotaBadge feature="interview" /></p>
       <GroupedJobList
         jobs={jobs}

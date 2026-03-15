@@ -9,14 +9,14 @@ import {
   type Application,
 } from "@/data/seed";
 import { classifyRole, getRoleFamilyLabel, ROLE_FAMILIES, type RoleFamilyKey } from "@/lib/role-classifier";
-import { ChevronDown, ChevronRight, Filter, X } from "lucide-react";
+import { ChevronDown, ChevronRight, SlidersHorizontal, X } from "lucide-react";
 
 const Spinner = ({ size = 16 }: { size?: number }) => (
-  <div className="border-2 border-border border-t-foreground rounded-full animate-spin" style={{ width: size, height: size }} />
+  <div className="border-2 border-foreground/10 border-t-foreground/60 rounded-full animate-spin" style={{ width: size, height: size }} />
 );
 
 const Tag = ({ children, color, bg, border }: { children: React.ReactNode; color?: string; bg?: string; border?: string }) => (
-  <span className="text-[11px] font-medium rounded px-1.5 py-0.5" style={{ color: color || undefined, background: bg || undefined, border: border ? `1px solid ${border}` : undefined }}>
+  <span className="text-[11px] font-medium rounded-md px-1.5 py-0.5" style={{ color: color || undefined, background: bg || undefined, border: border ? `1px solid ${border}` : undefined }}>
     {children}
   </span>
 );
@@ -59,7 +59,6 @@ const Applications = () => {
   const [emailSent, setEmailSent] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Filters
   const [filterFamily, setFilterFamily] = useState<RoleFamilyKey | "all">("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterCompany, setFilterCompany] = useState<string>("all");
@@ -108,7 +107,6 @@ Write email body only:`, 350, "applications");
     setFUL(null);
   };
 
-  // Classify and group
   const classifiedApps = useMemo(() =>
     applications.map(app => ({ ...app, roleFamily: classifyRole(app.title) })),
     [applications]
@@ -151,38 +149,39 @@ Write email body only:`, 350, "applications");
     setFilterCompany("all");
   };
 
+  // Detail view
   if (selApp) {
     const sm = STATUS_META[selApp.status] || STATUS_META.applied;
     return (
-      <div className="max-w-[720px] mx-auto p-7 animate-fade-up">
-        <button onClick={() => setSelApp(null)} className="bg-transparent border border-border text-muted-foreground rounded-[6px] px-3 py-1 text-xs mb-5 hover:text-foreground transition-colors">
+      <div className="max-w-[720px] mx-auto px-6 py-10 animate-fade-up">
+        <button onClick={() => setSelApp(null)} className="text-xs text-muted-foreground hover:text-foreground transition-colors mb-6 flex items-center gap-1">
           ← All applications
         </button>
         <div className="flex flex-col gap-3">
-          <div className="bg-card border border-border rounded-[11px] p-5">
+          <div className="apple-card p-5">
             <div className="flex justify-between items-start">
-              <div className="flex gap-3">
-                <div className="w-10 h-10 bg-foreground rounded-lg flex items-center justify-center shrink-0">
+              <div className="flex gap-3.5">
+                <div className="w-10 h-10 bg-foreground rounded-xl flex items-center justify-center shrink-0">
                   <span className="text-background text-[11px] font-bold">{initials(selApp.company)}</span>
                 </div>
                 <div>
                   <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-0.5">{selApp.company}</div>
-                  <h2 className="font-serif text-[19px] font-normal mb-0.5">{selApp.title}</h2>
+                  <h2 className="text-lg font-semibold mb-0.5">{selApp.title}</h2>
                   <div className="text-xs text-muted-foreground">Applied {fmtDate(selApp.appliedDate)} · {daysSince(selApp.appliedDate)} days ago</div>
                 </div>
               </div>
               <select
                 value={selApp.status}
                 onChange={e => { const u = { ...selApp, status: e.target.value }; setSelApp(u); setApps(prev => prev.map(a => a.jobId === selApp.jobId ? u : a)); }}
-                className="text-xs border border-border rounded-[6px] px-2 py-1 bg-card cursor-pointer"
+                className="text-xs border border-border rounded-lg px-2.5 py-1.5 bg-background cursor-pointer"
               >
                 {Object.entries(STATUS_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
             </div>
           </div>
 
-          <div className="bg-card border border-border rounded-[11px] p-4">
-            <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide mb-2.5">Email Activity</div>
+          <div className="apple-card p-4">
+            <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-2.5">Email Activity</div>
             {selApp.lastEmail ? (
               <div className="text-xs text-secondary-foreground">Reply detected from {selApp.recruiterEmail} on {fmtDate(selApp.lastEmail)}</div>
             ) : (
@@ -190,30 +189,30 @@ Write email body only:`, 350, "applications");
             )}
           </div>
 
-          <div className="bg-card border border-border rounded-[11px] p-4">
-            <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide mb-2">Notes</div>
+          <div className="apple-card p-4">
+            <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-2">Notes</div>
             <textarea
               value={selApp.notes}
               onChange={e => { const u = { ...selApp, notes: e.target.value }; setSelApp(u); setApps(prev => prev.map(a => a.jobId === selApp.jobId ? u : a)); }}
               placeholder="Add notes…"
-              className="w-full bg-secondary border border-border rounded-[6px] p-2.5 text-xs text-secondary-foreground min-h-[70px] outline-none resize-y"
+              className="w-full bg-background border border-border rounded-lg p-3 text-xs text-foreground min-h-[70px] outline-none resize-y focus:ring-1 focus:ring-ring transition-shadow"
             />
           </div>
 
           {selApp.status !== "rejected" && (
-            <div className="bg-card border border-border rounded-[11px] p-4">
+            <div className="apple-card p-4">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide">Follow-up Email</div>
+                  <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">Follow-up Email</div>
                   {daysSince(selApp.appliedDate) >= 7 && !selApp.lastEmail && (
-                    <div className="text-[11.5px] mt-0.5" style={{ color: "hsl(var(--warning))" }}>{daysSince(selApp.appliedDate)} days since application</div>
+                    <div className="text-[11.5px] mt-0.5 text-warning">{daysSince(selApp.appliedDate)} days since application</div>
                   )}
                 </div>
                 {!fuDrafts[selApp.jobId] && (
                   <button
                     onClick={() => draftFollowUp(selApp)}
                     disabled={fuLoading === selApp.jobId}
-                    className="bg-foreground text-background rounded-[6px] px-3 py-1 text-xs font-semibold disabled:opacity-50"
+                    className="bg-foreground text-background rounded-lg px-3.5 py-1.5 text-xs font-semibold disabled:opacity-50 transition-opacity"
                   >
                     {fuLoading === selApp.jobId ? "Drafting…" : "Draft follow-up"}
                   </button>
@@ -229,17 +228,17 @@ Write email body only:`, 350, "applications");
                   <textarea
                     value={fuDrafts[selApp.jobId]}
                     onChange={e => setFUD(prev => ({ ...prev, [selApp.jobId]: e.target.value }))}
-                    className="w-full bg-secondary border border-border rounded-[6px] p-2.5 text-xs text-secondary-foreground min-h-[130px] outline-none resize-y leading-relaxed"
+                    className="w-full bg-background border border-border rounded-lg p-3 text-xs text-foreground min-h-[130px] outline-none resize-y leading-relaxed focus:ring-1 focus:ring-ring transition-shadow"
                   />
-                  <div className="flex gap-2 mt-2">
+                  <div className="flex gap-2 mt-2.5">
                     <button
                       onClick={async () => { await new Promise(r => setTimeout(r, 1200)); setEmailSent(true); setTimeout(() => setEmailSent(false), 2500); }}
-                      className={`rounded-[6px] px-3.5 py-1.5 text-xs font-semibold transition-colors ${emailSent ? "bg-[hsl(var(--success-bg))] border border-[hsl(var(--success-border))] text-[hsl(var(--success))]" : "bg-foreground text-background"}`}
+                      className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${emailSent ? "bg-[hsl(var(--success-bg))] border border-[hsl(var(--success-border))] text-success" : "bg-foreground text-background"}`}
                     >
                       {emailSent ? "Sent ✓" : "Send via Gmail"}
                     </button>
-                    <button onClick={() => copy(fuDrafts[selApp.jobId])} className="bg-secondary border border-border text-secondary-foreground rounded-[6px] px-3 py-1.5 text-xs">Copy</button>
-                    <button onClick={() => setFUD(prev => { const n = { ...prev }; delete n[selApp.jobId]; return n; })} className="text-muted-foreground text-xs hover:text-foreground">Regenerate</button>
+                    <button onClick={() => copy(fuDrafts[selApp.jobId])} className="bg-secondary text-secondary-foreground rounded-lg px-3 py-1.5 text-xs font-medium">Copy</button>
+                    <button onClick={() => setFUD(prev => { const n = { ...prev }; delete n[selApp.jobId]; return n; })} className="text-muted-foreground text-xs hover:text-foreground transition-colors">Regenerate</button>
                   </div>
                 </div>
               )}
@@ -251,48 +250,49 @@ Write email body only:`, 350, "applications");
   }
 
   return (
-    <div className="max-w-[920px] mx-auto p-7 pt-9">
-      <h1 className="font-serif text-[26px] font-normal mb-1">Applications</h1>
-      <p className="text-xs text-muted-foreground mb-5">
+    <div className="max-w-[920px] mx-auto px-6 py-10">
+      <h1 className="text-2xl font-semibold tracking-tight mb-0.5">Applications</h1>
+      <p className="text-xs text-muted-foreground mb-6">
         {applications.length} tracked · {needsFollowUp.length > 0 ? `${needsFollowUp.length} follow-up${needsFollowUp.length > 1 ? "s" : ""} overdue` : "all follow-ups current"} <AIQuotaBadge feature="applications" />
       </p>
 
       {needsFollowUp.length > 0 && (
-        <div className="rounded-[9px] p-3 px-4 mb-4 flex items-center gap-2" style={{ background: "hsl(var(--warning-bg))", border: "1px solid hsl(var(--warning-border))" }}>
+        <div className="rounded-xl p-3.5 px-4 mb-5 flex items-center gap-2.5" style={{ background: "hsl(var(--warning-bg))", border: "1px solid hsl(var(--warning-border))" }}>
           <span>⏰</span>
-          <span className="text-xs font-medium" style={{ color: "hsl(var(--warning))" }}>
+          <span className="text-xs font-medium text-warning">
             {needsFollowUp.length} application{needsFollowUp.length > 1 ? "s" : ""} past 7 days with no reply
           </span>
         </div>
       )}
 
-      <div className="grid grid-cols-5 gap-2 mb-5">
+      {/* Status summary */}
+      <div className="grid grid-cols-5 gap-2 mb-6">
         {Object.entries(STATUS_META).map(([key, meta]) => {
           const count = applications.filter(a => a.status === key).length;
           return (
-            <div key={key} className="bg-card border border-border rounded-[9px] p-3">
-              <div className="flex items-center gap-1.5 mb-0.5">
+            <div key={key} className="apple-card p-3.5">
+              <div className="flex items-center gap-1.5 mb-1">
                 <div className="w-1.5 h-1.5 rounded-full" style={{ background: meta.dot }} />
                 <span className="text-[10.5px] font-semibold" style={{ color: meta.text }}>{meta.label}</span>
               </div>
-              <div className="font-serif text-[26px]">{count}</div>
+              <div className="text-2xl font-semibold tabular-nums">{count}</div>
             </div>
           );
         })}
       </div>
 
       {/* Filters */}
-      <div className="mb-4">
-        <div className="flex items-center gap-2 mb-2">
+      <div className="mb-5">
+        <div className="flex items-center gap-2 mb-2.5">
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-[6px] border transition-colors ${
+            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-all duration-200 ${
               activeFilterCount > 0
-                ? "bg-primary/10 border-primary/30 text-primary"
-                : "bg-secondary border-border text-secondary-foreground hover:bg-accent"
+                ? "bg-foreground/[0.06] text-foreground"
+                : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
             }`}
           >
-            <Filter className="w-3 h-3" />
+            <SlidersHorizontal className="w-3 h-3" />
             Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
           </button>
           {activeFilterCount > 0 && (
@@ -303,13 +303,13 @@ Write email body only:`, 350, "applications");
         </div>
 
         {showFilters && (
-          <div className="grid grid-cols-3 gap-2 bg-card border border-border rounded-[9px] p-3 animate-fade-up">
+          <div className="grid grid-cols-3 gap-3 apple-card p-4 animate-fade-up">
             <div>
-              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1 block">Role Family</label>
+              <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">Role Family</label>
               <select
                 value={filterFamily}
                 onChange={e => setFilterFamily(e.target.value as any)}
-                className="w-full text-xs bg-secondary border border-border rounded-[5px] px-2 py-1.5 text-foreground"
+                className="w-full text-xs bg-background border border-border rounded-lg px-2.5 py-2 text-foreground"
               >
                 <option value="all">All Families</option>
                 {ROLE_FAMILIES.map(f => (
@@ -319,11 +319,11 @@ Write email body only:`, 350, "applications");
               </select>
             </div>
             <div>
-              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1 block">Status</label>
+              <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">Status</label>
               <select
                 value={filterStatus}
                 onChange={e => setFilterStatus(e.target.value)}
-                className="w-full text-xs bg-secondary border border-border rounded-[5px] px-2 py-1.5 text-foreground"
+                className="w-full text-xs bg-background border border-border rounded-lg px-2.5 py-2 text-foreground"
               >
                 <option value="all">All Statuses</option>
                 {Object.entries(STATUS_META).map(([k, v]) => (
@@ -332,11 +332,11 @@ Write email body only:`, 350, "applications");
               </select>
             </div>
             <div>
-              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1 block">Company</label>
+              <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">Company</label>
               <select
                 value={filterCompany}
                 onChange={e => setFilterCompany(e.target.value)}
-                className="w-full text-xs bg-secondary border border-border rounded-[5px] px-2 py-1.5 text-foreground"
+                className="w-full text-xs bg-background border border-border rounded-lg px-2.5 py-2 text-foreground"
               >
                 <option value="all">All Companies</option>
                 {uniqueCompanies.map(c => (
@@ -350,23 +350,23 @@ Write email body only:`, 350, "applications");
 
       {/* Grouped application list */}
       {filteredApps.length === 0 ? (
-        <div className="bg-card border border-dashed border-border rounded-[11px] p-10 text-center">
+        <div className="apple-card border-dashed p-12 text-center">
           <p className="text-sm text-muted-foreground">No applications match your filters.</p>
-          <button onClick={clearFilters} className="text-xs text-primary hover:underline mt-2">Clear filters</button>
+          <button onClick={clearFilters} className="text-xs text-accent hover:underline mt-2">Clear filters</button>
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-5">
           {groupedData.map(({ familyKey, label, apps: familyApps }) => {
             const isCollapsed = collapsedFamilies.has(familyKey);
             return (
               <div key={familyKey}>
                 <button
                   onClick={() => toggleFamily(familyKey)}
-                  className="flex items-center gap-2 w-full text-left mb-2 group"
+                  className="flex items-center gap-2 w-full text-left mb-2.5 group"
                 >
                   {isCollapsed ? <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
-                  <h2 className="font-serif text-[17px] font-normal">{label}</h2>
-                  <span className="text-[11px] text-muted-foreground">({familyApps.length})</span>
+                  <h2 className="text-[15px] font-semibold">{label}</h2>
+                  <span className="text-[11px] text-muted-foreground font-medium">({familyApps.length})</span>
                 </button>
 
                 {!isCollapsed && (
@@ -378,7 +378,7 @@ Write email body only:`, 350, "applications");
                         <div
                           key={`${app.jobId}-${i}`}
                           onClick={() => setSelApp(app)}
-                          className="animate-fade-up bg-card border rounded-[9px] p-4 grid cursor-pointer hover:shadow-sm hover:-translate-y-px transition-all"
+                          className="apple-card apple-card-interactive p-4 grid"
                           style={{
                             gridTemplateColumns: "38px 1fr auto",
                             gap: 12,
@@ -387,7 +387,7 @@ Write email body only:`, 350, "applications");
                             animationDelay: `${i * 0.04}s`,
                           }}
                         >
-                          <div className="w-[38px] h-[38px] bg-secondary border border-border rounded-lg flex items-center justify-center">
+                          <div className="w-[38px] h-[38px] bg-secondary rounded-lg flex items-center justify-center">
                             <span className="text-[10px] font-bold text-secondary-foreground">{initials(app.company)}</span>
                           </div>
                           <div>
@@ -401,7 +401,7 @@ Write email body only:`, 350, "applications");
                             <div className="text-xs text-muted-foreground">{app.company} · Applied {fmtDate(app.appliedDate)} ({daysSince(app.appliedDate)}d ago)</div>
                             {app.nextAction && <div className="text-[11.5px] text-secondary-foreground mt-1">→ {app.nextAction}</div>}
                           </div>
-                          <span className="text-xs text-muted-foreground">View →</span>
+                          <span className="text-xs text-muted-foreground font-medium">View →</span>
                         </div>
                       );
                     })}
