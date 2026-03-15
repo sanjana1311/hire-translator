@@ -1,27 +1,69 @@
 import { motion } from "framer-motion";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import ThemeToggle from "@/components/ThemeToggle";
+import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({ full_name: "", email: "", linkedin_url: "", reason: "" });
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
-        navigate("/dashboard", { replace: true });
-      }
+      if (session) navigate("/dashboard", { replace: true });
     });
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        navigate("/dashboard", { replace: true });
-      }
+      if (session) navigate("/dashboard", { replace: true });
     });
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.full_name.trim() || !form.email.trim()) {
+      toast({ title: "Please fill in your name and email", variant: "destructive" });
+      return;
+    }
+    setLoading(true);
+    try {
+      // Store in DB
+      const { error: dbError } = await supabase.from("access_requests" as any).insert({
+        full_name: form.full_name.trim(),
+        email: form.email.trim(),
+        linkedin_url: form.linkedin_url.trim() || null,
+        reason: form.reason.trim() || null,
+      } as any);
+      if (dbError) throw dbError;
+
+      // Send notification email
+      try {
+        await supabase.functions.invoke("notify-waitlist", {
+          body: {
+            full_name: form.full_name.trim(),
+            email: form.email.trim(),
+            linkedin_url: form.linkedin_url.trim(),
+            reason: form.reason.trim(),
+          },
+        });
+      } catch {
+        // Email notification is best-effort
+      }
+
+      setSubmitted(true);
+    } catch (err: any) {
+      toast({ title: "Something went wrong", description: err.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -49,19 +91,20 @@ const Index = () => {
           <Button variant="ghost" size="sm" className="text-xs" onClick={() => navigate("/auth")}>
             Log in
           </Button>
-          <Button
-            size="sm"
-            className="text-xs rounded-full px-5"
-            onClick={() => navigate("/auth")}
-          >
-            Get started
-          </Button>
         </div>
       </nav>
 
-      {/* Hero with gradient background — dark-mode aware */}
+      {/* Hero */}
       <section className="relative pt-24 pb-20 px-7 overflow-hidden bg-gradient-hero">
         <div className="max-w-2xl mx-auto text-center">
+          <motion.div
+            className="inline-block mb-4 px-3 py-1 rounded-full border border-primary/30 bg-primary/5"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.4 }}
+          >
+            <span className="text-xs font-medium text-primary">🚀 Invite-only • Limited early access</span>
+          </motion.div>
           <motion.h1
             className="font-serif text-4xl md:text-5xl leading-[1.15] mb-4 text-foreground"
             initial={{ opacity: 0, y: 20 }}
@@ -80,17 +123,63 @@ const Index = () => {
           >
             Career Compass scores every role against your resume, drafts tailored resumes, tracks applications, and preps you for interviews — automatically.
           </motion.p>
+
+          {/* Waitlist Form */}
           <motion.div
+            className="max-w-md mx-auto"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
           >
-            <Button
-              className="rounded-full px-8 h-10 text-sm font-semibold"
-              onClick={() => navigate("/auth")}
-            >
-              Start for free <ArrowRight className="ml-2 w-4 h-4" />
-            </Button>
+            {submitted ? (
+              <div className="bg-card border border-border rounded-xl p-6 text-center">
+                <CheckCircle2 className="w-10 h-10 text-green-500 mx-auto mb-3" />
+                <h3 className="text-lg font-semibold mb-1">You're on the list! 🎉</h3>
+                <p className="text-sm text-muted-foreground">
+                  We'll reach out when your spot is ready. Keep an eye on your inbox.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="bg-card border border-border rounded-xl p-6 space-y-3 text-left">
+                <h3 className="text-sm font-semibold text-center mb-1">Request Early Access</h3>
+                <p className="text-xs text-muted-foreground text-center mb-3">
+                  We're onboarding users in small batches. Drop your info and we'll invite you soon.
+                </p>
+                <Input
+                  placeholder="Full name *"
+                  value={form.full_name}
+                  onChange={(e) => setForm(f => ({ ...f, full_name: e.target.value }))}
+                  required
+                  maxLength={100}
+                />
+                <Input
+                  type="email"
+                  placeholder="Email *"
+                  value={form.email}
+                  onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
+                  required
+                  maxLength={255}
+                />
+                <Input
+                  placeholder="LinkedIn profile URL (optional)"
+                  value={form.linkedin_url}
+                  onChange={(e) => setForm(f => ({ ...f, linkedin_url: e.target.value }))}
+                  maxLength={500}
+                />
+                <Textarea
+                  placeholder="Why are you interested? (optional)"
+                  value={form.reason}
+                  onChange={(e) => setForm(f => ({ ...f, reason: e.target.value }))}
+                  rows={2}
+                  maxLength={500}
+                  className="resize-none"
+                />
+                <Button type="submit" className="w-full rounded-full" disabled={loading}>
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Request Access <ArrowRight className="ml-2 w-4 h-4" />
+                </Button>
+              </form>
+            )}
           </motion.div>
         </div>
       </section>
