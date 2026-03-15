@@ -5,7 +5,7 @@ import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/integrations/supabase/client";
 
 const Spinner = ({ size = 16 }: { size?: number }) => (
-  <div className="border-2 border-border border-t-foreground rounded-full animate-spin" style={{ width: size, height: size }} />
+  <div className="border-2 border-foreground/10 border-t-foreground/60 rounded-full animate-spin" style={{ width: size, height: size }} />
 );
 
 interface RejectionData {
@@ -85,86 +85,90 @@ Return: {
   };
 
   return (
-    <div className="max-w-[760px] mx-auto p-7 pt-9">
-      <div className="flex items-start justify-between mb-5">
+    <div className="max-w-[760px] mx-auto px-6 py-10">
+      <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="font-serif text-[26px] font-normal mb-1">Rejection Analysis</h1>
+          <h1 className="text-2xl font-semibold tracking-tight mb-0.5">Rejection Analysis</h1>
           <p className="text-xs text-muted-foreground">{rejCount} rejections analyzed for patterns <AIQuotaBadge feature="rejection" /></p>
         </div>
         <button
           onClick={analyze}
           disabled={loading}
-          className="bg-foreground text-background rounded-lg px-4 py-2 text-xs font-semibold disabled:opacity-50"
+          className="bg-foreground text-background rounded-xl px-4 py-2.5 text-xs font-semibold disabled:opacity-50 transition-opacity hover:opacity-90"
         >
           {loading ? "Analyzing…" : rejection ? "Re-analyze" : "Analyze Rejections"}
         </button>
       </div>
 
       {loading && (
-        <div className="text-center py-16 bg-card border border-border rounded-[11px]">
+        <div className="text-center py-20 apple-card">
           <Spinner size={20} />
-          <p className="animate-pulse-dot text-xs text-muted-foreground mt-3.5">Finding patterns across your rejections…</p>
+          <p className="animate-pulse-dot text-xs text-muted-foreground mt-4">Finding patterns across your rejections…</p>
         </div>
       )}
 
       {!rejection && !loading && (
-        <div className="bg-card border border-border rounded-[11px] p-12 text-center">
-          <div className="font-serif text-lg italic text-muted-foreground mb-2">Turn rejections into a strategy</div>
-          <p className="text-xs text-muted-foreground">Find the real reason you're being passed over — and exactly what to change</p>
+        <div className="apple-card p-14 text-center">
+          <div className="text-xl font-semibold text-muted-foreground/60 mb-2.5">Turn rejections into a strategy</div>
+          <p className="text-sm text-muted-foreground max-w-md mx-auto">Find the real reason you're being passed over — and exactly what to change</p>
         </div>
       )}
 
       {rejection && !rejection.error && (
         <div className="animate-fade-up flex flex-col gap-3">
-          <div className="rounded-[11px] p-5" style={{ background: "hsl(0 38% 97%)", border: "1px solid hsl(348 28% 85%)" }}>
-            <div className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: "hsl(348 46% 28%)" }}>Most Likely Root Cause</div>
-            <p className="font-serif text-lg leading-snug">{rejection.likelyRootCause}</p>
+          <div className="rounded-xl p-5" style={{ background: "hsl(var(--danger-bg))", border: "1px solid hsl(var(--danger-border))" }}>
+            <div className="text-[10px] font-semibold uppercase tracking-wide mb-2 text-danger">Most Likely Root Cause</div>
+            <p className="text-lg font-semibold leading-snug">{rejection.likelyRootCause}</p>
           </div>
-          <div className="bg-card border border-border rounded-[11px] p-4">
-            <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide mb-2.5">Title Mismatch Assessment</div>
-            <p className="text-xs leading-relaxed">{rejection.titleMismatch}</p>
+
+          <div className="apple-card p-5">
+            <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-2.5">Title Mismatch Assessment</div>
+            <p className="text-sm leading-relaxed">{rejection.titleMismatch}</p>
           </div>
+
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-card border border-border rounded-[11px] p-4">
-              <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide mb-2.5">Patterns Found</div>
+            <div className="apple-card p-5">
+              <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-3">Patterns Found</div>
               {rejection.patterns?.map((p, i) => (
-                <div key={i} className="flex gap-1.5 mb-2 text-xs leading-relaxed">
-                  <span className="font-bold shrink-0">{i + 1}.</span>{p}
+                <div key={i} className="flex gap-2 mb-2.5 text-sm leading-relaxed">
+                  <span className="font-semibold shrink-0 text-muted-foreground">{i + 1}.</span>{p}
                 </div>
               ))}
             </div>
-            <div className="rounded-[11px] p-4" style={{ background: "hsl(37 60% 97%)", border: "1px solid hsl(37 40% 80%)" }}>
-              <div className="text-[10px] font-bold uppercase tracking-wide mb-2.5" style={{ color: "hsl(25 84% 31%)" }}>Fix Immediately</div>
+            <div className="rounded-xl p-5" style={{ background: "hsl(var(--warning-bg))", border: "1px solid hsl(var(--warning-border))" }}>
+              <div className="text-[10px] font-semibold uppercase tracking-wide mb-3 text-warning">Fix Immediately</div>
               {rejection.quickFixes?.map((f, i) => (
-                <div key={i} className="flex gap-1.5 mb-2 text-xs leading-relaxed" style={{ color: "hsl(25 50% 22%)" }}>
-                  <span style={{ color: "hsl(25 84% 31%)" }}>→</span>{f}
+                <div key={i} className="flex gap-2 mb-2.5 text-sm leading-relaxed" style={{ color: "hsl(25 50% 22%)" }}>
+                  <span className="text-warning">→</span>{f}
                 </div>
               ))}
             </div>
           </div>
+
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-[11px] p-4" style={{ background: "hsl(150 38% 96%)", border: "1px solid hsl(152 34% 82%)" }}>
-              <div className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: "hsl(153 40% 30%)" }}>Best Role to Target</div>
-              <p className="text-xs leading-relaxed" style={{ color: "hsl(153 30% 25%)" }}>{rejection.roleToTarget}</p>
+            <div className="rounded-xl p-5" style={{ background: "hsl(var(--success-bg))", border: "1px solid hsl(var(--success-border))" }}>
+              <div className="text-[10px] font-semibold uppercase tracking-wide mb-2 text-success">Best Role to Target</div>
+              <p className="text-sm leading-relaxed" style={{ color: "hsl(153 30% 25%)" }}>{rejection.roleToTarget}</p>
             </div>
-            <div className="bg-card border border-border rounded-[11px] p-4">
-              <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide mb-2.5">Longer-Term Positioning</div>
+            <div className="apple-card p-5">
+              <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-3">Longer-Term Positioning</div>
               {rejection.deeperFixes?.map((f, i) => (
-                <div key={i} className="flex gap-1.5 mb-2 text-xs leading-relaxed">
+                <div key={i} className="flex gap-2 mb-2.5 text-sm leading-relaxed">
                   <span className="shrink-0">📌</span>{f}
                 </div>
               ))}
             </div>
           </div>
-          <div className="bg-card border border-border rounded-[9px] p-3.5">
-            <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide mb-2">Companies to Avoid</div>
-            <p className="text-xs leading-relaxed text-muted-foreground">{rejection.companiesToAvoid}</p>
+
+          <div className="apple-card p-4">
+            <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-2">Companies to Avoid</div>
+            <p className="text-sm leading-relaxed text-muted-foreground">{rejection.companiesToAvoid}</p>
           </div>
         </div>
       )}
 
       {rejection?.error && (
-        <div className="rounded-[9px] p-4 text-xs" style={{ background: "hsl(0 38% 97%)", border: "1px solid hsl(348 28% 85%)", color: "hsl(348 46% 28%)" }}>
+        <div className="rounded-xl p-4 text-sm" style={{ background: "hsl(var(--danger-bg))", border: "1px solid hsl(var(--danger-border))", color: "hsl(var(--danger))" }}>
           No rejection data found — track some applications first.
         </div>
       )}

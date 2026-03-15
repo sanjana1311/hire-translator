@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fmtDate, daysSince } from "@/data/seed";
 
 const Spinner = ({ size = 16 }: { size?: number }) => (
-  <div className="border-2 border-border border-t-foreground rounded-full animate-spin" style={{ width: size, height: size }} />
+  <div className="border-2 border-foreground/10 border-t-foreground/60 rounded-full animate-spin" style={{ width: size, height: size }} />
 );
 
 interface Report {
@@ -41,7 +41,6 @@ const WeeklyReport = () => {
   const generateReport = async () => {
     setLoading(true);
     try {
-      // Load real applications from DB
       let apps: { company: string; title: string; status: string; appliedDate: string; lastEmail: string | null; notes: string }[] = [];
 
       if (profile?.id) {
@@ -61,7 +60,6 @@ const WeeklyReport = () => {
         }
       }
 
-      // If no DB apps, show empty
       if (apps.length === 0) {
         apps = [{ company: "No applications", title: "N/A", status: "none", appliedDate: new Date().toISOString().split("T")[0], lastEmail: null, notes: "No applications tracked yet" }];
       }
@@ -70,7 +68,6 @@ const WeeklyReport = () => {
       const rejections = apps.filter(a => a.status === "rejected");
       const pending = apps.filter(a => a.status === "applied" && !a.lastEmail);
 
-      // Load role scores from DB (imported jobs)
       let jobScores = "No imported jobs scored yet";
       if (profile?.id) {
         const { data: scoredJobs } = await supabase
@@ -123,84 +120,89 @@ Return: {
   };
 
   return (
-    <div className="max-w-[760px] mx-auto p-7 pt-9">
+    <div className="max-w-[760px] mx-auto px-6 py-10">
       <div className="flex items-start justify-between mb-2">
         <div>
-          <h1 className="font-serif text-[26px] font-normal mb-1">Weekly Mentor Session</h1>
+          <h1 className="text-2xl font-semibold tracking-tight mb-0.5">Weekly Mentor Session</h1>
           <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} · Pulled from your real data <AIQuotaBadge feature="weekly_report" /></p>
         </div>
         <button
           onClick={generateReport}
           disabled={loading}
-          className="bg-foreground text-background rounded-lg px-4 py-2 text-xs font-semibold disabled:opacity-50 shrink-0"
+          className="bg-foreground text-background rounded-xl px-4 py-2.5 text-xs font-semibold disabled:opacity-50 shrink-0 transition-opacity hover:opacity-90"
         >
           {loading ? "Reading your data…" : report ? "Refresh" : "Get My Briefing"}
         </button>
       </div>
-      <p className="text-xs text-muted-foreground mb-5">Reads your applications, rejections, and role scores — then talks to you like a mentor, not a dashboard</p>
+      <p className="text-xs text-muted-foreground mb-8">Reads your applications, rejections, and role scores — then talks to you like a mentor, not a dashboard</p>
 
       {loading && (
-        <div className="text-center py-16 bg-card border border-border rounded-[11px]">
+        <div className="text-center py-20 apple-card">
           <Spinner size={20} />
-          <p className="animate-pulse-dot text-xs text-muted-foreground mt-3.5">Reading your data and thinking through your search…</p>
+          <p className="animate-pulse-dot text-xs text-muted-foreground mt-4">Reading your data and thinking through your search…</p>
         </div>
       )}
 
       {!report && !loading && (
-        <div className="bg-card border border-border rounded-[11px] p-12 text-center">
-          <div className="font-serif text-xl italic text-muted-foreground mb-2.5">What would your career mentor say right now?</div>
-          <p className="text-xs text-muted-foreground leading-relaxed">This reads your actual applications — jobs applied, rejections received, role scores — and gives you a real mentor conversation, not generic advice.</p>
+        <div className="apple-card p-14 text-center">
+          <div className="text-xl font-semibold text-muted-foreground/60 mb-2.5">What would your career mentor say right now?</div>
+          <p className="text-sm text-muted-foreground leading-relaxed max-w-md mx-auto">This reads your actual applications — jobs applied, rejections received, role scores — and gives you a real mentor conversation, not generic advice.</p>
         </div>
       )}
 
       {report && !report.error && (
-        <div className="animate-fade-up flex flex-col gap-3.5">
-          <div className="bg-card border border-border rounded-[11px] p-6">
-            <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-wide mb-3">From your mentor</div>
-            <p className="font-serif text-[17px] leading-relaxed mb-2.5">{report.opening}</p>
-            <p className="text-xs text-secondary-foreground leading-relaxed border-t border-border pt-3">{report.whatTheDataSays}</p>
+        <div className="animate-fade-up flex flex-col gap-3">
+          <div className="apple-card p-6">
+            <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-3">From your mentor</div>
+            <p className="text-lg font-semibold leading-relaxed mb-3">{report.opening}</p>
+            <p className="text-sm text-muted-foreground leading-relaxed border-t border-border/60 pt-3.5">{report.whatTheDataSays}</p>
           </div>
-          <div className="rounded-[11px] p-5" style={{ background: "hsl(37 60% 97%)", border: "1px solid hsl(37 40% 80%)" }}>
-            <div className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: "hsl(25 84% 31%)" }}>The title question you need to address</div>
-            <p className="text-xs leading-relaxed" style={{ color: "hsl(25 50% 22%)" }}>{report.titleProblem}</p>
+
+          <div className="rounded-xl p-5" style={{ background: "hsl(var(--warning-bg))", border: "1px solid hsl(var(--warning-border))" }}>
+            <div className="text-[10px] font-semibold uppercase tracking-wide mb-2 text-warning">The title question you need to address</div>
+            <p className="text-sm leading-relaxed" style={{ color: "hsl(25 50% 22%)" }}>{report.titleProblem}</p>
           </div>
-          <div className="bg-card border border-border rounded-[9px] p-4 flex gap-2.5 items-start">
-            <span className="text-sm shrink-0">📬</span>
+
+          <div className="apple-card p-4 flex gap-3 items-start">
+            <span className="text-sm shrink-0 mt-0.5">📬</span>
             <div>
-              <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide mb-1">Clean up your alerts</div>
-              <p className="text-xs leading-relaxed">{report.alertNoise}</p>
+              <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-1">Clean up your alerts</div>
+              <p className="text-sm leading-relaxed text-secondary-foreground">{report.alertNoise}</p>
             </div>
           </div>
-          <div className="bg-foreground rounded-[11px] p-5">
-            <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-wide mb-2.5">The thing your mentor really wants to say</div>
-            <p className="font-serif text-[17px] leading-relaxed text-background italic">{report.topStrategicInsight}</p>
+
+          <div className="bg-foreground rounded-xl p-6">
+            <div className="text-[10px] text-background/40 font-semibold uppercase tracking-wide mb-2.5">The thing your mentor really wants to say</div>
+            <p className="text-lg font-semibold leading-relaxed text-background">{report.topStrategicInsight}</p>
           </div>
-          <div className="bg-card border border-border rounded-[11px] p-5">
-            <div className="text-[10px] text-secondary-foreground font-bold uppercase tracking-wide mb-3.5">Your 5 moves this week — in order</div>
+
+          <div className="apple-card p-5">
+            <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-4">Your 5 moves this week — in order</div>
             {report.thisWeekActions?.map((a, i) => (
-              <div key={i} className="flex gap-3 items-start mb-3 pb-3" style={{ borderBottom: i < (report.thisWeekActions!.length - 1) ? "1px solid hsl(var(--border))" : "none" }}>
+              <div key={i} className="flex gap-3.5 items-start mb-3.5 pb-3.5" style={{ borderBottom: i < (report.thisWeekActions!.length - 1) ? "1px solid hsl(var(--border))" : "none" }}>
                 <div className="w-6 h-6 bg-foreground rounded-full flex items-center justify-center shrink-0 mt-0.5">
                   <span className="text-background text-[10px] font-bold">{i + 1}</span>
                 </div>
-                <span className="text-xs leading-relaxed pt-1">{a}</span>
+                <span className="text-sm leading-relaxed pt-0.5">{a}</span>
               </div>
             ))}
           </div>
+
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-[11px] p-4" style={{ background: "hsl(214 100% 97%)", border: "1px solid hsl(213 93% 87%)" }}>
-              <div className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: "hsl(226 71% 48%)" }}>Put your energy here</div>
-              <p className="text-xs leading-relaxed" style={{ color: "hsl(226 50% 25%)" }}>{report.roleToDoubleDown}</p>
+            <div className="rounded-xl p-5" style={{ background: "hsl(var(--info-bg))", border: "1px solid hsl(var(--info-border))" }}>
+              <div className="text-[10px] font-semibold uppercase tracking-wide mb-2 text-info">Put your energy here</div>
+              <p className="text-sm leading-relaxed" style={{ color: "hsl(226 50% 25%)" }}>{report.roleToDoubleDown}</p>
             </div>
-            <div className="rounded-[11px] p-4 flex flex-col justify-center" style={{ background: "hsl(150 38% 96%)", border: "1px solid hsl(152 34% 82%)" }}>
-              <div className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: "hsl(153 40% 30%)" }}>Remember</div>
-              <p className="font-serif text-sm italic leading-relaxed" style={{ color: "hsl(153 30% 25%)" }}>{report.encouragement}</p>
+            <div className="rounded-xl p-5 flex flex-col justify-center" style={{ background: "hsl(var(--success-bg))", border: "1px solid hsl(var(--success-border))" }}>
+              <div className="text-[10px] font-semibold uppercase tracking-wide mb-2 text-success">Remember</div>
+              <p className="text-sm italic leading-relaxed" style={{ color: "hsl(153 30% 25%)" }}>{report.encouragement}</p>
             </div>
           </div>
         </div>
       )}
 
       {report?.error && (
-        <div className="rounded-[9px] p-4 text-xs" style={{ background: "hsl(0 38% 97%)", border: "1px solid hsl(348 28% 85%)", color: "hsl(348 46% 28%)" }}>
+        <div className="rounded-xl p-4 text-sm" style={{ background: "hsl(var(--danger-bg))", border: "1px solid hsl(var(--danger-border))", color: "hsl(var(--danger))" }}>
           <strong>Could not generate report</strong> — {report.message || "please retry."}
         </div>
       )}
