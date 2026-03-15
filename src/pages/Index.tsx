@@ -33,12 +33,19 @@ const Index = () => {
     }
     setLoading(true);
     try {
-      // Store in DB
-      const { error: dbError } = await supabase.from("access_requests" as any).insert({
+      // Submit to Formspree
+      const res = await fetch("https://formspree.io/f/mpqyjpej", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: form.full_name.trim(), email: form.email.trim() }),
+      });
+      if (!res.ok) throw new Error("Submission failed");
+
+      // Also store in DB
+      await supabase.from("access_requests" as any).insert({
         full_name: form.full_name.trim(),
         email: form.email.trim(),
       } as any);
-      if (dbError) throw dbError;
 
       setSubmitted(true);
     } catch (err: any) {
