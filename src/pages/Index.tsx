@@ -13,7 +13,7 @@ const Index = () => {
   const { toast } = useToast();
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({ full_name: "", email: "", linkedin_url: "", reason: "" });
+  const [form, setForm] = useState({ full_name: "", email: "" });
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
