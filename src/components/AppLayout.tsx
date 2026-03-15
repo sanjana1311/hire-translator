@@ -28,7 +28,6 @@ const AppLayout = () => {
       }
       setUser(session.user);
 
-      // Check if user has completed onboarding
       const { data: profile } = await supabase
         .from("profiles")
         .select("onboarded")
@@ -62,49 +61,51 @@ const AppLayout = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-5 h-5 border-2 border-foreground border-t-transparent rounded-full animate-spin" />
+        <div className="w-5 h-5 border-2 border-foreground/20 border-t-foreground rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Top Nav - 52px */}
-      <nav className="sticky top-0 z-50 bg-background border-b border-border h-[52px] px-7 flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
+      {/* Frosted glass nav */}
+      <nav className="glass-nav sticky top-0 z-50 border-b border-border/60 h-[52px] px-6 flex items-center justify-between">
+        <div className="flex items-center gap-1">
           {/* CC Logo */}
-          <div className="w-6 h-6 rounded-[5px] flex items-center justify-center mr-1.5" style={{ background: 'linear-gradient(135deg, #E84393, #E74C3C)' }}>
-            <span className="text-white text-[9px] font-bold">CC</span>
+          <div className="w-[26px] h-[26px] rounded-lg flex items-center justify-center mr-2" style={{ background: 'linear-gradient(135deg, #E84393, #E74C3C)' }}>
+            <span className="text-white text-[9px] font-bold tracking-tight">CC</span>
           </div>
-          <span className="font-serif italic text-[15px] mr-3.5 bg-gradient-to-r from-[#E84393] to-[#E74C3C] bg-clip-text text-transparent">Career Compass</span>
+          <span className="font-serif italic text-[15px] mr-4 bg-gradient-to-r from-[#E84393] to-[#E74C3C] bg-clip-text text-transparent">Career Compass</span>
           
-          {/* Nav tabs */}
-          {NAV_ITEMS.map((item) => {
-            const active = location.pathname === item.path;
-            return (
-              <Link
-                key={item.key}
-                to={item.path}
-                className={`text-[12.5px] px-2.5 py-1 rounded-[5px] transition-colors relative ${
-                  active 
-                    ? "bg-secondary text-foreground font-semibold" 
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
+          {/* Nav tabs with pill indicator */}
+          <div className="flex items-center bg-secondary/60 rounded-lg p-0.5">
+            {NAV_ITEMS.map((item) => {
+              const active = location.pathname === item.path;
+              return (
+                <Link
+                  key={item.key}
+                  to={item.path}
+                  className={`text-[12px] px-3 py-1.5 rounded-md transition-all duration-200 font-medium ${
+                    active 
+                      ? "bg-card text-foreground shadow-sm" 
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <ThemeToggle />
           <button
             onClick={handleLogout}
-            className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground text-xs transition-colors"
+            className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground text-xs px-2.5 py-1.5 rounded-lg hover:bg-secondary/80 transition-all duration-200"
           >
             <LogOut className="w-3.5 h-3.5" />
-            Sign out
+            <span className="hidden sm:inline">Sign out</span>
           </button>
         </div>
       </nav>
