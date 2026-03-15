@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { classifyRole, getRoleFamilyLabel, ROLE_FAMILIES, type RoleFamilyKey } from "@/lib/role-classifier";
-import { ChevronDown, ChevronRight, Filter, X } from "lucide-react";
+import { ChevronDown, ChevronRight, SlidersHorizontal, X } from "lucide-react";
 import { initials } from "@/data/seed";
 
 interface Job {
@@ -13,11 +13,8 @@ interface Job {
 interface GroupedJobListProps<T extends Job> {
   jobs: T[];
   onSelect: (job: T) => void;
-  /** Optional right-side content per job row */
   renderRight?: (job: T) => React.ReactNode;
-  /** CTA label on the right, defaults to "View →" */
   ctaLabel?: string;
-  /** Show location filter */
   showLocationFilter?: boolean;
 }
 
@@ -87,7 +84,7 @@ export default function GroupedJobList<T extends Job>({
 
   if (jobs.length === 0) {
     return (
-      <div className="bg-card border border-dashed border-border rounded-[9px] p-12 text-center">
+      <div className="apple-card border-dashed p-14 text-center">
         <p className="text-sm text-muted-foreground">No imported jobs yet. Sync your Gmail on the Roles page to get started.</p>
       </div>
     );
@@ -96,17 +93,17 @@ export default function GroupedJobList<T extends Job>({
   return (
     <div>
       {/* Filters */}
-      <div className="mb-4">
-        <div className="flex items-center gap-2 mb-2">
+      <div className="mb-5">
+        <div className="flex items-center gap-2 mb-2.5">
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-[6px] border transition-colors ${
+            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-all duration-200 ${
               activeFilterCount > 0
-                ? "bg-primary/10 border-primary/30 text-primary"
-                : "bg-secondary border-border text-secondary-foreground hover:bg-accent"
+                ? "bg-foreground/[0.06] text-foreground"
+                : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
             }`}
           >
-            <Filter className="w-3 h-3" />
+            <SlidersHorizontal className="w-3 h-3" />
             Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
           </button>
           {activeFilterCount > 0 && (
@@ -117,13 +114,13 @@ export default function GroupedJobList<T extends Job>({
         </div>
 
         {showFilters && (
-          <div className={`grid gap-2 bg-card border border-border rounded-[9px] p-3 animate-fade-up ${showLocationFilter ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2"}`}>
+          <div className={`grid gap-3 apple-card p-4 animate-fade-up ${showLocationFilter ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2"}`}>
             <div>
-              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1 block">Role Family</label>
+              <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">Role Family</label>
               <select
                 value={filterFamily}
                 onChange={e => setFilterFamily(e.target.value as any)}
-                className="w-full text-xs bg-secondary border border-border rounded-[5px] px-2 py-1.5 text-foreground"
+                className="w-full text-xs bg-background border border-border rounded-lg px-2.5 py-2 text-foreground"
               >
                 <option value="all">All Families</option>
                 {ROLE_FAMILIES.map(f => (
@@ -133,11 +130,11 @@ export default function GroupedJobList<T extends Job>({
               </select>
             </div>
             <div>
-              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1 block">Company</label>
+              <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">Company</label>
               <select
                 value={filterCompany}
                 onChange={e => setFilterCompany(e.target.value)}
-                className="w-full text-xs bg-secondary border border-border rounded-[5px] px-2 py-1.5 text-foreground"
+                className="w-full text-xs bg-background border border-border rounded-lg px-2.5 py-2 text-foreground"
               >
                 <option value="all">All Companies</option>
                 {uniqueCompanies.map(c => (
@@ -147,11 +144,11 @@ export default function GroupedJobList<T extends Job>({
             </div>
             {showLocationFilter && (
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1 block">Location</label>
+                <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">Location</label>
                 <select
                   value={filterLocation}
                   onChange={e => setFilterLocation(e.target.value)}
-                  className="w-full text-xs bg-secondary border border-border rounded-[5px] px-2 py-1.5 text-foreground"
+                  className="w-full text-xs bg-background border border-border rounded-lg px-2.5 py-2 text-foreground"
                 >
                   <option value="all">All Locations</option>
                   {uniqueLocations.map(l => (
@@ -166,23 +163,23 @@ export default function GroupedJobList<T extends Job>({
 
       {/* Grouped list */}
       {filteredJobs.length === 0 ? (
-        <div className="bg-card border border-dashed border-border rounded-[11px] p-10 text-center">
+        <div className="apple-card border-dashed p-12 text-center">
           <p className="text-sm text-muted-foreground">No roles match your filters.</p>
-          <button onClick={clearFilters} className="text-xs text-primary hover:underline mt-2">Clear filters</button>
+          <button onClick={clearFilters} className="text-xs text-accent hover:underline mt-2">Clear filters</button>
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-5">
           {groupedData.map(({ familyKey, label, jobs: familyJobs }) => {
             const isCollapsed = collapsedFamilies.has(familyKey);
             return (
               <div key={familyKey}>
                 <button
                   onClick={() => toggleFamily(familyKey)}
-                  className="flex items-center gap-2 w-full text-left mb-2 group"
+                  className="flex items-center gap-2 w-full text-left mb-2.5 group"
                 >
                   {isCollapsed ? <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
-                  <h2 className="font-serif text-[17px] font-normal">{label}</h2>
-                  <span className="text-[11px] text-muted-foreground">({familyJobs.length})</span>
+                  <h2 className="text-[15px] font-semibold">{label}</h2>
+                  <span className="text-[11px] text-muted-foreground font-medium">({familyJobs.length})</span>
                 </button>
 
                 {!isCollapsed && (
@@ -191,10 +188,10 @@ export default function GroupedJobList<T extends Job>({
                       <div
                         key={job.id}
                         onClick={() => onSelect(job)}
-                        className="bg-card border border-border rounded-[9px] p-4 flex items-center justify-between cursor-pointer hover:shadow-sm hover:-translate-y-px transition-all"
+                        className="apple-card apple-card-interactive p-4 flex items-center justify-between"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-[38px] h-[38px] bg-secondary border border-border rounded-lg flex items-center justify-center shrink-0">
+                          <div className="w-9 h-9 bg-secondary rounded-lg flex items-center justify-center shrink-0">
                             <span className="text-[10px] font-bold text-secondary-foreground">{initials(job.company)}</span>
                           </div>
                           <div className="min-w-0">
@@ -203,7 +200,7 @@ export default function GroupedJobList<T extends Job>({
                           </div>
                         </div>
                         {renderRight ? renderRight(job) : (
-                          <span className="text-xs text-muted-foreground shrink-0">{ctaLabel}</span>
+                          <span className="text-xs text-muted-foreground shrink-0 font-medium">{ctaLabel}</span>
                         )}
                       </div>
                     ))}
