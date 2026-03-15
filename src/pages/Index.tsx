@@ -143,20 +143,6 @@ const Index = () => {
                   required
                   maxLength={255}
                 />
-                <Input
-                  placeholder="LinkedIn profile URL (optional)"
-                  value={form.linkedin_url}
-                  onChange={(e) => setForm(f => ({ ...f, linkedin_url: e.target.value }))}
-                  maxLength={500}
-                />
-                <Textarea
-                  placeholder="Why are you interested? (optional)"
-                  value={form.reason}
-                  onChange={(e) => setForm(f => ({ ...f, reason: e.target.value }))}
-                  rows={2}
-                  maxLength={500}
-                  className="resize-none"
-                />
                 <Button type="submit" className="w-full rounded-full" disabled={loading}>
                   {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                   Request Access <ArrowRight className="ml-2 w-4 h-4" />
