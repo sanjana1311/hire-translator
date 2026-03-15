@@ -37,24 +37,8 @@ const Index = () => {
       const { error: dbError } = await supabase.from("access_requests" as any).insert({
         full_name: form.full_name.trim(),
         email: form.email.trim(),
-        linkedin_url: form.linkedin_url.trim() || null,
-        reason: form.reason.trim() || null,
       } as any);
       if (dbError) throw dbError;
-
-      // Send notification email
-      try {
-        await supabase.functions.invoke("notify-waitlist", {
-          body: {
-            full_name: form.full_name.trim(),
-            email: form.email.trim(),
-            linkedin_url: form.linkedin_url.trim(),
-            reason: form.reason.trim(),
-          },
-        });
-      } catch {
-        // Email notification is best-effort
-      }
 
       setSubmitted(true);
     } catch (err: any) {
