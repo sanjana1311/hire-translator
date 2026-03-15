@@ -2,7 +2,6 @@ import { motion } from "framer-motion";
 import { ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,7 +13,7 @@ const Index = () => {
   const { toast } = useToast();
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({ full_name: "", email: "", linkedin_url: "", reason: "" });
+  const [form, setForm] = useState({ full_name: "", email: "" });
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -38,24 +37,8 @@ const Index = () => {
       const { error: dbError } = await supabase.from("access_requests" as any).insert({
         full_name: form.full_name.trim(),
         email: form.email.trim(),
-        linkedin_url: form.linkedin_url.trim() || null,
-        reason: form.reason.trim() || null,
       } as any);
       if (dbError) throw dbError;
-
-      // Send notification email
-      try {
-        await supabase.functions.invoke("notify-waitlist", {
-          body: {
-            full_name: form.full_name.trim(),
-            email: form.email.trim(),
-            linkedin_url: form.linkedin_url.trim(),
-            reason: form.reason.trim(),
-          },
-        });
-      } catch {
-        // Email notification is best-effort
-      }
 
       setSubmitted(true);
     } catch (err: any) {
@@ -159,20 +142,6 @@ const Index = () => {
                   onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
                   required
                   maxLength={255}
-                />
-                <Input
-                  placeholder="LinkedIn profile URL (optional)"
-                  value={form.linkedin_url}
-                  onChange={(e) => setForm(f => ({ ...f, linkedin_url: e.target.value }))}
-                  maxLength={500}
-                />
-                <Textarea
-                  placeholder="Why are you interested? (optional)"
-                  value={form.reason}
-                  onChange={(e) => setForm(f => ({ ...f, reason: e.target.value }))}
-                  rows={2}
-                  maxLength={500}
-                  className="resize-none"
                 />
                 <Button type="submit" className="w-full rounded-full" disabled={loading}>
                   {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
