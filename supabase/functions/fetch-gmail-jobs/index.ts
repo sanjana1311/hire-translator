@@ -26,7 +26,9 @@ async function refreshAccessToken(refreshToken: string): Promise<string> {
   if (!res.ok) {
     const err = await res.text();
     console.error("Token refresh failed:", res.status, err);
-    console.error("Using client_id:", clientId?.slice(0, 20) + "...");
+    if (err.includes("invalid_grant") || err.includes("Token has been expired or revoked")) {
+      throw new Error("GOOGLE_TOKEN_EXPIRED");
+    }
     throw new Error(`Failed to refresh Google token: ${res.status} - ${err}`);
   }
 
