@@ -845,6 +845,34 @@ serve(async (req) => {
     });
   } catch (err: any) {
     console.error("fetch-gmail-jobs error:", err);
+
+    // If token is expired/revoked, disable sync and return a friendly message
+    if (err.message === "GOOGLE_TOKEN_EXPIRED") {
+      try {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const adminClient = createClient(supabaseUrl, supabaseKey);
+        const authHeader = req.headers.get("Authorization");
+        const anonKey = Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY")!;
+        const anonClient = createClient(supabaseUrl, anonKey, {
+          global: { headers: { Authorization: authHeader! } },
+        });
+        const { data: { user } } = await anonClient.auth.getUser();
+        if (user) {
+          const { data: profile } = await adminClient.from("profiles").select("id").eq("user_id", user.id).single();
+          if (profile) {
+            await adminClient.from("gmail_sync_metadata").update({ enabled: false, refresh_token: null }).eq("profile_id", profile.id);
+          }
+        }
+      } catch (disableErr) {
+        console.error("Failed to disable sync after token expiry:", disableErr);
+      }
+      return new Response(JSON.stringify({ error: "Your Google connection has expired. Please re-connect Gmail to continue syncing jobs.", tokenExpired: true }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
