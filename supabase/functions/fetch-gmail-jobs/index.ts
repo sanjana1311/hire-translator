@@ -810,7 +810,11 @@ serve(async (req) => {
         console.log("[Gmail Sync] Using stored refresh token from DB:", storedMeta.refresh_token.slice(0, 10) + "...");
         accessToken = await refreshAccessToken(storedMeta.refresh_token);
       } else {
-        throw new Error("No Google provider token. Please sign in with Google first.");
+        console.log("[Gmail Sync] No stored refresh token — Gmail not connected");
+        return new Response(JSON.stringify({ error: "Gmail not connected. Please connect your Gmail account first.", notConnected: true, jobs: [], emailCount: 0 }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
     }
 
