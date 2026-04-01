@@ -98,26 +98,10 @@ export function useGmailImport(profileId: string | null) {
       log(`Google token: ${providerToken ? "present" : "missing"}`);
 
       if (!providerToken) {
-        // Try to use stored refresh token via edge function
-        log("No provider token in session — checking stored refresh token");
-        
-        const { data: syncMeta } = await supabase
-          .from("gmail_sync_metadata")
-          .select("refresh_token")
-          .eq("profile_id", profileId)
-          .maybeSingle();
-
-        if (!syncMeta?.refresh_token) {
-          log("No stored refresh token either — need Gmail connection");
-          setSyncStatus("no_token");
-          if (!silent) toast.error("Gmail access not granted. Connect Gmail to import jobs.");
-          return [];
-        }
-
-        // Call edge function with refresh token only — it will refresh the access token
-        log("Using stored refresh token to sync");
+        // Let the edge function handle refresh token lookup server-side
+        log("No provider token in session — delegating to edge function with stored token");
         const res = await supabase.functions.invoke("fetch-gmail-jobs", {
-          body: { refreshToken: syncMeta.refresh_token, useRefreshToken: true },
+          body: { useRefreshToken: true },
         });
 
         if (res.error) {
