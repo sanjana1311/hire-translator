@@ -112,6 +112,21 @@ export function useGmailImport(profileId: string | null) {
         }
 
         const data = res.data;
+        
+        // Gmail not connected — not an error, just needs setup
+        if (data?.notConnected) {
+          log("Gmail not connected — user needs to connect");
+          setSyncStatus("never_synced");
+          return [];
+        }
+        
+        if (data?.tokenExpired) {
+          log("Google token expired — user needs to reconnect");
+          setSyncStatus("no_token");
+          if (!silent) toast.error("Your Google connection has expired. Please re-connect Gmail.");
+          return [];
+        }
+        
         if (data?.error) {
           log(`Sync error: ${data.error}`);
           setSyncStatus("error");
@@ -321,16 +336,19 @@ export function useGmailImport(profileId: string | null) {
     captureTokenAndSync();
   }, [profileId, log, triggerSync]);
 
-  // Auto-sync: run silently on load if >6 hours stale
+  // Auto-sync: run silently on load if >6 hours stale AND Gmail is connected
   useEffect(() => {
     if (!profileId || autoSyncRan.current) return;
 
     const autoSync = async () => {
       const { data: meta } = await supabase
         .from("gmail_sync_metadata")
-        .select("last_synced_at")
+        .select("last_synced_at, enabled")
         .eq("profile_id", profileId)
         .maybeSingle();
+
+      // Skip auto-sync if no metadata exists (never connected) or disabled
+      if (!meta || !meta.enabled) return;
 
       const lastSync = meta?.last_synced_at;
       const isStale = !lastSync || new Date(lastSync).getTime() < Date.now() - SIX_HOURS;
