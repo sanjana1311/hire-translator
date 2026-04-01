@@ -112,6 +112,21 @@ export function useGmailImport(profileId: string | null) {
         }
 
         const data = res.data;
+        
+        // Gmail not connected — not an error, just needs setup
+        if (data?.notConnected) {
+          log("Gmail not connected — user needs to connect");
+          setSyncStatus("never_synced");
+          return [];
+        }
+        
+        if (data?.tokenExpired) {
+          log("Google token expired — user needs to reconnect");
+          setSyncStatus("no_token");
+          if (!silent) toast.error("Your Google connection has expired. Please re-connect Gmail.");
+          return [];
+        }
+        
         if (data?.error) {
           log(`Sync error: ${data.error}`);
           setSyncStatus("error");
