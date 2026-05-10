@@ -100,9 +100,9 @@ const Auth = () => {
         <div className="max-w-sm">
           <div className="flex items-center gap-2 mb-10">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #9B59B6, #E84393)' }}>
-              <span className="text-white text-[9px] font-bold">CC</span>
+              <span className="text-white text-[9px] font-bold">hO</span>
             </div>
-            <span className="font-serif italic text-xl bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(135deg, #9B59B6, #E84393)' }}>Career Compass</span>
+            <span className="font-serif italic text-xl bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(135deg, #9B59B6, #E84393)' }}>hireOS</span>
           </div>
           <h2 className="font-serif text-2xl mb-3">Your AI career mentor.</h2>
           <p className="text-muted-foreground text-sm leading-relaxed">
@@ -116,9 +116,9 @@ const Auth = () => {
         <div className="w-full max-w-sm">
           <div className="lg:hidden flex items-center gap-2 mb-10">
             <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #9B59B6, #E84393)' }}>
-              <span className="text-white text-[9px] font-bold">CC</span>
+              <span className="text-white text-[9px] font-bold">hO</span>
             </div>
-            <span className="font-serif italic text-[15px] bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(135deg, #9B59B6, #E84393)' }}>Career Compass</span>
+            <span className="font-serif italic text-[15px] bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(135deg, #9B59B6, #E84393)' }}>hireOS</span>
           </div>
 
           <h1 className="text-xl font-semibold mb-1">{isLogin ? "Welcome back" : "Create account"}</h1>
@@ -189,7 +189,7 @@ const Auth = () => {
           </div>
 
           <p className="text-[11px] text-muted-foreground leading-relaxed mb-3 text-center">
-            Career Compass reads your Gmail job alert emails to find open roles. We request read-only access — we never send emails, delete anything, or access non-job emails.
+            hireOS reads your Gmail job alert emails to find open roles. We request read-only access — we never send emails, delete anything, or access non-job emails.
           </p>
 
           <Button

@@ -64,14 +64,14 @@ const Index = () => {
             className="w-7 h-7 rounded-lg flex items-center justify-center mr-1.5"
             style={{ background: 'linear-gradient(135deg, #9B59B6, #E84393)' }}
           >
-            <span className="text-white text-[9px] font-bold tracking-tight">CC</span>
+            <span className="text-white text-[9px] font-bold tracking-tight">hO</span>
           </div>
           <div className="flex flex-col leading-none">
             <span
               className="font-serif italic text-[15px] font-semibold bg-clip-text text-transparent"
               style={{ backgroundImage: 'linear-gradient(135deg, #9B59B6, #E84393)' }}
             >
-              Career Compass
+              hireOS
             </span>
             <span className="text-[9px] text-muted-foreground tracking-wide">AI-native career platform</span>
           </div>
@@ -111,7 +111,7 @@ const Index = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.15 }}
           >
-            Career Compass scores every role against your resume, drafts tailored resumes, tracks applications, and preps you for interviews — automatically.
+            hireOS scores every role against your resume, drafts tailored resumes, tracks applications, and preps you for interviews — automatically.
           </motion.p>
 
           {/* Waitlist Form */}
@@ -189,7 +189,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="py-8 px-7 border-t border-border">
         <div className="max-w-3xl mx-auto flex items-center justify-between text-xs text-muted-foreground">
-          <span>© 2026 Career Compass</span>
+          <span>© 2026 hireOS</span>
           <span>AI-powered job search dashboard</span>
         </div>
       </footer>

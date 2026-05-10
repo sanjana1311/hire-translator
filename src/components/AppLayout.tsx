@@ -71,11 +71,11 @@ const AppLayout = () => {
       {/* Frosted glass nav */}
       <nav className="glass-nav sticky top-0 z-50 border-b border-border/60 h-[52px] px-6 flex items-center justify-between">
         <div className="flex items-center gap-1">
-          {/* CC Logo */}
+          {/* hO Logo */}
           <div className="w-[26px] h-[26px] rounded-lg flex items-center justify-center mr-2" style={{ background: 'linear-gradient(135deg, #E84393, #E74C3C)' }}>
-            <span className="text-white text-[9px] font-bold tracking-tight">CC</span>
+            <span className="text-white text-[9px] font-bold tracking-tight">hO</span>
           </div>
-          <span className="font-serif italic text-[15px] mr-4 bg-gradient-to-r from-[#E84393] to-[#E74C3C] bg-clip-text text-transparent">Career Compass</span>
+          <span className="font-serif italic text-[15px] mr-4 bg-gradient-to-r from-[#E84393] to-[#E74C3C] bg-clip-text text-transparent">hireOS</span>
           
           {/* Nav tabs with pill indicator */}
           <div className="flex items-center bg-secondary/60 rounded-lg p-0.5">
