@@ -173,9 +173,9 @@ const Onboarding = () => {
         {/* Header */}
         <div className="flex items-center gap-2 mb-8">
           <div className="w-7 h-7 rounded-[5px] flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #E84393, #E74C3C)' }}>
-            <span className="text-white text-[9px] font-bold">CC</span>
+            <span className="text-white text-[9px] font-bold">hO</span>
           </div>
-          <span className="font-serif italic text-lg bg-gradient-to-r from-[#E84393] to-[#E74C3C] bg-clip-text text-transparent">Career Compass</span>
+          <span className="font-serif italic text-lg bg-gradient-to-r from-[#E84393] to-[#E74C3C] bg-clip-text text-transparent">hireOS</span>
         </div>
 
         <h1 className="font-serif text-[28px] leading-tight mb-8">
