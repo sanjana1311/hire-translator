@@ -15,7 +15,9 @@ import WeeklyReport from "./pages/WeeklyReport";
 import RejectionAnalysis from "./pages/RejectionAnalysis";
 import GmailCallback from "./pages/GmailCallback";
 import ResetPassword from "./pages/ResetPassword";
+import OAuthConsent from "./pages/OAuthConsent";
 import NotFound from "./pages/NotFound";
+
 
 const queryClient = new QueryClient();
 
@@ -31,6 +33,8 @@ const App = () => (
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/gmail-callback" element={<GmailCallback />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
+
           <Route path="/dashboard" element={<AppLayout />}>
             <Route index element={<Roles />} />
             <Route path="applications" element={<Applications />} />

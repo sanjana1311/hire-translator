@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -14,10 +14,19 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // Same-origin relative path to return to after auth (used by the OAuth consent flow).
+  const rawNext = searchParams.get("next");
+  const nextPath = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : null;
+
 
   useEffect(() => {
     const checkAndRedirect = async (session: any) => {
       if (!session) return;
+      if (nextPath) {
+        navigate(nextPath, { replace: true });
+        return;
+      }
       // Check if onboarded
       const { data: profile } = await supabase
         .from("profiles")
@@ -39,7 +48,8 @@ const Auth = () => {
       if (session) checkAndRedirect(session);
     });
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, nextPath]);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,16 +58,21 @@ const Auth = () => {
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate("/onboarding");
+        navigate(nextPath ?? "/onboarding");
       } else {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin },
+          options: {
+            emailRedirectTo: nextPath
+              ? `${window.location.origin}/auth?next=${encodeURIComponent(nextPath)}`
+              : window.location.origin,
+          },
         });
         if (error) throw error;
         if (data.session) {
-          navigate("/onboarding");
+          navigate(nextPath ?? "/onboarding");
+
         } else {
           toast.success("Check your email to confirm your account!");
         }
@@ -73,7 +88,10 @@ const Auth = () => {
     setLoading(true);
     try {
       const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+        redirect_uri: nextPath
+          ? `${window.location.origin}/auth?next=${encodeURIComponent(nextPath)}`
+          : window.location.origin,
+
         extraParams: {
           prompt: "consent",
           access_type: "offline",

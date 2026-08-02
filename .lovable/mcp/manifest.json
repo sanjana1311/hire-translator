@@ -1,0 +1,226 @@
+{
+  "version": 1,
+  "sdk_version": "0.26.1",
+  "path": "/functions/v1/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://nkhothtftipsrvznyurv.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "hireos",
+      "version": "0.1.0",
+      "title": "hireOS"
+    },
+    "tools": [
+      {
+        "name": "list_jobs",
+        "title": "List imported jobs",
+        "description": "List job opportunities imported into hireOS for the signed-in user, newest first.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "description": "Max jobs to return (default 20)."
+            },
+            "status": {
+              "type": "string",
+              "description": "Optional status filter, e.g. new, saved, applied."
+            },
+            "search": {
+              "type": "string",
+              "description": "Optional text to match against job title or company."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_job",
+        "title": "Get job details",
+        "description": "Get full details for one imported hireOS job, including description and AI match analysis.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "job_id": {
+              "type": "string",
+              "description": "The imported job id."
+            }
+          },
+          "required": [
+            "job_id"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_applications",
+        "title": "List applications",
+        "description": "List the signed-in user's job applications tracked in hireOS with status and next action.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "description": "Optional status filter, e.g. applied, interview, rejected."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "description": "Max applications to return (default 25)."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "create_application",
+        "title": "Track a new application",
+        "description": "Add a job application to the signed-in user's hireOS application tracker.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "description": "Role title."
+            },
+            "company": {
+              "type": "string",
+              "description": "Company name."
+            },
+            "status": {
+              "type": "string",
+              "description": "Status, e.g. applied, interview. Defaults to applied."
+            },
+            "applied_date": {
+              "type": "string",
+              "description": "ISO date (YYYY-MM-DD) the application was submitted."
+            },
+            "next_action": {
+              "type": "string",
+              "description": "Next step to take."
+            },
+            "notes": {
+              "type": "string",
+              "description": "Freeform notes."
+            }
+          },
+          "required": [
+            "title",
+            "company"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "update_application",
+        "title": "Update an application",
+        "description": "Update the status, next action, or notes of an existing hireOS application.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "application_id": {
+              "type": "string",
+              "description": "The application id to update."
+            },
+            "status": {
+              "type": "string",
+              "description": "New status, e.g. interview, offer, rejected."
+            },
+            "next_action": {
+              "type": "string",
+              "description": "New next action."
+            },
+            "notes": {
+              "type": "string",
+              "description": "New notes."
+            }
+          },
+          "required": [
+            "application_id"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_resume",
+        "title": "Get base resume",
+        "description": "Get the signed-in user's base hireOS resume: summary, experience, projects, education, skills.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_workspaces",
+        "title": "List job workspaces",
+        "description": "List hireOS job workspaces (tailored resume workspaces) with ATS score and match bucket.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "description": "Max workspaces to return (default 20)."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
