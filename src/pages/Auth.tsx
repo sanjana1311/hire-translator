@@ -58,16 +58,21 @@ const Auth = () => {
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate("/onboarding");
+        navigate(nextPath ?? "/onboarding");
       } else {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin },
+          options: {
+            emailRedirectTo: nextPath
+              ? `${window.location.origin}/auth?next=${encodeURIComponent(nextPath)}`
+              : window.location.origin,
+          },
         });
         if (error) throw error;
         if (data.session) {
-          navigate("/onboarding");
+          navigate(nextPath ?? "/onboarding");
+
         } else {
           toast.success("Check your email to confirm your account!");
         }
