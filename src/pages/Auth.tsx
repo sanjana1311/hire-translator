@@ -23,6 +23,10 @@ const Auth = () => {
   useEffect(() => {
     const checkAndRedirect = async (session: any) => {
       if (!session) return;
+      if (nextPath) {
+        navigate(nextPath, { replace: true });
+        return;
+      }
       // Check if onboarded
       const { data: profile } = await supabase
         .from("profiles")
@@ -44,7 +48,8 @@ const Auth = () => {
       if (session) checkAndRedirect(session);
     });
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, nextPath]);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
