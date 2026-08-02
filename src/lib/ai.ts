@@ -23,7 +23,7 @@ export async function callAI(prompt: string, maxTokens: number, feature: string 
     if (res.error) throw new Error(res.error.message || "AI call failed");
     // Check for rate limit error in response data
     if (res.data?.error) throw new Error(res.data.error);
-    return (res.data?.text || "").replace(new RegExp("+++json|+++", "g"), "").trim();
+    return (res.data?.text || "").replace(/\x60\x60\x60json|\x60\x60\x60/g, "").trim();
   } finally {
     if (timeoutId) clearTimeout(timeoutId);
   }
