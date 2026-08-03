@@ -10,8 +10,6 @@ import {
   Search,
   Target,
   Zap,
-  TrendingUp,
-  ShieldCheck,
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -359,58 +357,6 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Traction */}
-      <section className="py-20 px-7 bg-secondary/30">
-        <div className="max-w-3xl mx-auto">
-          <motion.div
-            className="text-center mb-12"
-            initial={{ opacity: 0, y: 10 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-          >
-            <span className="text-xs font-semibold text-primary tracking-wide uppercase">Traction & status</span>
-            <h2 className="font-serif text-2xl md:text-3xl mt-2 text-foreground">
-              Built for the AI-native job search.
-            </h2>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[
-              {
-                icon: ShieldCheck,
-                title: "Secure, multi-user",
-                desc: "Row-level security, waitlist gating, and password reset flow live.",
-              },
-              {
-                icon: Zap,
-                title: "AI pipeline deployed",
-                desc: "End-to-end JD analysis, resume scoring, and bullet rewriting with real-time AI.",
-              },
-              {
-                icon: TrendingUp,
-                title: "Agent ready",
-                desc: "MCP server integration lets external AI agents query and update your job data.",
-              },
-            ].map((item, i) => (
-              <motion.div
-                key={item.title}
-                className="bg-card border border-border rounded-xl p-5 text-center"
-                initial={{ opacity: 0, y: 10 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: i * 0.1 }}
-              >
-                <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center mx-auto mb-3">
-                  <item.icon className="w-4.5 h-4.5 text-primary" />
-                </div>
-                <h3 className="text-sm font-semibold mb-1">{item.title}</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">{item.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* Features grid */}
       <section className="pb-24 px-7 pt-16 bg-background">
