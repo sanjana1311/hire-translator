@@ -10,8 +10,6 @@ import {
   Search,
   Target,
   Zap,
-  TrendingUp,
-  ShieldCheck,
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
