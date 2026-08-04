@@ -9,6 +9,9 @@ const corsHeaders = {
 
 const DAILY_LIMIT = 10;
 
+// Set when OpenCode Go rejects us (bad key / no credits) so later calls skip it.
+let opencodeDisabled = false;
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
