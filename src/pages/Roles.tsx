@@ -71,7 +71,6 @@ const Roles = () => {
   const [applyLoading, setApplyLoading] = useState(false);
   const [dbLoaded, setDbLoaded] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
-  const didAutoScore = useRef(false);
   const { data: profile } = useProfile();
   const { data: resumeData } = useResume();
   const { triggerSync, connectGmail, signOut, loading: gmailLoading, lastSyncedAt, jobsImportedCount, syncStatus, syncLog } = useGmailImport(profile?.id ?? null);
@@ -153,14 +152,26 @@ const Roles = () => {
     }
   }, [syncStatus, profile?.id, loadJobsFromDB]);
 
-  useEffect(() => {
-    if (!dbLoaded || didAutoScore.current || jobs.length === 0 || !resumeText) return;
-    didAutoScore.current = true;
-    const unscored = jobs.filter(j => j.status === "new" && !j.analysis && !results[j.id]);
-    if (unscored.length === 0) return;
-    console.log(`[Roles] Auto-scoring ${unscored.length} new jobs (resume: ${resumeText.length} chars)`);
-    unscored.forEach((job, i) => setTimeout(() => analyzeJob(job), i * 400));
-  }, [dbLoaded, jobs, resumeText]);
+  // Scoring is manual and one-at-a-time — triggered per job row by the user.
+  const handleScoreJob = async (job: ImportedJob, force = false) => {
+    if (!resumeText) {
+      toast.error("Upload your resume first before scoring");
+      return;
+    }
+    if (aLoading.size > 0) {
+      toast.info("Another job is being scored — wait for it to finish");
+      return;
+    }
+    if (force) {
+      setResults(prev => { const n = { ...prev }; delete n[job.id]; return n; });
+      setDone(prev => Math.max(0, prev - 1));
+      await supabase
+        .from("imported_jobs")
+        .update({ analysis: null, status: "new" } as any)
+        .eq("id", job.id);
+    }
+    await analyzeJob(job);
+  };
 
   const analyzeJob = async (job: ImportedJob) => {
     if (!resumeText) {
@@ -295,24 +306,18 @@ Output complete rewritten resume:`, 4000, "roles");
     }
   };
 
-  const handleRescoreAll = async () => {
-    if (!resumeText) {
-      toast.error("Upload your resume first before scoring");
-      return;
-    }
+  const handleClearAllScores = async () => {
     const jobIds = jobs.map(j => j.id);
     for (const id of jobIds) {
       await supabase
         .from("imported_jobs")
-        .update({ analysis: null, tailored_resume: null, status: "new" } as any)
+        .update({ analysis: null, status: "new" } as any)
         .eq("id", id);
     }
     setResults({});
-    setResumes({});
     setDone(0);
-    didAutoScore.current = false;
     await loadJobsFromDB();
-    toast.success("Re-scoring all jobs…");
+    toast.success("Scores cleared — score jobs individually from each row");
   };
 
   const copy = (t: string) => { navigator.clipboard.writeText(t); setCopied(true); setTimeout(() => setCopied(false), 2500); };
@@ -478,10 +483,21 @@ Output complete rewritten resume:`, 4000, "roles");
               </div>
             </div>
 
-            {aLoading.has(selected.id) || !r ? (
+            {aLoading.has(selected.id) ? (
               <div className="apple-card p-12 text-center">
                 <Spinner size={18} />
                 <div className="animate-pulse-dot text-xs text-muted-foreground mt-3">Analyzing…</div>
+              </div>
+            ) : !r ? (
+              <div className="apple-card p-12 text-center">
+                <p className="text-xs text-muted-foreground mb-3">This role hasn't been scored yet.</p>
+                <button
+                  onClick={() => handleScoreJob(selected)}
+                  disabled={aLoading.size > 0}
+                  className="text-xs font-medium px-3.5 py-2 rounded-lg bg-foreground text-background hover:opacity-90 transition-opacity disabled:opacity-40"
+                >
+                  Score this role
+                </button>
               </div>
             ) : hasError ? (
               <div className="animate-fade-up apple-card border-destructive/20 p-5">
@@ -721,10 +737,10 @@ Output complete rewritten resume:`, 4000, "roles");
         ) : (
           <div className="flex items-center gap-2">
             <button
-              onClick={handleRescoreAll}
+              onClick={handleClearAllScores}
               className="text-[11px] font-medium px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
             >
-              Re-score All
+              Clear all scores
             </button>
             <div className="flex gap-1">
               {([["must", "hsl(var(--success))", buckets.must.length], ["tweak", "hsl(var(--warning))", buckets.tweak.length], ["low", "hsl(var(--danger))", buckets.low.length]] as const).map(([k, c, n]) => (
@@ -931,7 +947,7 @@ Output complete rewritten resume:`, 4000, "roles");
                                 {bm.label} ({bucketJobs.length})
                               </span>
                             ) : (
-                              <span className="text-[11px] text-muted-foreground font-medium">Scoring… ({bucketJobs.length})</span>
+                              <span className="text-[11px] text-muted-foreground font-medium">Not scored yet ({bucketJobs.length})</span>
                             )}
                           </div>
                           <div className="flex flex-col gap-1.5">
@@ -973,14 +989,24 @@ Output complete rewritten resume:`, 4000, "roles");
                                         <span className="animate-pulse-dot text-[10px] text-muted-foreground">Scoring…</span>
                                       </div>
                                     ) : r ? (
-                                      <div>
+                                      <div className="flex flex-col items-end">
                                         <div className="text-2xl font-semibold leading-none tabular-nums" style={{ color: scoreColor(r.score) }}>{r.score}</div>
-                                        <div className="text-[10px] text-muted-foreground mt-0.5">
-                                          {rLoading.has(job.id) ? <span className="animate-pulse-dot">writing…</span> : "ready"}
-                                        </div>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleScoreJob(job, true); }}
+                                          disabled={aLoading.size > 0}
+                                          className="text-[10px] text-muted-foreground hover:text-foreground mt-0.5 underline underline-offset-2 disabled:opacity-40"
+                                        >
+                                          {rLoading.has(job.id) ? "writing…" : "Re-score"}
+                                        </button>
                                       </div>
                                     ) : (
-                                      <Spinner size={14} />
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); handleScoreJob(job); }}
+                                        disabled={aLoading.size > 0}
+                                        className="text-[11px] font-medium px-3 py-1.5 rounded-lg bg-foreground text-background hover:opacity-90 transition-opacity disabled:opacity-40"
+                                      >
+                                        Score
+                                      </button>
                                     )}
                                   </div>
                                 </div>
