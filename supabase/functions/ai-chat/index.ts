@@ -56,8 +56,39 @@ serve(async (req) => {
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+    const OPENCODE_API_KEY = Deno.env.get("OPENCODE_API_KEY");
+    const OPENCODE_BASE_URL = Deno.env.get("OPENCODE_BASE_URL") || "https://opencode.ai/zen/v1";
+    const OPENCODE_MODEL = Deno.env.get("OPENCODE_MODEL") || "grok-4.5";
 
-    if (LOVABLE_API_KEY) {
+    // Primary provider: OpenCode Go (OpenAI-compatible)
+    if (OPENCODE_API_KEY) {
+      try {
+        const res = await fetch(`${OPENCODE_BASE_URL}/chat/completions`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${OPENCODE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: OPENCODE_MODEL,
+            temperature,
+            max_tokens: maxTokens || 1000,
+            messages,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          text = data.choices?.[0]?.message?.content || "";
+        } else {
+          console.error("OpenCode Go error:", res.status, await res.text());
+        }
+      } catch (e) {
+        console.error("OpenCode Go request failed:", e);
+      }
+    }
+
+    // Fallback 1: Lovable AI
+    if (!text && LOVABLE_API_KEY) {
       const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: {
