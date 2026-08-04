@@ -71,7 +71,6 @@ const Roles = () => {
   const [applyLoading, setApplyLoading] = useState(false);
   const [dbLoaded, setDbLoaded] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
-  const didAutoScore = useRef(false);
   const { data: profile } = useProfile();
   const { data: resumeData } = useResume();
   const { triggerSync, connectGmail, signOut, loading: gmailLoading, lastSyncedAt, jobsImportedCount, syncStatus, syncLog } = useGmailImport(profile?.id ?? null);
