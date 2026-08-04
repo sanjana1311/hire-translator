@@ -103,10 +103,9 @@ serve(async (req) => {
         }),
       });
 
-      if (res.status === 429) return json({ error: "AI rate limit reached. Please retry shortly." }, 429);
-      if (res.status === 402) return json({ error: "AI credits exhausted. Add credits in Settings → Plans & credits." }, 402);
-
-      if (res.ok) {
+      if (res.status === 429) console.error("Lovable AI rate limited");
+      else if (res.status === 402) console.error("Lovable AI credits exhausted");
+      else if (res.ok) {
         const data = await res.json();
         text = data.choices?.[0]?.message?.content || "";
       } else {
@@ -114,6 +113,7 @@ serve(async (req) => {
       }
     }
 
+    // Fallback 2: Groq
     if (!text && GROQ_API_KEY) {
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
