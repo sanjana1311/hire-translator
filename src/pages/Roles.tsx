@@ -484,10 +484,21 @@ Output complete rewritten resume:`, 4000, "roles");
               </div>
             </div>
 
-            {aLoading.has(selected.id) || !r ? (
+            {aLoading.has(selected.id) ? (
               <div className="apple-card p-12 text-center">
                 <Spinner size={18} />
                 <div className="animate-pulse-dot text-xs text-muted-foreground mt-3">Analyzing…</div>
+              </div>
+            ) : !r ? (
+              <div className="apple-card p-12 text-center">
+                <p className="text-xs text-muted-foreground mb-3">This role hasn't been scored yet.</p>
+                <button
+                  onClick={() => handleScoreJob(selected)}
+                  disabled={aLoading.size > 0}
+                  className="text-xs font-medium px-3.5 py-2 rounded-lg bg-foreground text-background hover:opacity-90 transition-opacity disabled:opacity-40"
+                >
+                  Score this role
+                </button>
               </div>
             ) : hasError ? (
               <div className="animate-fade-up apple-card border-destructive/20 p-5">
