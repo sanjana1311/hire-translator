@@ -9,6 +9,9 @@ const corsHeaders = {
 
 const DAILY_LIMIT = 10;
 
+// Set when OpenCode Go rejects us (bad key / no credits) so later calls skip it.
+let opencodeDisabled = false;
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -20,6 +23,64 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    // Diagnostic probe: checks provider reachability only. No user data, no secrets returned.
+    const diagToken = Deno.env.get("AI_DIAG_TOKEN");
+    if (diagToken && req.headers.get("x-diag-token") === diagToken) {
+      const results: Record<string, unknown> = {};
+
+      const oc = Deno.env.get("OPENCODE_API_KEY");
+      const ocBase = Deno.env.get("OPENCODE_BASE_URL") || "https://opencode.ai/zen/v1";
+      const ocModel = Deno.env.get("OPENCODE_MODEL") || "grok-4.5";
+      results.opencode = { configured: !!oc, baseUrl: ocBase, model: ocModel };
+      if (oc) {
+        try {
+          const r = await fetch(`${ocBase}/chat/completions`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${oc}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: ocModel, max_tokens: 5, messages: [{ role: "user", content: "ping" }] }),
+          });
+          const body = await r.text();
+          results.opencode = { ...(results.opencode as object), status: r.status, body: body.slice(0, 300) };
+        } catch (e) {
+          results.opencode = { ...(results.opencode as object), error: String(e).slice(0, 200) };
+        }
+      }
+
+      const lk = Deno.env.get("LOVABLE_API_KEY");
+      results.lovable = { configured: !!lk };
+      if (lk) {
+        try {
+          const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: { "Lovable-API-Key": lk, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: "google/gemini-3.6-flash", max_tokens: 5, messages: [{ role: "user", content: "ping" }] }),
+          });
+          const body = await r.text();
+          results.lovable = { configured: true, status: r.status, body: body.slice(0, 300) };
+        } catch (e) {
+          results.lovable = { configured: true, error: String(e).slice(0, 200) };
+        }
+      }
+
+      const gq = Deno.env.get("GROQ_API_KEY");
+      results.groq = { configured: !!gq };
+      if (gq) {
+        try {
+          const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${gq}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: "llama-3.3-70b-versatile", max_tokens: 5, messages: [{ role: "user", content: "ping" }] }),
+          });
+          const body = await r.text();
+          results.groq = { configured: true, status: r.status, body: body.slice(0, 300) };
+        } catch (e) {
+          results.groq = { configured: true, error: String(e).slice(0, 200) };
+        }
+      }
+
+      return json({ diagnostic: true, providers: results });
+    }
+
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "Not authenticated" }, 401);
 
@@ -60,8 +121,10 @@ serve(async (req) => {
     const OPENCODE_BASE_URL = Deno.env.get("OPENCODE_BASE_URL") || "https://opencode.ai/zen/v1";
     const OPENCODE_MODEL = Deno.env.get("OPENCODE_MODEL") || "grok-4.5";
 
-    // Primary provider: OpenCode Go (OpenAI-compatible)
-    if (OPENCODE_API_KEY) {
+    // Primary provider: OpenCode Go (OpenAI-compatible).
+    // Skipped for the rest of this instance's life once it returns 401/402/403
+    // (bad key or no balance) so we don't pay the latency on every call.
+    if (OPENCODE_API_KEY && !opencodeDisabled) {
       try {
         const res = await fetch(`${OPENCODE_BASE_URL}/chat/completions`, {
           method: "POST",
@@ -80,12 +143,18 @@ serve(async (req) => {
           const data = await res.json();
           text = data.choices?.[0]?.message?.content || "";
         } else {
-          console.error("OpenCode Go error:", res.status, await res.text());
+          const body = await res.text();
+          console.error("OpenCode Go error:", res.status, body);
+          if ([401, 402, 403].includes(res.status)) {
+            opencodeDisabled = true;
+            console.error("OpenCode Go disabled for this instance (auth/credits). Using fallbacks.");
+          }
         }
       } catch (e) {
         console.error("OpenCode Go request failed:", e);
       }
     }
+
 
     // Fallback 1: Lovable AI
     if (!text && LOVABLE_API_KEY) {
