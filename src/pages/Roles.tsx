@@ -727,10 +727,10 @@ Output complete rewritten resume:`, 4000, "roles");
         ) : (
           <div className="flex items-center gap-2">
             <button
-              onClick={handleRescoreAll}
+              onClick={handleClearAllScores}
               className="text-[11px] font-medium px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
             >
-              Re-score All
+              Clear all scores
             </button>
             <div className="flex gap-1">
               {([["must", "hsl(var(--success))", buckets.must.length], ["tweak", "hsl(var(--warning))", buckets.tweak.length], ["low", "hsl(var(--danger))", buckets.low.length]] as const).map(([k, c, n]) => (
