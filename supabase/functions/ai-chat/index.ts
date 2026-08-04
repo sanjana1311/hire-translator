@@ -118,8 +118,10 @@ serve(async (req) => {
     const OPENCODE_BASE_URL = Deno.env.get("OPENCODE_BASE_URL") || "https://opencode.ai/zen/v1";
     const OPENCODE_MODEL = Deno.env.get("OPENCODE_MODEL") || "grok-4.5";
 
-    // Primary provider: OpenCode Go (OpenAI-compatible)
-    if (OPENCODE_API_KEY) {
+    // Primary provider: OpenCode Go (OpenAI-compatible).
+    // Skipped for the rest of this instance's life once it returns 401/402/403
+    // (bad key or no balance) so we don't pay the latency on every call.
+    if (OPENCODE_API_KEY && !opencodeDisabled) {
       try {
         const res = await fetch(`${OPENCODE_BASE_URL}/chat/completions`, {
           method: "POST",
@@ -138,12 +140,18 @@ serve(async (req) => {
           const data = await res.json();
           text = data.choices?.[0]?.message?.content || "";
         } else {
-          console.error("OpenCode Go error:", res.status, await res.text());
+          const body = await res.text();
+          console.error("OpenCode Go error:", res.status, body);
+          if ([401, 402, 403].includes(res.status)) {
+            opencodeDisabled = true;
+            console.error("OpenCode Go disabled for this instance (auth/credits). Using fallbacks.");
+          }
         }
       } catch (e) {
         console.error("OpenCode Go request failed:", e);
       }
     }
+
 
     // Fallback 1: Lovable AI
     if (!text && LOVABLE_API_KEY) {
