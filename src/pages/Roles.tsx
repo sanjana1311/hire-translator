@@ -153,14 +153,26 @@ const Roles = () => {
     }
   }, [syncStatus, profile?.id, loadJobsFromDB]);
 
-  useEffect(() => {
-    if (!dbLoaded || didAutoScore.current || jobs.length === 0 || !resumeText) return;
-    didAutoScore.current = true;
-    const unscored = jobs.filter(j => j.status === "new" && !j.analysis && !results[j.id]);
-    if (unscored.length === 0) return;
-    console.log(`[Roles] Auto-scoring ${unscored.length} new jobs (resume: ${resumeText.length} chars)`);
-    unscored.forEach((job, i) => setTimeout(() => analyzeJob(job), i * 400));
-  }, [dbLoaded, jobs, resumeText]);
+  // Scoring is manual and one-at-a-time — triggered per job row by the user.
+  const handleScoreJob = async (job: ImportedJob, force = false) => {
+    if (!resumeText) {
+      toast.error("Upload your resume first before scoring");
+      return;
+    }
+    if (aLoading.size > 0) {
+      toast.info("Another job is being scored — wait for it to finish");
+      return;
+    }
+    if (force) {
+      setResults(prev => { const n = { ...prev }; delete n[job.id]; return n; });
+      setDone(prev => Math.max(0, prev - 1));
+      await supabase
+        .from("imported_jobs")
+        .update({ analysis: null, status: "new" } as any)
+        .eq("id", job.id);
+    }
+    await analyzeJob(job);
+  };
 
   const analyzeJob = async (job: ImportedJob) => {
     if (!resumeText) {
