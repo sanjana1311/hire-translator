@@ -979,14 +979,24 @@ Output complete rewritten resume:`, 4000, "roles");
                                         <span className="animate-pulse-dot text-[10px] text-muted-foreground">Scoring…</span>
                                       </div>
                                     ) : r ? (
-                                      <div>
+                                      <div className="flex flex-col items-end">
                                         <div className="text-2xl font-semibold leading-none tabular-nums" style={{ color: scoreColor(r.score) }}>{r.score}</div>
-                                        <div className="text-[10px] text-muted-foreground mt-0.5">
-                                          {rLoading.has(job.id) ? <span className="animate-pulse-dot">writing…</span> : "ready"}
-                                        </div>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleScoreJob(job, true); }}
+                                          disabled={aLoading.size > 0}
+                                          className="text-[10px] text-muted-foreground hover:text-foreground mt-0.5 underline underline-offset-2 disabled:opacity-40"
+                                        >
+                                          {rLoading.has(job.id) ? "writing…" : "Re-score"}
+                                        </button>
                                       </div>
                                     ) : (
-                                      <Spinner size={14} />
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); handleScoreJob(job); }}
+                                        disabled={aLoading.size > 0}
+                                        className="text-[11px] font-medium px-3 py-1.5 rounded-lg bg-foreground text-background hover:opacity-90 transition-opacity disabled:opacity-40"
+                                      >
+                                        Score
+                                      </button>
                                     )}
                                   </div>
                                 </div>
