@@ -937,7 +937,7 @@ Output complete rewritten resume:`, 4000, "roles");
                                 {bm.label} ({bucketJobs.length})
                               </span>
                             ) : (
-                              <span className="text-[11px] text-muted-foreground font-medium">Scoring… ({bucketJobs.length})</span>
+                              <span className="text-[11px] text-muted-foreground font-medium">Not scored yet ({bucketJobs.length})</span>
                             )}
                           </div>
                           <div className="flex flex-col gap-1.5">
