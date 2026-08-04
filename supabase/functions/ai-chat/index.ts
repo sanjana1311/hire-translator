@@ -32,21 +32,29 @@ serve(async (req) => {
 
       const oc = Deno.env.get("OPENCODE_API_KEY");
       const ocBase = Deno.env.get("OPENCODE_BASE_URL") || "https://opencode.ai/zen/v1";
-      const ocModel = Deno.env.get("OPENCODE_MODEL") || "grok-4.5";
-      results.opencode = { configured: !!oc, baseUrl: ocBase, model: ocModel };
+      // Optional: probe a list of candidate models via header, e.g. "grok-build-0.1,glm-5.2"
+      const probeModels = (req.headers.get("x-diag-models") || Deno.env.get("OPENCODE_MODEL") || "grok-4.5")
+        .split(",")
+        .map((m) => m.trim())
+        .filter(Boolean);
+      const ocResults: unknown[] = [];
       if (oc) {
-        try {
-          const r = await fetch(`${ocBase}/chat/completions`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${oc}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: ocModel, max_tokens: 5, messages: [{ role: "user", content: "ping" }] }),
-          });
-          const body = await r.text();
-          results.opencode = { ...(results.opencode as object), status: r.status, body: body.slice(0, 300) };
-        } catch (e) {
-          results.opencode = { ...(results.opencode as object), error: String(e).slice(0, 200) };
+        for (const m of probeModels) {
+          try {
+            const r = await fetch(`${ocBase}/chat/completions`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${oc}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ model: m, max_tokens: 5, messages: [{ role: "user", content: "ping" }] }),
+            });
+            const body = await r.text();
+            ocResults.push({ model: m, status: r.status, body: body.slice(0, 200) });
+          } catch (e) {
+            ocResults.push({ model: m, error: String(e).slice(0, 200) });
+          }
         }
       }
+      results.opencode = { configured: !!oc, baseUrl: ocBase, probes: ocResults };
+
 
       const lk = Deno.env.get("LOVABLE_API_KEY");
       results.lovable = { configured: !!lk };
