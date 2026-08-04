@@ -25,7 +25,9 @@ serve(async (req) => {
   try {
     // Diagnostic probe: checks provider reachability only. No user data, no secrets returned.
     const diagToken = Deno.env.get("AI_DIAG_TOKEN");
-    if (diagToken && req.headers.get("x-diag-token") === diagToken) {
+    const diagTokenV2 = Deno.env.get("AI_DIAG_TOKEN_V2");
+    const sentDiag = req.headers.get("x-diag-token");
+    if (sentDiag && ((diagToken && sentDiag === diagToken) || (diagTokenV2 && sentDiag === diagTokenV2))) {
       const results: Record<string, unknown> = {};
 
       const oc = Deno.env.get("OPENCODE_API_KEY");
