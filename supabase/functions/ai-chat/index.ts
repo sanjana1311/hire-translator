@@ -128,8 +128,9 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
     const OPENCODE_API_KEY = Deno.env.get("OPENCODE_API_KEY");
-    const OPENCODE_BASE_URL = Deno.env.get("OPENCODE_BASE_URL") || "https://opencode.ai/zen/v1";
-    const OPENCODE_MODEL = Deno.env.get("OPENCODE_MODEL") || "grok-4.5";
+    const OPENCODE_BASE_URL = Deno.env.get("OPENCODE_BASE_URL") || "https://opencode.ai/zen/go/v1";
+    // OPENCODE_MODEL_V2 wins: the Go router only serves a subset of Zen models.
+    const OPENCODE_MODEL = Deno.env.get("OPENCODE_MODEL_V2") || Deno.env.get("OPENCODE_MODEL") || "glm-5.2";
 
     // Primary provider: OpenCode Go (OpenAI-compatible).
     // Skipped for the rest of this instance's life once it returns 401/402/403
