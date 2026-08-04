@@ -8,7 +8,6 @@ const corsHeaders = {
 };
 
 const DAILY_LIMIT = 10;
-const HF_MODEL = "Qwen/Qwen3-8B";
 const OPENCODE_GO_MODEL = "kimi-k3";
 
 function json(body: unknown, status = 200) {
@@ -16,37 +15,6 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
-}
-
-async function callHuggingFace(
-  messages: Array<{ role: string; content: string }>,
-  temperature: number,
-  maxTokens: number,
-) {
-  const token = Deno.env.get("HF_TOKEN");
-  if (!token) return "";
-
-  const res = await fetch("https://router.huggingface.co/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: HF_MODEL,
-      temperature,
-      max_tokens: maxTokens,
-      messages,
-    }),
-  });
-
-  if (!res.ok) {
-    console.error("Hugging Face API error:", res.status, await res.text());
-    return "";
-  }
-
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content || "";
 }
 
 async function callOpenCodeGo(
@@ -121,9 +89,6 @@ serve(async (req) => {
 
     // Primary provider: OpenCode Go subscription.
     text = await callOpenCodeGo(messages, temperature, maxOutputTokens);
-
-    // Optional free-tier fallback: open-weight Qwen through Hugging Face.
-    if (!text) text = await callHuggingFace(messages, temperature, maxOutputTokens);
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
