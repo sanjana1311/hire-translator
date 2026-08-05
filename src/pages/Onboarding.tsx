@@ -291,6 +291,43 @@ const Onboarding = () => {
         <div className="mb-8">
           <label className="text-sm font-medium block mb-3">Your resume</label>
 
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/pdf,.pdf"
+            className="hidden"
+            onChange={(e) => { handlePickFile(e.target.files?.[0]); e.target.value = ""; }}
+          />
+          <div className="mb-4 flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={extracting}
+              className="text-xs font-medium border border-border bg-card rounded-[8px] px-3 py-2 hover:bg-secondary transition-colors disabled:opacity-50"
+            >
+              {extracting ? "Reading PDF…" : pdfFile ? "Replace PDF" : "Upload Resume (PDF)"}
+            </button>
+            {pdfFile && (
+              <span className="text-[11px] text-muted-foreground truncate max-w-[220px]">
+                {pdfFile.name} · {(pdfFile.size / 1024).toFixed(0)} KB
+              </span>
+            )}
+            {pdfFile && (
+              <button
+                type="button"
+                onClick={() => setPdfFile(null)}
+                className="text-[11px] text-muted-foreground hover:text-destructive"
+              >
+                × Remove
+              </button>
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground mb-4">
+            Your PDF is stored privately — only you can open it. Max {MAX_RESUME_BYTES / (1024 * 1024)}MB.
+          </p>
+
+
+
           {resumes.map((resume, idx) => (
             <div
               key={idx}
