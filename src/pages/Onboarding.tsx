@@ -161,12 +161,36 @@ const Onboarding = () => {
 
       if (profileError) throw profileError;
 
-      // 2. Insert resume(s)
+      // 2. Upload the PDF (private, per-user folder) if one was picked
+      let fileMeta: Record<string, any> = {};
+      if (pdfFile) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const path = `${user.id}/${Date.now()}-${pdfFile.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+          const { error: upErr } = await supabase.storage
+            .from("resumes")
+            .upload(path, pdfFile, { contentType: "application/pdf", upsert: false });
+          if (upErr) {
+            toast.error("Resume file upload failed — you can retry from the Resume page");
+          } else {
+            fileMeta = {
+              file_path: path,
+              file_name: pdfFile.name,
+              file_size: pdfFile.size,
+              file_type: "application/pdf",
+              file_uploaded_at: new Date().toISOString(),
+            };
+          }
+        }
+      }
+
+      // 3. Insert resume(s)
       const validResumes = resumes.filter((r) => r.text.trim().length >= 150);
       const resumeRows = validResumes.map((r, i) => ({
         profile_id: profile.id,
         label: r.label.trim() || `Resume ${i + 1}`,
         raw_text: r.text.trim(),
+        ...(i === 0 ? fileMeta : {}),
       }));
 
       const { error: resumeError } = await supabase
@@ -174,6 +198,7 @@ const Onboarding = () => {
         .insert(resumeRows as any);
 
       if (resumeError) throw resumeError;
+
 
       // 3. Navigate to dashboard immediately
       navigate("/dashboard", { replace: true });
