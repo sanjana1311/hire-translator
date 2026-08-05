@@ -256,6 +256,10 @@ const ResumeProfile = () => {
           </Button>
         </div>
 
+        <ResumeFileCard resume={resume} />
+
+
+
         <Section title="Summary">
           <p className="text-sm text-muted-foreground leading-relaxed">
             {resume.summary || <span className="italic">No summary yet</span>}
