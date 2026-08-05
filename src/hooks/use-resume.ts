@@ -26,9 +26,10 @@ export function useResume() {
         .from("resumes")
         .select("*")
         .eq("profile_id", profile!.id)
-        .maybeSingle();
+        .order("updated_at", { ascending: false })
+        .limit(1);
       if (error) throw error;
-      return data as ResumeData | null;
+      return ((data?.[0] as unknown) as ResumeData) ?? null;
     },
   });
 }
