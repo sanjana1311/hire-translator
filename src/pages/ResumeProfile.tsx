@@ -184,17 +184,8 @@ const ResumeProfile = () => {
           <h1 className="text-2xl font-bold mb-1 text-foreground">Resume Profile</h1>
           <p className="text-muted-foreground text-sm mb-8">Upload your master resume — we'll parse it into structured fields</p>
 
-          <div className="border-2 border-dashed border-border rounded-2xl p-12 text-center bg-card cursor-default">
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-16 h-16 rounded-xl bg-primary/10 flex items-center justify-center">
-                <Upload className="w-8 h-8 text-primary" />
-              </div>
-              <div>
-                <p className="font-medium mb-1 text-foreground">File upload coming soon</p>
-                <p className="text-sm text-muted-foreground">For now, paste your resume text below</p>
-              </div>
-            </div>
-          </div>
+          <ResumeFileCard resume={null} />
+
 
           <div className="mt-8">
             <p className="text-sm text-muted-foreground mb-4">Paste your resume text below:</p>
