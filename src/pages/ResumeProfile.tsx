@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Upload, CheckCircle, Edit3, Save, FileText, Trash2, ExternalLink } from "lucide-react";
+import { Upload, CheckCircle, Edit3, Save, FileText, Trash2, ExternalLink, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
