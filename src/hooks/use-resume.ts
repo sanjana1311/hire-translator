@@ -14,6 +14,11 @@ export interface ResumeData {
   raw_text: string;
   created_at: string;
   updated_at: string;
+  file_path?: string | null;
+  file_name?: string | null;
+  file_size?: number | null;
+  file_type?: string | null;
+  file_uploaded_at?: string | null;
 }
 
 export function useResume() {
@@ -26,9 +31,10 @@ export function useResume() {
         .from("resumes")
         .select("*")
         .eq("profile_id", profile!.id)
-        .maybeSingle();
+        .order("updated_at", { ascending: false })
+        .limit(1);
       if (error) throw error;
-      return data as ResumeData | null;
+      return ((data?.[0] as unknown) as ResumeData) ?? null;
     },
   });
 }

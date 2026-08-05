@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Upload, CheckCircle, Edit3, Save, FileText, Trash2, ExternalLink } from "lucide-react";
+import { Upload, CheckCircle, Edit3, Save, FileText, Trash2, ExternalLink, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -14,27 +14,46 @@ import {
   validateResumeFile,
 } from "@/hooks/use-resume-file";
 
+const fmtDate = (iso?: string | null) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+};
+
 const ResumeFileCard = ({ resume }: { resume: any }) => {
   const upload = useUploadResumeFile();
   const del = useDeleteResumeFile();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [justUploaded, setJustUploaded] = useState<{ name: string; at: string; extracted: number } | null>(null);
   const filePath = resume?.file_path as string | null;
+  const uploadedAt = fmtDate(resume?.file_uploaded_at);
 
   const pick = (file?: File | null) => {
     if (!file) return;
+    setErrorMsg(null);
+    setJustUploaded(null);
     const err = validateResumeFile(file);
-    if (err) { toast.error(err); return; }
+    if (err) { setErrorMsg(err); toast.error(err); return; }
     upload.mutate(
       { file },
       {
         onSuccess: (res) => {
-          toast.success(
-            res.extracted > 100
-              ? "Resume uploaded — you can score jobs now"
-              : "Resume uploaded (couldn't read text — paste it below so scoring works)"
-          );
+          setJustUploaded({ name: res.fileName, at: res.uploadedAt, extracted: res.extracted });
+          if (res.extracted > 100) {
+            toast.success(`${res.fileName} uploaded — you can score jobs now`);
+          } else {
+            toast.warning(
+              `${res.fileName} uploaded, but no text could be read${res.extractError ? ` (${res.extractError})` : ""}. Paste your resume text below so scoring works.`
+            );
+          }
         },
-        onError: (e: any) => toast.error(e.message || "Upload failed"),
+        onError: (e: any) => {
+          const msg = e?.message || "Upload failed";
+          setErrorMsg(msg);
+          toast.error(msg);
+        },
       }
     );
   };
@@ -44,7 +63,9 @@ const ResumeFileCard = ({ resume }: { resume: any }) => {
       const url = await getResumeSignedUrl(filePath!);
       window.open(url, "_blank", "noopener,noreferrer");
     } catch (e: any) {
-      toast.error(e.message || "Could not open file");
+      const msg = e?.message || "Could not open file";
+      setErrorMsg(msg);
+      toast.error(msg);
     }
   };
 
@@ -57,7 +78,16 @@ const ResumeFileCard = ({ resume }: { resume: any }) => {
         className="hidden"
         onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }}
       />
-      {filePath ? (
+
+      {upload.isPending ? (
+        <div className="flex items-center gap-3 py-4">
+          <Loader2 className="w-5 h-5 animate-spin text-primary shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-foreground">Uploading and reading your resume…</p>
+            <p className="text-xs text-muted-foreground">Saving the file securely and extracting the text.</p>
+          </div>
+        </div>
+      ) : filePath ? (
         <div className="flex items-center gap-3 flex-wrap">
           <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center shrink-0">
             <FileText className="w-5 h-5 text-foreground" />
@@ -65,26 +95,28 @@ const ResumeFileCard = ({ resume }: { resume: any }) => {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium truncate text-foreground">{resume.file_name || "resume.pdf"}</p>
             <p className="text-xs text-muted-foreground">
-              {resume.file_size ? `${(resume.file_size / 1024).toFixed(0)} KB · ` : ""}Private to your account
+              {resume.file_size ? `${(resume.file_size / 1024).toFixed(0)} KB · ` : ""}
+              {uploadedAt ? `Uploaded ${uploadedAt} · ` : ""}Private to your account
             </p>
           </div>
           <Button variant="outline" size="sm" className="rounded-xl" onClick={view}>
             <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> View
           </Button>
-          <Button variant="outline" size="sm" className="rounded-xl" onClick={() => inputRef.current?.click()} disabled={upload.isPending}>
-            {upload.isPending ? "Uploading…" : "Replace"}
+          <Button variant="outline" size="sm" className="rounded-xl" onClick={() => inputRef.current?.click()}>
+            Replace
           </Button>
           <Button
             variant="outline"
             size="sm"
             className="rounded-xl text-destructive"
             disabled={del.isPending}
-            onClick={() =>
+            onClick={() => {
+              setErrorMsg(null);
               del.mutate(resume.id, {
-                onSuccess: () => toast.success("Resume file deleted"),
-                onError: (e: any) => toast.error(e.message || "Delete failed"),
-              })
-            }
+                onSuccess: () => { setJustUploaded(null); toast.success("Resume file deleted"); },
+                onError: (e: any) => { setErrorMsg(e?.message || "Delete failed"); toast.error(e?.message || "Delete failed"); },
+              });
+            }}
           >
             <Trash2 className="w-3.5 h-3.5" />
           </Button>
@@ -96,9 +128,28 @@ const ResumeFileCard = ({ resume }: { resume: any }) => {
           </div>
           <p className="text-sm font-medium mb-1 text-foreground">Upload your resume (PDF)</p>
           <p className="text-xs text-muted-foreground mb-4">Stored privately — only you can access it. Max 10MB.</p>
-          <Button size="sm" className="rounded-xl" onClick={() => inputRef.current?.click()} disabled={upload.isPending}>
-            {upload.isPending ? "Uploading…" : "Upload Resume"}
+          <Button size="sm" className="rounded-xl" onClick={() => inputRef.current?.click()}>
+            Upload Resume
           </Button>
+        </div>
+      )}
+
+      {justUploaded && !upload.isPending && (
+        <div className="mt-4 flex items-start gap-2 rounded-xl border border-border bg-secondary/60 p-3">
+          <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
+          <p className="text-xs text-secondary-foreground">
+            <span className="font-medium">{justUploaded.name}</span> uploaded on {fmtDate(justUploaded.at)}
+            {justUploaded.extracted > 100
+              ? ` · ${justUploaded.extracted.toLocaleString()} characters of text saved — job scoring is ready.`
+              : " · no readable text found, paste your resume text below."}
+          </p>
+        </div>
+      )}
+
+      {errorMsg && !upload.isPending && (
+        <div className="mt-4 flex items-start gap-2 rounded-xl border border-destructive/40 bg-destructive/10 p-3">
+          <AlertCircle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
+          <p className="text-xs text-destructive break-words">{errorMsg}</p>
         </div>
       )}
     </div>
