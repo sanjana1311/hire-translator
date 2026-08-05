@@ -34,10 +34,40 @@ const Onboarding = () => {
   const [resumes, setResumes] = useState<ResumeEntry[]>([{ label: "", text: "" }]);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handlePickFile = async (file?: File | null) => {
+    if (!file) return;
+    const err = validateResumeFile(file);
+    if (err) { toast.error(err); return; }
+    setPdfFile(file);
+    setExtracting(true);
+    try {
+      const text = await extractPdfText(file);
+      if (text.length >= 150) {
+        setResumes((prev) =>
+          prev.map((r, i) =>
+            i === 0 ? { label: r.label || file.name.replace(/\.pdf$/i, ""), text } : r
+          )
+        );
+        setErrors((prev) => { const n = { ...prev }; delete n.resume_0; return n; });
+        toast.success("Resume text extracted from your PDF");
+      } else {
+        toast.info("Couldn't read text from that PDF — paste your resume text below");
+      }
+    } catch {
+      toast.info("Couldn't read text from that PDF — paste your resume text below");
+    } finally {
+      setExtracting(false);
+    }
+  };
 
   const canSubmit =
     targetRoles.some((r) => r.trim().length >= 3) &&
     resumes.some((r) => r.text.trim().length >= 150);
+
 
   const updateRole = (idx: number, value: string) => {
     setTargetRoles((prev) => prev.map((r, i) => (i === idx ? value : r)));
