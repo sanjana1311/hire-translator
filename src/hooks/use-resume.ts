@@ -31,11 +31,28 @@ export function useResume() {
         .from("resumes")
         .select("*")
         .eq("profile_id", profile!.id)
-        .order("updated_at", { ascending: false })
-        .limit(1);
+        .order("updated_at", { ascending: false });
       if (error) throw error;
-      return ((data?.[0] as unknown) as ResumeData) ?? null;
+      const rows = (data as unknown as ResumeData[]) ?? [];
+      if (rows.length === 0) return null;
+      // Merge: the newest row is the base, but pull file metadata / raw text
+      // from whichever row actually has them (legacy accounts can have 2 rows).
+      const base = { ...rows[0] };
+      const withFile = rows.find((r) => r.file_path);
+      if (withFile && !base.file_path) {
+        base.file_path = withFile.file_path;
+        base.file_name = withFile.file_name;
+        base.file_size = withFile.file_size;
+        base.file_type = withFile.file_type;
+        base.file_uploaded_at = withFile.file_uploaded_at;
+      }
+      if (!base.raw_text || base.raw_text.length < 100) {
+        const withText = rows.find((r) => (r.raw_text?.length ?? 0) > 100);
+        if (withText) base.raw_text = withText.raw_text;
+      }
+      return base;
     },
+
   });
 }
 
