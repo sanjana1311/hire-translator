@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useResume, useUpsertResume } from "@/hooks/use-resume";
 import {
@@ -21,6 +22,23 @@ const fmtDate = (iso?: string | null) => {
   return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 };
 
+const fmtDateRelative = (iso?: string | null) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffSec < 60) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHour < 24) return `${diffHour}h ago`;
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return d.toLocaleDateString(undefined, { dateStyle: "medium" });
+};
+
 const ResumeFileCard = ({ resume }: { resume: any }) => {
   const upload = useUploadResumeFile();
   const del = useDeleteResumeFile();
@@ -29,6 +47,8 @@ const ResumeFileCard = ({ resume }: { resume: any }) => {
   const [justUploaded, setJustUploaded] = useState<{ name: string; at: string; extracted: number } | null>(null);
   const filePath = resume?.file_path as string | null;
   const uploadedAt = fmtDate(resume?.file_uploaded_at);
+  const uploadedAtRelative = fmtDateRelative(resume?.file_uploaded_at);
+  const hasExtractedText = resume?.raw_text && (resume.raw_text as string).length > 100;
 
   const pick = (file?: File | null) => {
     if (!file) return;
@@ -42,7 +62,7 @@ const ResumeFileCard = ({ resume }: { resume: any }) => {
         onSuccess: (res) => {
           setJustUploaded({ name: res.fileName, at: res.uploadedAt, extracted: res.extracted });
           if (res.extracted > 100) {
-            toast.success(`${res.fileName} uploaded — you can score jobs now`);
+            toast.success(`${res.fileName} uploaded — ready to score jobs`);
           } else {
             toast.warning(
               `${res.fileName} uploaded, but no text could be read${res.extractError ? ` (${res.extractError})` : ""}. Paste your resume text below so scoring works.`
@@ -70,7 +90,7 @@ const ResumeFileCard = ({ resume }: { resume: any }) => {
   };
 
   return (
-    <div className="bg-card border border-border rounded-2xl p-5 mb-8">
+    <div className="bg-card border border-border rounded-2xl p-5 mb-8 shadow-card">
       <input
         ref={inputRef}
         type="file"
@@ -79,70 +99,113 @@ const ResumeFileCard = ({ resume }: { resume: any }) => {
         onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }}
       />
 
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-foreground">Resume file</h2>
+          {filePath && !upload.isPending && (
+            <Badge
+              variant="secondary"
+              className="bg-[hsl(var(--success-bg))] text-[hsl(var(--success))] border-[hsl(var(--success-border))] hover:bg-[hsl(var(--success-bg))]"
+            >
+              <CheckCircle className="w-3 h-3 mr-1" /> Saved
+            </Badge>
+          )}
+        </div>
+        {!upload.isPending && filePath && (
+          <span className="text-xs text-muted-foreground">
+            Updated {uploadedAtRelative || uploadedAt || "recently"}
+          </span>
+        )}
+      </div>
+
       {upload.isPending ? (
-        <div className="flex items-center gap-3 py-4">
-          <Loader2 className="w-5 h-5 animate-spin text-primary shrink-0" />
-          <div>
+        <div className="flex items-center gap-3 py-6">
+          <div className="relative w-10 h-10 rounded-xl bg-secondary flex items-center justify-center shrink-0">
+            <Loader2 className="w-5 h-5 animate-spin text-primary" />
+          </div>
+          <div className="flex-1">
             <p className="text-sm font-medium text-foreground">Uploading and reading your resume…</p>
-            <p className="text-xs text-muted-foreground">Saving the file securely and extracting the text.</p>
+            <p className="text-xs text-muted-foreground">This usually takes a few seconds.</p>
           </div>
         </div>
       ) : filePath ? (
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center shrink-0">
-            <FileText className="w-5 h-5 text-foreground" />
+        <div className="flex items-center gap-4 flex-wrap sm:flex-nowrap">
+          <div className="relative w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0">
+            <FileText className="w-6 h-6 text-foreground" />
+            {hasExtractedText && (
+              <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[hsl(var(--success))] text-white flex items-center justify-center border-2 border-card">
+                <CheckCircle className="w-3 h-3" />
+              </span>
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium truncate text-foreground">{resume.file_name || "resume.pdf"}</p>
-            <p className="text-xs text-muted-foreground">
-              {resume.file_size ? `${(resume.file_size / 1024).toFixed(0)} KB · ` : ""}
-              {uploadedAt ? `Uploaded ${uploadedAt} · ` : ""}Private to your account
-            </p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              {resume.file_size ? (
+                <span>{(resume.file_size / 1024).toFixed(0)} KB</span>
+              ) : null}
+              {uploadedAt ? (
+                <span>Uploaded {uploadedAt}</span>
+              ) : null}
+              <span className="inline-flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-[hsl(var(--success))]" />
+                Private to you
+              </span>
+            </div>
           </div>
-          <Button variant="outline" size="sm" className="rounded-xl" onClick={view}>
-            <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> View
-          </Button>
-          <Button variant="outline" size="sm" className="rounded-xl" onClick={() => inputRef.current?.click()}>
-            Replace
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-xl text-destructive"
-            disabled={del.isPending}
-            onClick={() => {
-              setErrorMsg(null);
-              del.mutate(resume.id, {
-                onSuccess: () => { setJustUploaded(null); toast.success("Resume file deleted"); },
-                onError: (e: any) => { setErrorMsg(e?.message || "Delete failed"); toast.error(e?.message || "Delete failed"); },
-              });
-            }}
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="rounded-xl" onClick={view}>
+              <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> View
+            </Button>
+            <Button variant="outline" size="sm" className="rounded-xl" onClick={() => inputRef.current?.click()}>
+              Replace
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-xl text-destructive"
+              disabled={del.isPending}
+              onClick={() => {
+                setErrorMsg(null);
+                del.mutate(resume.id, {
+                  onSuccess: () => { setJustUploaded(null); toast.success("Resume file deleted"); },
+                  onError: (e: any) => { setErrorMsg(e?.message || "Delete failed"); toast.error(e?.message || "Delete failed"); },
+                });
+              }}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          </div>
         </div>
       ) : (
-        <div className="text-center py-6">
+        <div className="text-center py-8">
           <div className="w-12 h-12 rounded-xl bg-secondary mx-auto flex items-center justify-center mb-3">
             <Upload className="w-6 h-6 text-foreground" />
           </div>
           <p className="text-sm font-medium mb-1 text-foreground">Upload your resume (PDF)</p>
-          <p className="text-xs text-muted-foreground mb-4">Stored privately — only you can access it. Max 10MB.</p>
+          <p className="text-xs text-muted-foreground mb-5 max-w-xs mx-auto">
+            Stored privately in your account. Max 10MB. We automatically extract the text so job scoring works.
+          </p>
           <Button size="sm" className="rounded-xl" onClick={() => inputRef.current?.click()}>
-            Upload Resume
+            <Upload className="w-4 h-4 mr-1.5" /> Upload Resume
           </Button>
         </div>
       )}
 
       {justUploaded && !upload.isPending && (
-        <div className="mt-4 flex items-start gap-2 rounded-xl border border-border bg-secondary/60 p-3">
-          <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
-          <p className="text-xs text-secondary-foreground">
-            <span className="font-medium">{justUploaded.name}</span> uploaded on {fmtDate(justUploaded.at)}
-            {justUploaded.extracted > 100
-              ? ` · ${justUploaded.extracted.toLocaleString()} characters of text saved — job scoring is ready.`
-              : " · no readable text found, paste your resume text below."}
-          </p>
+        <div className="mt-5 flex items-start gap-3 rounded-xl border border-[hsl(var(--success-border))] bg-[hsl(var(--success-bg))] p-4">
+          <CheckCircle className="w-5 h-5 text-[hsl(var(--success))] mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-[hsl(var(--success))]">
+              Upload complete — {justUploaded.name}
+            </p>
+            <p className="text-xs text-[hsl(var(--success))]/80 mt-0.5">
+              Uploaded on {fmtDate(justUploaded.at)}
+              {justUploaded.extracted > 100
+                ? ` · ${justUploaded.extracted.toLocaleString()} characters saved. Job scoring is ready.`
+                : " · No readable text found. Paste your resume text below so scoring works."}
+            </p>
+          </div>
         </div>
       )}
 
@@ -161,7 +224,6 @@ const ResumeProfile = () => {
   const upsert = useUpsertResume();
   const [pasteText, setPasteText] = useState("");
   const [editing, setEditing] = useState(false);
-
 
   // Editable state
   const [summary, setSummary] = useState("");
@@ -228,15 +290,22 @@ const ResumeProfile = () => {
     );
   }
 
+  const headerStatus = resume?.file_path
+    ? "Resume file saved — ready to use"
+    : resume
+    ? "Resume profile saved — add a PDF for job scoring"
+    : "Upload your resume to get started";
+
   if (!resume) {
     return (
       <div className="p-8 max-w-3xl mx-auto">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-2xl font-bold mb-1 text-foreground">Resume Profile</h1>
-          <p className="text-muted-foreground text-sm mb-8">Upload your master resume — we'll parse it into structured fields</p>
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold mb-1 text-foreground">Resume Profile</h1>
+            <p className="text-muted-foreground text-sm">{headerStatus}</p>
+          </div>
 
           <ResumeFileCard resume={null} />
-
 
           <div className="mt-8">
             <p className="text-sm text-muted-foreground mb-4">Paste your resume text below:</p>
@@ -295,11 +364,21 @@ const ResumeProfile = () => {
   return (
     <div className="p-8 max-w-3xl mx-auto">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-8 gap-4">
           <div>
             <h1 className="text-2xl font-bold mb-1 text-foreground">Resume Profile</h1>
-            <p className="text-sm text-muted-foreground flex items-center gap-1">
-              <CheckCircle className="w-3.5 h-3.5 text-green-600" /> Parsed and saved
+            <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+              {resume?.file_path ? (
+                <>
+                  <CheckCircle className="w-3.5 h-3.5 text-[hsl(var(--success))]" />
+                  {headerStatus}
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-3.5 h-3.5 text-green-600" />
+                  Parsed and saved
+                </>
+              )}
             </p>
           </div>
           <Button variant="outline" size="sm" className="rounded-xl" onClick={startEdit}>
@@ -308,8 +387,6 @@ const ResumeProfile = () => {
         </div>
 
         <ResumeFileCard resume={resume} />
-
-
 
         <Section title="Summary">
           <p className="text-sm text-muted-foreground leading-relaxed">
