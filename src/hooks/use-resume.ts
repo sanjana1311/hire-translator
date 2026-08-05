@@ -14,6 +14,11 @@ export interface ResumeData {
   raw_text: string;
   created_at: string;
   updated_at: string;
+  file_path?: string | null;
+  file_name?: string | null;
+  file_size?: number | null;
+  file_type?: string | null;
+  file_uploaded_at?: string | null;
 }
 
 export function useResume() {
