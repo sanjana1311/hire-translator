@@ -1,18 +1,116 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Upload, CheckCircle, Edit3, Save } from "lucide-react";
+import { Upload, CheckCircle, Edit3, Save, FileText, Trash2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useResume, useUpsertResume } from "@/hooks/use-resume";
+import {
+  useUploadResumeFile,
+  useDeleteResumeFile,
+  getResumeSignedUrl,
+  validateResumeFile,
+} from "@/hooks/use-resume-file";
+
+const ResumeFileCard = ({ resume }: { resume: any }) => {
+  const upload = useUploadResumeFile();
+  const del = useDeleteResumeFile();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const filePath = resume?.file_path as string | null;
+
+  const pick = (file?: File | null) => {
+    if (!file) return;
+    const err = validateResumeFile(file);
+    if (err) { toast.error(err); return; }
+    upload.mutate(
+      { file },
+      {
+        onSuccess: (res) => {
+          toast.success(
+            res.extracted > 100
+              ? "Resume uploaded — you can score jobs now"
+              : "Resume uploaded (couldn't read text — paste it below so scoring works)"
+          );
+        },
+        onError: (e: any) => toast.error(e.message || "Upload failed"),
+      }
+    );
+  };
+
+  const view = async () => {
+    try {
+      const url = await getResumeSignedUrl(filePath!);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (e: any) {
+      toast.error(e.message || "Could not open file");
+    }
+  };
+
+  return (
+    <div className="bg-card border border-border rounded-2xl p-5 mb-8">
+      <input
+        ref={inputRef}
+        type="file"
+        accept="application/pdf,.pdf"
+        className="hidden"
+        onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }}
+      />
+      {filePath ? (
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center shrink-0">
+            <FileText className="w-5 h-5 text-foreground" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium truncate text-foreground">{resume.file_name || "resume.pdf"}</p>
+            <p className="text-xs text-muted-foreground">
+              {resume.file_size ? `${(resume.file_size / 1024).toFixed(0)} KB · ` : ""}Private to your account
+            </p>
+          </div>
+          <Button variant="outline" size="sm" className="rounded-xl" onClick={view}>
+            <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> View
+          </Button>
+          <Button variant="outline" size="sm" className="rounded-xl" onClick={() => inputRef.current?.click()} disabled={upload.isPending}>
+            {upload.isPending ? "Uploading…" : "Replace"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl text-destructive"
+            disabled={del.isPending}
+            onClick={() =>
+              del.mutate(resume.id, {
+                onSuccess: () => toast.success("Resume file deleted"),
+                onError: (e: any) => toast.error(e.message || "Delete failed"),
+              })
+            }
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      ) : (
+        <div className="text-center py-6">
+          <div className="w-12 h-12 rounded-xl bg-secondary mx-auto flex items-center justify-center mb-3">
+            <Upload className="w-6 h-6 text-foreground" />
+          </div>
+          <p className="text-sm font-medium mb-1 text-foreground">Upload your resume (PDF)</p>
+          <p className="text-xs text-muted-foreground mb-4">Stored privately — only you can access it. Max 10MB.</p>
+          <Button size="sm" className="rounded-xl" onClick={() => inputRef.current?.click()} disabled={upload.isPending}>
+            {upload.isPending ? "Uploading…" : "Upload Resume"}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const ResumeProfile = () => {
   const { data: resume, isLoading } = useResume();
   const upsert = useUpsertResume();
   const [pasteText, setPasteText] = useState("");
   const [editing, setEditing] = useState(false);
+
 
   // Editable state
   const [summary, setSummary] = useState("");
