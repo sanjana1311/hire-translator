@@ -155,9 +155,15 @@ const Roles = () => {
   // Scoring is manual and one-at-a-time — triggered per job row by the user.
   const handleScoreJob = async (job: ImportedJob, force = false) => {
     if (!resumeText) {
-      toast.error("Upload your resume first before scoring");
+      toast.error("Add your resume before scoring", {
+        action: {
+          label: "Go to Resume",
+          onClick: () => navigate("/dashboard/resume"),
+        },
+      });
       return;
     }
+
     if (aLoading.size > 0) {
       toast.info("Another job is being scored — wait for it to finish");
       return;
