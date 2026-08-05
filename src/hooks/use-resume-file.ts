@@ -72,10 +72,10 @@ export function useUploadResumeFile() {
         .from("resumes")
         .select("id, file_path")
         .eq("profile_id", profileId)
-        .order("updated_at", { ascending: false })
-        .limit(1);
+        .order("updated_at", { ascending: false });
       if (exErr) throw new Error(`Could not read your resume record: ${exErr.message}`);
-      const existing = existingRows?.[0];
+      const existing = existingRows?.find((r: any) => r.file_path) ?? existingRows?.[0];
+
 
       if (existing) {
         const oldPath = (existing as any).file_path as string | null;
