@@ -8,6 +8,8 @@ import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
 import AppLayout from "./components/AppLayout";
 import Roles from "./pages/Roles";
+import ResumeProfile from "./pages/ResumeProfile";
+
 import Applications from "./pages/Applications";
 import Networking from "./pages/Networking";
 import InterviewPrep from "./pages/InterviewPrep";
@@ -38,6 +40,8 @@ const App = () => (
           <Route path="/dashboard" element={<AppLayout />}>
             <Route index element={<Roles />} />
             <Route path="applications" element={<Applications />} />
+            <Route path="resume" element={<ResumeProfile />} />
+
             <Route path="networking" element={<Networking />} />
             <Route path="prep" element={<InterviewPrep />} />
             <Route path="report" element={<WeeklyReport />} />
