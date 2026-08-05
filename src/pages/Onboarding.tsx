@@ -1,9 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile } from "@/hooks/use-profile";
 import { toast } from "sonner";
 import ThemeToggle from "@/components/ThemeToggle";
+import { validateResumeFile, MAX_RESUME_BYTES } from "@/hooks/use-resume-file";
+import { extractPdfText } from "@/lib/pdf-extract";
+
 
 interface ResumeEntry {
   label: string;
@@ -31,10 +34,40 @@ const Onboarding = () => {
   const [resumes, setResumes] = useState<ResumeEntry[]>([{ label: "", text: "" }]);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handlePickFile = async (file?: File | null) => {
+    if (!file) return;
+    const err = validateResumeFile(file);
+    if (err) { toast.error(err); return; }
+    setPdfFile(file);
+    setExtracting(true);
+    try {
+      const text = await extractPdfText(file);
+      if (text.length >= 150) {
+        setResumes((prev) =>
+          prev.map((r, i) =>
+            i === 0 ? { label: r.label || file.name.replace(/\.pdf$/i, ""), text } : r
+          )
+        );
+        setErrors((prev) => { const n = { ...prev }; delete n.resume_0; return n; });
+        toast.success("Resume text extracted from your PDF");
+      } else {
+        toast.info("Couldn't read text from that PDF — paste your resume text below");
+      }
+    } catch {
+      toast.info("Couldn't read text from that PDF — paste your resume text below");
+    } finally {
+      setExtracting(false);
+    }
+  };
 
   const canSubmit =
     targetRoles.some((r) => r.trim().length >= 3) &&
     resumes.some((r) => r.text.trim().length >= 150);
+
 
   const updateRole = (idx: number, value: string) => {
     setTargetRoles((prev) => prev.map((r, i) => (i === idx ? value : r)));
@@ -128,12 +161,36 @@ const Onboarding = () => {
 
       if (profileError) throw profileError;
 
-      // 2. Insert resume(s)
+      // 2. Upload the PDF (private, per-user folder) if one was picked
+      let fileMeta: Record<string, any> = {};
+      if (pdfFile) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const path = `${user.id}/${Date.now()}-${pdfFile.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+          const { error: upErr } = await supabase.storage
+            .from("resumes")
+            .upload(path, pdfFile, { contentType: "application/pdf", upsert: false });
+          if (upErr) {
+            toast.error("Resume file upload failed — you can retry from the Resume page");
+          } else {
+            fileMeta = {
+              file_path: path,
+              file_name: pdfFile.name,
+              file_size: pdfFile.size,
+              file_type: "application/pdf",
+              file_uploaded_at: new Date().toISOString(),
+            };
+          }
+        }
+      }
+
+      // 3. Insert resume(s)
       const validResumes = resumes.filter((r) => r.text.trim().length >= 150);
       const resumeRows = validResumes.map((r, i) => ({
         profile_id: profile.id,
         label: r.label.trim() || `Resume ${i + 1}`,
         raw_text: r.text.trim(),
+        ...(i === 0 ? fileMeta : {}),
       }));
 
       const { error: resumeError } = await supabase
@@ -141,6 +198,7 @@ const Onboarding = () => {
         .insert(resumeRows as any);
 
       if (resumeError) throw resumeError;
+
 
       // 3. Navigate to dashboard immediately
       navigate("/dashboard", { replace: true });
@@ -232,6 +290,43 @@ const Onboarding = () => {
         {/* Section 2 — Resume(s) */}
         <div className="mb-8">
           <label className="text-sm font-medium block mb-3">Your resume</label>
+
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/pdf,.pdf"
+            className="hidden"
+            onChange={(e) => { handlePickFile(e.target.files?.[0]); e.target.value = ""; }}
+          />
+          <div className="mb-4 flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={extracting}
+              className="text-xs font-medium border border-border bg-card rounded-[8px] px-3 py-2 hover:bg-secondary transition-colors disabled:opacity-50"
+            >
+              {extracting ? "Reading PDF…" : pdfFile ? "Replace PDF" : "Upload Resume (PDF)"}
+            </button>
+            {pdfFile && (
+              <span className="text-[11px] text-muted-foreground truncate max-w-[220px]">
+                {pdfFile.name} · {(pdfFile.size / 1024).toFixed(0)} KB
+              </span>
+            )}
+            {pdfFile && (
+              <button
+                type="button"
+                onClick={() => setPdfFile(null)}
+                className="text-[11px] text-muted-foreground hover:text-destructive"
+              >
+                × Remove
+              </button>
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground mb-4">
+            Your PDF is stored privately — only you can open it. Max {MAX_RESUME_BYTES / (1024 * 1024)}MB.
+          </p>
+
+
 
           {resumes.map((resume, idx) => (
             <div

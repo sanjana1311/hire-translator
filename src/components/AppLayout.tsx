@@ -12,6 +12,8 @@ const NAV_ITEMS = [
   { key: "prep", label: "Interview Prep", path: "/dashboard/prep" },
   { key: "report", label: "Weekly Report", path: "/dashboard/report" },
   { key: "rejection", label: "Rejection Analysis", path: "/dashboard/rejection" },
+  { key: "resume", label: "Resume", path: "/dashboard/resume" },
+
 ];
 
 const AppLayout = () => {
