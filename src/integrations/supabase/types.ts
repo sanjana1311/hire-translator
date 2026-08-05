@@ -403,6 +403,11 @@ export type Database = {
           created_at: string
           education: Json | null
           experience: Json | null
+          file_name: string | null
+          file_path: string | null
+          file_size: number | null
+          file_type: string | null
+          file_uploaded_at: string | null
           id: string
           label: string | null
           profile_id: string
@@ -417,6 +422,11 @@ export type Database = {
           created_at?: string
           education?: Json | null
           experience?: Json | null
+          file_name?: string | null
+          file_path?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          file_uploaded_at?: string | null
           id?: string
           label?: string | null
           profile_id: string
@@ -431,6 +441,11 @@ export type Database = {
           created_at?: string
           education?: Json | null
           experience?: Json | null
+          file_name?: string | null
+          file_path?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          file_uploaded_at?: string | null
           id?: string
           label?: string | null
           profile_id?: string
