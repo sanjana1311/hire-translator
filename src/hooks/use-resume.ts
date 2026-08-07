@@ -19,6 +19,8 @@ export interface ResumeData {
   file_size?: number | null;
   file_type?: string | null;
   file_uploaded_at?: string | null;
+  /** Captured visual layout of the uploaded PDF (fonts, geometry, page breaks). */
+  layout?: any | null;
 }
 
 export function useResume() {
@@ -45,6 +47,10 @@ export function useResume() {
         base.file_size = withFile.file_size;
         base.file_type = withFile.file_type;
         base.file_uploaded_at = withFile.file_uploaded_at;
+      }
+      if (!base.layout) {
+        const withLayout = rows.find((r) => (r as any).layout);
+        if (withLayout) base.layout = (withLayout as any).layout;
       }
       if (!base.raw_text || base.raw_text.length < 100) {
         const withText = rows.find((r) => (r.raw_text?.length ?? 0) > 100);
