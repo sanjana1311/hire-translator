@@ -77,6 +77,11 @@ const TailoredResumeView = ({ resume }: { resume: TailoredResume }) => {
                           {b.note}
                         </p>
                       )}
+                      {b.evidence && !b.rejected && (
+                        <p className="text-[10.5px] text-muted-foreground/80 mt-0.5 pl-3 border-l border-border/60 italic">
+                          Evidence: “{b.evidence}”
+                        </p>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -85,6 +90,30 @@ const TailoredResumeView = ({ resume }: { resume: TailoredResume }) => {
           </div>
         </section>
       )}
+
+      {resume.requirements && resume.requirements.length > 0 && (
+        <section>
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+            Requirement coverage
+          </div>
+          <ul className="space-y-1.5">
+            {resume.requirements.map((r, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <Chip tone={r.status === "verified" ? "good" : r.status === "transferable" ? "warn" : "bad"}>
+                  {r.status === "verified" ? "Verified" : r.status === "transferable" ? "Transferable" : "Missing"}
+                </Chip>
+                <div className="min-w-0">
+                  <p className="text-[11.5px] text-secondary-foreground leading-relaxed">{r.requirement}</p>
+                  {r.evidence && (
+                    <p className="text-[10.5px] text-muted-foreground/80 italic">Evidence: “{r.evidence}”</p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
 
       <div className="grid gap-3">
         {resume.verified_skills?.length > 0 && (
