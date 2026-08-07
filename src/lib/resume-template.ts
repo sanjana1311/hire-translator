@@ -153,7 +153,11 @@ export function renderWithTemplate(template: ResumeTemplate, resume: TailoredRes
     const lines = s.lines.map((l) => rewriteLine(l, bullets));
     return { name: s.name, lines, text: [s.name, ...lines].join("\n").trim() };
   });
-  const text = [...template.header, "", ...sections.map((s) => s.text)].join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  const text = [template.header.join("\n"), ...sections.map((s) => s.text)]
+    .filter(Boolean)
+    .join("\n\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
   return { header: template.header, sections, text };
 }
 
