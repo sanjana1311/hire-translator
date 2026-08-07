@@ -8,6 +8,8 @@ import { useAIUsage } from "@/hooks/use-ai-usage";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cleanText } from "@/lib/clean-text";
+import { parseJsonLoose, normalizeAnalysis, failedAnalysis } from "@/lib/safe-json";
+
 import {
   BUCKET_META,
   initials, scoreColor, scoreBg, scoreBorder,
