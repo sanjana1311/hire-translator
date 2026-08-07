@@ -20,6 +20,8 @@ interface AICallOpts {
   toolChoice?: any;
 }
 
+const AI_TIMEOUT_MS = 110_000;
+
 async function callAI(opts: AICallOpts): Promise<any> {
   const body: any = {
     model: opts.model,
@@ -35,31 +37,62 @@ async function callAI(opts: AICallOpts): Promise<any> {
     body.tool_choice = opts.toolChoice;
   }
 
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${opts.apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        // The gateway authenticates on this header — not `Authorization: Bearer`.
+        "Lovable-API-Key": opts.apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (e) {
+    if ((e as any)?.name === "AbortError") {
+      throw { status: 504, message: "The AI took too long to respond. Please try again." };
+    }
+    throw { status: 502, message: "Could not reach the AI service. Please try again." };
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!res.ok) {
     const status = res.status;
     const errText = await res.text();
+    console.error("AI gateway error:", status, errText.slice(0, 800));
     if (status === 429) throw { status: 429, message: "Rate limit exceeded. Please try again in a moment." };
     if (status === 402) throw { status: 402, message: "AI credits exhausted. Please add credits to continue." };
-    console.error("AI gateway error:", status, errText);
-    throw new Error("AI call failed");
+    if (status === 401 || status === 403) throw { status: 500, message: "AI service rejected our credentials. Please contact support." };
+    if (status === 400) throw { status: 502, message: `The AI rejected the request (${status}). Please try again.` };
+    throw { status: 502, message: `AI service error (${status}). Please try again.` };
   }
 
   const data = await res.json();
   const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-  if (toolCall) return JSON.parse(toolCall.function.arguments);
+  if (toolCall) {
+    try {
+      return JSON.parse(toolCall.function.arguments);
+    } catch (_e) {
+      console.error("Tool argument parse failed:", String(toolCall.function.arguments).slice(0, 500));
+      throw { status: 502, message: "The AI returned an incomplete response. Please try again." };
+    }
+  }
   const raw = data.choices?.[0]?.message?.content || "";
   const jsonStr = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-  return JSON.parse(jsonStr);
+  if (!jsonStr) throw { status: 502, message: "The AI returned an empty response. Please try again." };
+  try {
+    return JSON.parse(jsonStr);
+  } catch (_e) {
+    console.error("Content parse failed:", jsonStr.slice(0, 500));
+    throw { status: 502, message: "The AI returned malformed output. Please try again." };
+  }
 }
+
 
 // ─── Tool schemas ───────────────────────────────────────────────────
 
