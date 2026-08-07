@@ -627,7 +627,10 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
               </div>
               {resumes[selected.id] && rtab === "tailored" && (
                 <button
-                  onClick={() => copy(resumes[selected.id])}
+                  onClick={() => {
+                    const parsed = parseStoredResume(resumes[selected.id]);
+                    copy(parsed ? tailoredResumeToText(parsed) : resumes[selected.id]);
+                  }}
                   className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
                     copied ? "bg-[hsl(var(--success-bg))] text-success" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                   }`}
@@ -643,8 +646,23 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
                     <p className="text-sm text-muted-foreground">Resume tailoring unavailable — scoring must succeed first.</p>
                   </div>
                 ) : resumes[selected.id] ? (
-                  <pre className="font-sans text-[11.5px] leading-[1.85] whitespace-pre-wrap break-words text-secondary-foreground">{resumes[selected.id]}</pre>
+                  (() => {
+                    const parsed = parseStoredResume(resumes[selected.id]);
+                    return parsed ? (
+                      <TailoredResumeView resume={parsed} />
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+                          <p className="text-[11.5px] leading-relaxed text-amber-700 dark:text-amber-300 font-medium">
+                            Review all AI-generated changes before applying.
+                          </p>
+                        </div>
+                        <pre className="font-sans text-[11.5px] leading-[1.85] whitespace-pre-wrap break-words text-secondary-foreground">{resumes[selected.id]}</pre>
+                      </div>
+                    );
+                  })()
                 ) : rLoading.has(selected.id) ? (
+
                   <div className="text-center py-16">
                     <Spinner size={18} />
                     <p className="animate-pulse-dot text-sm text-muted-foreground mt-3">Writing your tailored resume…</p>
