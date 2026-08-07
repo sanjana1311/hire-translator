@@ -16,7 +16,7 @@ import {
   CONNECTION_TYPE_LABEL,
   type ConnectionType,
 } from "@/hooks/use-networking-targets";
-import { safeJsonParse } from "@/lib/safe-json";
+import { parseJsonLoose } from "@/lib/safe-json";
 import { toast } from "sonner";
 
 const Spinner = ({ size = 16 }: { size?: number }) => (
@@ -116,7 +116,7 @@ Give 6 suggestions, one per connection type, sorted by relevance descending.`,
         "networking",
         { jobId: job.id, jobDescriptionLength: (job.description || job.snippet || "").length },
       );
-      const parsed = safeJsonParse<{ suggestions?: Suggestion[] }>(raw);
+      const parsed = parseJsonLoose<{ suggestions?: Suggestion[] }>(raw);
       const suggestions = parsed?.suggestions ?? [];
       if (!suggestions.length) throw new Error("No suggestions returned. Please retry.");
 
@@ -242,7 +242,7 @@ Give 6 suggestions, one per connection type, sorted by relevance descending.`,
       <p className="text-xs text-muted-foreground mb-6">
         Pick a role — get ranked connection types, why each matters, and a personalized outreach plan you can track.
       </p>
-      <GroupedJobList jobs={jobs} onSelect={setJob} ctaLabel="Get connections →" />
+      <GroupedJobList jobs={jobs} onSelect={(j) => setJob(j as Job)} ctaLabel="Get connections →" />
     </div>
   );
 };
