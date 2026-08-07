@@ -2,6 +2,10 @@
 
 An open-source AI career operating system for comparing job opportunities with a user's resume, preparing applications, and organizing the job search.
 
+Maintainer: Sanjana Ravikumar
+
+Licensed under the [MIT License](LICENSE).
+
 ## Hosted beta and self-hosting
 
 The hosted beta at <https://hire-translator.lovable.app> is free for invited testers and uses the project's configured AI provider. Testers do not need to add an API key.
