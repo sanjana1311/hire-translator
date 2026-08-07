@@ -328,7 +328,7 @@ serve(async (req) => {
 
     const resumeText = resume?.raw_text || "";
     const jobDescription = ws.job_description || "";
-    const MODEL = "google/gemini-2.5-flash";
+    const MODEL = "google/gemini-3.6-flash";
 
     // Determine which step to run
     const requestedStep = step || "analyze"; // "analyze" = Steps 1+2 auto, "projects", "tailor"
@@ -513,7 +513,13 @@ ${JSON.stringify({
     // STEP 4 — Resume Tailoring (user-triggered)
     // ═══════════════════════════════════════════════════════════════════
     if (requestedStep === "tailor") {
-      if (!resumeText.trim()) throw new Error("No resume to tailor");
+      if (!resumeText.trim()) {
+        throw { status: 400, message: "No resume text found. Upload your resume on the Resume page, then try again." };
+      }
+      if (!ws.jd_analysis) {
+        throw { status: 400, message: "Run Analysis on this job before tailoring the resume." };
+      }
+
 
       const jdSignals = ws.jd_analysis as any;
       const gapAnalysis = ws.gap_analysis as any;
