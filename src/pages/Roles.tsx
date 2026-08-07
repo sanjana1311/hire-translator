@@ -78,6 +78,7 @@ const Roles = () => {
   const [resumes, setResumes] = useState<Record<string, string>>({});
   const [aLoading, setAL] = useState<Set<string>>(new Set());
   const [rLoading, setRL] = useState<Set<string>>(new Set());
+  const [tailorErrors, setTailorErrors] = useState<Record<string, string>>({});
   const [doneCount, setDone] = useState(0);
   const [selected, setSelected] = useState<ImportedJob | null>(null);
   
@@ -286,6 +287,7 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
     const r = results[job.id];
     if (!r || r.error) return;
     const jobDesc = job.description || job.snippet || `${job.title} at ${job.company}`;
+    setTailorErrors(prev => { const next = { ...prev }; delete next[job.id]; return next; });
     setRL(prev => new Set([...prev, job.id]));
     try {
       const raw = await callAI(
@@ -325,7 +327,9 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
     } catch (e: any) {
       console.error('Resume rewrite failed:', e);
       const requestSuffix = e?.requestId ? ` (Request ${e.requestId})` : "";
-      toast.error(`${e?.message || "Tailoring temporarily failed — please retry"}${requestSuffix}`);
+      const message = `${e?.message || "Tailoring temporarily failed — please retry"}${requestSuffix}`;
+      setTailorErrors(prev => ({ ...prev, [job.id]: message }));
+      toast.error(message);
     }
     setRL(prev => { const s = new Set(prev); s.delete(job.id); return s; });
   };
@@ -697,7 +701,13 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
                   </div>
                 ) : r ? (
                   <div className="text-center py-16">
-                    <p className="text-sm text-muted-foreground mb-4">Tailored resume not generated yet.</p>
+                    {tailorErrors[selected.id] ? (
+                      <div className="mx-auto mb-4 max-w-md rounded-md border border-destructive/30 bg-destructive/10 p-3 text-left">
+                        <p className="text-sm font-medium text-destructive">{tailorErrors[selected.id]}</p>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground mb-4">Tailored resume not generated yet.</p>
+                    )}
                     <button
                       onClick={() => generateTailoredResume(selected)}
                       className="text-xs font-semibold px-5 py-2.5 rounded-xl bg-foreground text-background hover:opacity-90 transition-opacity"
