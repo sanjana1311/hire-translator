@@ -1,4 +1,38 @@
-# Career Compass
+# Career Compass / hireOS
+
+An open-source AI career operating system for comparing job opportunities with a user's resume, preparing applications, and organizing the job search.
+
+## Hosted beta and self-hosting
+
+The hosted beta at <https://hire-translator.lovable.app> is free for invited testers and uses the project's configured AI provider. Testers do not need to add an API key.
+
+Anyone deploying their own copy must use their own Supabase project and their own AI provider credentials. This keeps user data and provider costs under the deployer's control.
+
+### Local setup
+
+1. Install Node.js and the project dependencies.
+2. Copy `.env.example` to `.env`.
+3. Create a Supabase project and apply the SQL migrations in `supabase/migrations`.
+4. Set the frontend values in `.env` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PROJECT_ID`, and `VITE_SUPABASE_PUBLISHABLE_KEY`).
+5. Deploy the Edge Functions and configure their private secrets:
+
+```bash
+supabase secrets set \
+  SUPABASE_URL="https://your-project-ref.supabase.co" \
+  SUPABASE_SERVICE_ROLE_KEY="your-service-role-key" \
+  OPENCODE_GO_API_KEY="your-opencode-go-key"
+```
+
+`GROQ_API_KEY` is optional. If provided, it is used as a fallback provider. Add Google OAuth or Resend secrets only when enabling those integrations.
+
+Never commit `.env`, service-role keys, provider keys, OAuth secrets, or user resumes. Only the Supabase publishable/anon key belongs in the browser configuration.
+
+```bash
+npm install
+npm run dev
+```
+
+For a production build, run `npm run build` and deploy the generated `dist` directory to a static host.
 
 PROJECT TITLE
 
