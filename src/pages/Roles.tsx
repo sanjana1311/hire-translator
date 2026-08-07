@@ -8,6 +8,8 @@ import { useAIUsage } from "@/hooks/use-ai-usage";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cleanText } from "@/lib/clean-text";
+import { parseJsonLoose, normalizeAnalysis, failedAnalysis } from "@/lib/safe-json";
+
 import {
   BUCKET_META,
   initials, scoreColor, scoreBg, scoreBorder,
@@ -118,7 +120,8 @@ const Roles = () => {
       let scored = 0;
       for (const job of mapped) {
         if (job.analysis && !job.analysis.error) {
-          loadedResults[job.id] = job.analysis;
+          loadedResults[job.id] = normalizeAnalysis(job.analysis);
+
           scored++;
         }
         if (job.tailored_resume) {
@@ -189,13 +192,9 @@ const Roles = () => {
 
     const jobDesc = job.description || job.snippet || `${job.title} at ${job.company}`;
 
-    try {
-      const raw = await callAI(`You are a strict ATS resume matcher. You must analyze the SPECIFIC requirements of this job and compare them against the candidate's ACTUAL skills and experience. Think step-by-step before scoring.
+    const schema = `{"score":<0-100 number>,"bucket":"must"|"tweak"|"low","matchSummary":"<max 2 short sentences>","strengths":["<3 items, max 12 words each>"],"gaps":["<3 items, max 12 words each>"],"missingKeywords":["<5 keywords, 1-3 words each>"],"recommendation":"<1 short sentence>"}`;
 
-STEP 1: List the top 5 hard skills/technologies this job requires.
-STEP 2: For each, check if the resume explicitly mentions it.
-STEP 3: Assess seniority alignment (years of experience, leadership level).
-STEP 4: Calculate a score based on match percentage.
+    const basePrompt = `You are a strict ATS resume matcher. Analyze the SPECIFIC requirements of this job against the candidate's ACTUAL skills and experience.
 
 RESUME:
 ${resumeText}
@@ -207,44 +206,66 @@ ${jobDesc}
 ---
 
 SCORING GUIDE:
-- 85-100: Resume matches 80%+ of required skills AND seniority level
-- 70-84: Most skills match but missing 1-2 key requirements  
-- 55-69: Partial match, several gaps in required skills/experience
-- 40-54: Weak match, major skill gaps
-- Below 40: Poor fit, different domain/seniority
+- 85-100: matches 80%+ of required skills AND seniority
+- 70-84: most skills match, missing 1-2 key requirements
+- 55-69: partial match, several gaps
+- 40-54: weak match, major skill gaps
+- Below 40: poor fit, different domain/seniority
 
-CRITICAL: Your score MUST reflect how many of THIS job's specific requirements appear in the resume. A generic software engineer resume should NOT score 90+ for a specialized ML Engineer role.
+CRITICAL: the score MUST reflect how many of THIS job's specific requirements appear in the resume.
+bucket: "must" if score>=75, "tweak" if 40-74, "low" if <40.
 
-Return ONLY this JSON (no other text):
-{"score":<number>,"bucket":"<must|tweak|low>","matchSummary":"<2 sentences explaining why this specific score>","strengths":["<3 specific matches>"],"gaps":["<3 specific gaps for THIS role>"],"missingKeywords":["<5 keywords from JD not in resume>"]}
+OUTPUT RULES (strict):
+- Reply with ONE valid JSON object only. No markdown, no code fences, no commentary.
+- Follow this exact schema and key names:
+${schema}
+- Keep every string short so the JSON is complete and never truncated.`;
 
-bucket: must if score>=75, tweak if 40-74, low if <40`, 800, "roles");
-      console.log('Raw scoring response:', raw);
-      try {
-        const parsed = JSON.parse(raw);
-        scoreResult = parsed;
-        setResults(prev => ({ ...prev, [job.id]: parsed }));
+    const requestScore = async (prompt: string) => {
+      const raw = await callAI(prompt, 1600, "roles");
+      return parseJsonLoose<Record<string, unknown>>(raw);
+    };
+
+    try {
+      let parsed = await requestScore(basePrompt);
+
+      if (!parsed) {
+        // Retry once with a correction prompt — output only, kept very short.
+        console.warn("[Roles] Scoring output unparseable, retrying with correction prompt");
+        parsed = await requestScore(
+          `${basePrompt}
+
+Your previous reply was not valid JSON or was cut off. Reply again with ONLY the JSON object, minified, using the shortest possible strings.`,
+        );
+      }
+
+      if (parsed) {
+        const normalized = normalizeAnalysis(parsed);
+        scoreResult = normalized;
+        setResults(prev => ({ ...prev, [job.id]: normalized }));
         await supabase
           .from("imported_jobs")
-          .update({ analysis: parsed as any, status: "scored" })
+          .update({ analysis: normalized as any, status: "scored" })
           .eq("id", job.id);
-      } catch (e) {
-        console.error('Scoring parse failed:', e, 'Raw was:', raw);
-        const errResult: AnalysisResult = { error: true, score: 0, bucket: "low", matchSummary: `Scoring returned unparseable response. Raw: ${raw.slice(0, 200)}`, strengths: [], gaps: [], missingKeywords: [] };
+      } else {
+        const errResult = failedAnalysis();
         setResults(prev => ({ ...prev, [job.id]: errResult }));
+        toast.error("Scoring temporarily failed — please retry this job");
         await supabase
           .from("imported_jobs")
           .update({ analysis: errResult as any, status: "error" })
           .eq("id", job.id);
       }
     } catch (e: any) {
-      console.error('Scoring call failed:', e);
-      const errResult: AnalysisResult = { error: true, score: 0, bucket: "low", matchSummary: `AI call failed: ${e?.message || 'Unknown error'}`, strengths: [], gaps: [], missingKeywords: [] };
+      console.error("Scoring call failed:", e);
+      const errResult = failedAnalysis();
       setResults(prev => ({ ...prev, [job.id]: errResult }));
+      toast.error("Scoring temporarily failed — please retry this job");
     }
     setDone(prev => prev + 1);
     setAL(prev => { const s = new Set(prev); s.delete(job.id); return s; });
   };
+
 
   const generateTailoredResume = async (job: ImportedJob) => {
     if (!resumeText) return;
