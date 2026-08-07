@@ -163,12 +163,26 @@ Return: {
         </div>
       )}
 
-      {!report && !loading && (
+      {timedOut && !loading && (
+        <div className="apple-card p-8 text-center">
+          <p className="text-sm font-medium mb-1">Your weekly briefing is taking longer than expected. Please retry.</p>
+          <p className="text-xs text-muted-foreground mb-5">The request timed out after 30 seconds.</p>
+          <button
+            onClick={generateReport}
+            className="bg-foreground text-background rounded-xl px-4 py-2.5 text-xs font-semibold transition-opacity hover:opacity-90"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {!report && !loading && !timedOut && (
         <div className="apple-card p-14 text-center">
           <div className="text-xl font-semibold text-muted-foreground/60 mb-2.5">What would your career mentor say right now?</div>
           <p className="text-sm text-muted-foreground leading-relaxed max-w-md mx-auto">This reads your actual applications — jobs applied, rejections received, role scores — and gives you a real mentor conversation, not generic advice.</p>
         </div>
       )}
+
 
       {report && !report.error && (
         <div className="animate-fade-up flex flex-col gap-3">
