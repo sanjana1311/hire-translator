@@ -180,7 +180,14 @@ const JobWorkspace = () => {
   const activeStep = getActiveStep(ws);
   const jdAnalysis = ws.jd_analysis as any || {};
   const gapAnalysis = ws.gap_analysis as any || {};
-  const tailoredResume = ws.tailored_resume as any || {};
+  const rawTailoredResume = ws.tailored_resume as any || {};
+  const tailoredValidation = rawTailoredResume?.summary
+    ? validateTailoredResume(rawTailoredResume as any, resume?.raw_text || "")
+    : null;
+  const tailoredResume: any = tailoredValidation
+    ? { ...rawTailoredResume, ...tailoredValidation.resume }
+    : rawTailoredResume;
+
   const suggestedProjects = Array.isArray(ws.suggested_projects) ? ws.suggested_projects : [];
   const bucket = ws.match_bucket || gapAnalysis?.bucket || "";
   const bucketConfig = BUCKET_CONFIG[bucket];
