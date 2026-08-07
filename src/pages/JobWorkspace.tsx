@@ -16,7 +16,7 @@ import { useWorkspace, useUpdateWorkspace } from "@/hooks/use-workspaces";
 import { useResume } from "@/hooks/use-resume";
 import { generateResumePDF } from "@/lib/pdf-export";
 import { validateTailoredResume } from "@/lib/resume-guard";
-import { renderTailoredDocument } from "@/lib/resume-template";
+import { buildFormattedDocument } from "@/lib/resume-document";
 import { downloadTailoredPdf } from "@/lib/resume-export";
 import TailoredResumeDocument from "@/components/TailoredResumeDocument";
 
@@ -108,7 +108,7 @@ const JobWorkspace = () => {
       if (raw?.summary && resume.raw_text) {
         // Export mirrors the uploaded resume's structure — no analysis content.
         const { resume: validated } = validateTailoredResume(raw, resume.raw_text);
-        const doc = renderTailoredDocument(validated, resume.raw_text);
+        const doc = buildFormattedDocument(validated, { layout: (resume as any).layout, rawText: resume.raw_text });
         downloadTailoredPdf(doc, `${ws.company}_${ws.role_title}_Resume`);
       } else {
         const selProjects = (ws.selected_projects as any[]) || [];
@@ -644,6 +644,7 @@ const JobWorkspace = () => {
                   <TailoredResumeDocument
                     resume={tailoredResume}
                     sourceResumeText={resume.raw_text}
+                    sourceLayout={(resume as any).layout}
                     fileBase={`${ws.company}_${ws.role_title}_Resume`}
                   />
                 </div>

@@ -667,6 +667,7 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
                         <TailoredResumeDocument
                           resume={parsed}
                           sourceResumeText={resumeText}
+                          sourceLayout={(resumeData as any)?.layout}
                           fileBase={`${selected.company}_${selected.title}_Resume`}
                         />
                       </div>

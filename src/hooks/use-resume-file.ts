@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile } from "./use-profile";
 import { extractPdfText } from "@/lib/pdf-extract";
+import { extractPdfLayout } from "@/lib/resume-layout";
 
 export const MAX_RESUME_BYTES = 10 * 1024 * 1024; // 10MB
 
@@ -57,6 +58,15 @@ export function useUploadResumeFile() {
         rawText = "";
       }
 
+      // Capture the visual template (fonts, sizes, indents, alignment, page breaks)
+      // so tailored versions can be rendered in the uploaded resume's own layout.
+      let layout: any = null;
+      try {
+        layout = await extractPdfLayout(file);
+      } catch {
+        layout = null;
+      }
+
       const uploadedAt = new Date().toISOString();
       const meta: Record<string, any> = {
         file_path: path,
@@ -66,6 +76,7 @@ export function useUploadResumeFile() {
         file_uploaded_at: uploadedAt,
       };
       if (rawText.length > 100) meta.raw_text = rawText;
+      if (layout?.lines?.length) meta.layout = layout;
       if (label?.trim()) meta.label = label.trim();
 
       const { data: existingRows, error: exErr } = await supabase

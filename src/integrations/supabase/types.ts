@@ -410,6 +410,7 @@ export type Database = {
           file_uploaded_at: string | null
           id: string
           label: string | null
+          layout: Json | null
           profile_id: string
           projects: Json | null
           raw_text: string | null
@@ -429,6 +430,7 @@ export type Database = {
           file_uploaded_at?: string | null
           id?: string
           label?: string | null
+          layout?: Json | null
           profile_id: string
           projects?: Json | null
           raw_text?: string | null
@@ -448,6 +450,7 @@ export type Database = {
           file_uploaded_at?: string | null
           id?: string
           label?: string | null
+          layout?: Json | null
           profile_id?: string
           projects?: Json | null
           raw_text?: string | null
