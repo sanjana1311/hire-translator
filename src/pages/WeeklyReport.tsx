@@ -98,7 +98,7 @@ const WeeklyReport = () => {
         }
       }
 
-      const raw = await callAI(`You are a senior career mentor — direct, warm, strategic. NOT a dashboard generator. Write like you are sitting with the candidate over coffee. Use "you" not "the candidate". Be honest, specific, encouraging. Return ONLY valid JSON.
+      const raw = await Promise.race([callAI(`You are a senior career mentor — direct, warm, strategic. NOT a dashboard generator. Write like you are sitting with the candidate over coffee. Use "you" not "the candidate". Be honest, specific, encouraging. Return ONLY valid JSON.
 
 WHO THEY ARE: ${profile?.full_name || "Job seeker"} — targeting ${profile?.target_roles || "PM/TPM roles"}.
 
