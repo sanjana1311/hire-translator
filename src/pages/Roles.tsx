@@ -288,10 +288,11 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
         4000,
         "roles"
       );
-      const parsed = parseJsonLoose(raw);
+      const parsed = parseJsonLoose(raw) as Partial<TailoredResume> | null;
       if (!parsed || !parsed.summary) throw new Error("Tailoring temporarily failed — please retry");
 
-      const { resume: validated, rejectedCount } = validateTailoredResume(parsed as any, resumeText);
+      const { resume: validated, rejectedCount } = validateTailoredResume(parsed as TailoredResume, resumeText);
+
       const payload = JSON.stringify(validated);
       setResumes(prev => ({ ...prev, [job.id]: payload }));
       await supabase
