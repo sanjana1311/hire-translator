@@ -353,21 +353,20 @@ Return JSON exactly in this shape:
 }`;
 }
 
-/** Renders a validated resume to ATS-safe plain text (single column, standard headings). */
+/**
+ * Fallback plain-text renderer (resume content ONLY — no analysis output, no
+ * invented headings beyond what is needed to separate roles). Prefer
+ * `renderTailoredDocument` from resume-template.ts, which preserves the
+ * uploaded resume's own sections and order.
+ */
 export function tailoredResumeToText(r: TailoredResume): string {
   const lines: string[] = [];
-  if (r.summary) lines.push("SUMMARY", r.summary, "");
-  if (r.experience?.length) {
-    lines.push("EXPERIENCE");
-    r.experience.forEach((e) => {
-      lines.push(`${e.title} - ${e.company} (${e.dates})`);
-      e.bullets.filter((b) => !b.rejected).forEach((b) => lines.push(`- ${b.text}`));
-      lines.push("");
-    });
-  }
-  if (r.verified_skills?.length) lines.push("SKILLS", r.verified_skills.join(", "), "");
-  if (r.transferable_skills?.length) lines.push("TRANSFERABLE SKILLS", r.transferable_skills.join(", "), "");
-  if (r.missing_requirements?.length)
-    lines.push("MISSING REQUIREMENTS (not claimed on resume)", r.missing_requirements.map((m) => `- ${m}`).join("\n"), "");
+  if (r.summary) lines.push(r.summary, "");
+  (r.experience || []).forEach((e) => {
+    const head = [e.title, e.company].filter(Boolean).join(" - ") + (e.dates ? ` (${e.dates})` : "");
+    if (head.trim()) lines.push(head);
+    (e.bullets || []).filter((b) => !b.rejected).forEach((b) => lines.push(`- ${b.text}`));
+    lines.push("");
+  });
   return lines.join("\n").trim();
 }
