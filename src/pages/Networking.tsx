@@ -1,11 +1,23 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AIQuotaBadge } from "@/components/AIQuotaBadge";
 import { callAI } from "@/lib/ai";
-import { initials } from "@/data/seed";
 import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/integrations/supabase/client";
 import GroupedJobList from "@/components/GroupedJobList";
+import LinkedInConnect from "@/components/networking/LinkedInConnect";
+import TargetCard from "@/components/networking/TargetCard";
+import {
+  useNetworkingTargets,
+  useSaveNetworkingTargets,
+  useUpdateNetworkingTarget,
+  useDeleteNetworkingTargets,
+  linkedInSearchUrl,
+  CONNECTION_TYPE_LABEL,
+  type ConnectionType,
+} from "@/hooks/use-networking-targets";
+import { safeJsonParse } from "@/lib/safe-json";
+import { toast } from "sonner";
 
 const Spinner = ({ size = 16 }: { size?: number }) => (
   <div className="border-2 border-foreground/10 border-t-foreground/60 rounded-full animate-spin" style={{ width: size, height: size }} />
@@ -20,140 +32,206 @@ interface Job {
   snippet: string | null;
 }
 
-interface NetResult {
-  connectionAngles?: string[];
-  searchQueries?: string[];
-  outreachMessages?: { persona: string; message: string }[];
-  insiderQuestions?: string[];
-  contentAngle?: string;
-  error?: boolean;
+interface Suggestion {
+  connectionType: string;
+  headline?: string;
+  matchReason?: string;
+  evidence?: string;
+  searchKeywords?: string;
+  relevance?: number;
+  outreachMessage?: string;
 }
+
+const VALID_TYPES: ConnectionType[] = [
+  "hiring_manager",
+  "recruiter",
+  "team_member",
+  "alumni",
+  "former_colleague",
+  "industry_connection",
+];
 
 const Networking = () => {
   const [searchParams] = useSearchParams();
   const { data: profile } = useProfile();
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [netJob, setNetJob] = useState<Job | null>(null);
-  const [netResult, setNetResult] = useState<Record<string, NetResult>>({});
-  const [netLoading, setNetLoading] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [job, setJob] = useState<Job | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
+
+  const targetsQuery = useNetworkingTargets(job?.id);
+  const saveTargets = useSaveNetworkingTargets();
+  const updateTarget = useUpdateNetworkingTarget();
+  const clearTargets = useDeleteNetworkingTargets();
 
   useEffect(() => {
     if (!profile?.id) return;
-    const load = async () => {
-      const { data } = await supabase
-        .from("imported_jobs")
-        .select("id, title, company, location, description, snippet")
-        .eq("profile_id", profile.id)
-        .order("imported_at", { ascending: false })
-        .limit(50);
-      if (data) setJobs(data);
-    };
-    load();
+    supabase
+      .from("imported_jobs")
+      .select("id, title, company, location, description, snippet")
+      .eq("profile_id", profile.id)
+      .order("imported_at", { ascending: false })
+      .limit(50)
+      .then(({ data }) => { if (data) setJobs(data as Job[]); });
   }, [profile?.id]);
 
   useEffect(() => {
     const jobId = searchParams.get("jobId");
-    if (jobId && !netJob && jobs.length > 0) {
-      const job = jobs.find(j => j.id === jobId);
-      if (job) {
-        setNetJob(job);
-        if (!netResult[job.id]) generateNetworking(job);
-      }
+    if (jobId && !job && jobs.length > 0) {
+      const found = jobs.find(j => j.id === jobId);
+      if (found) setJob(found);
     }
-  }, [searchParams, jobs]);
+  }, [searchParams, jobs, job]);
 
-  const copy = (t: string) => { navigator.clipboard.writeText(t); setCopied(true); setTimeout(() => setCopied(false), 2500); };
+  const manualSearches = useMemo(() => {
+    if (!job) return [];
+    return [
+      { label: "Recruiters at this company", url: linkedInSearchUrl(["recruiter", job.company]) },
+      { label: "Hiring managers for this role", url: linkedInSearchUrl(["hiring manager", job.title, job.company]) },
+      { label: "People in this role today", url: linkedInSearchUrl([job.title, job.company]) },
+      { label: "Team in this location", url: linkedInSearchUrl([job.title, job.company, job.location]) },
+    ];
+  }, [job]);
 
-  const generateNetworking = async (job: Job) => {
-    setNetLoading(job.id);
+  const generate = async () => {
+    if (!job) return;
+    setGenerating(true);
+    setGenError(null);
     try {
-      const raw = await callAI(`You are a career networking strategist. Return ONLY valid JSON.
-Candidate: ${profile?.full_name || "Job seeker"}.
-Target role: ${job.title} at ${job.company} in ${job.location || "Remote"}
-Job description: ${job.description || job.snippet || "No description available"}
+      const raw = await callAI(
+        `You are a networking strategist. Return ONLY valid JSON — no prose.
 
-Return: {
-  "connectionAngles": ["3 specific types of people to find at ${job.company} on LinkedIn"],
-  "searchQueries": ["3 exact LinkedIn search strings"],
-  "outreachMessages": [{"persona": "type of person", "message": "short warm DM, 3 sentences, specific to the candidate's background"}],
-  "insiderQuestions": ["4 smart questions to ask connections"],
-  "contentAngle": "one LinkedIn post idea to get on ${job.company} employees' radar"
-}`, 900, "networking");
-      setNetResult(prev => ({ ...prev, [job.id]: JSON.parse(raw) }));
-    } catch { setNetResult(prev => ({ ...prev, [job.id]: { error: true } })); }
-    setNetLoading(null);
+Job: ${job.title} at ${job.company}${job.location ? ` (${job.location})` : ""}
+Job description: ${(job.description || job.snippet || "No description available").slice(0, 4000)}
+Candidate: ${profile?.full_name || "Job seeker"}. Target roles: ${profile?.target_roles || "not specified"}.
+
+Rules:
+- NEVER invent real people, names, shared employers, schools, or experience.
+- Describe target PERSONAS only (role/headline patterns), never fabricated identities.
+- Every matchReason must reference only facts present in the job posting or candidate data above.
+
+Return: {"suggestions":[{"connectionType":"hiring_manager|recruiter|team_member|alumni|former_colleague|industry_connection","headline":"typical title/headline to look for","matchReason":"why this person matters for this specific job","evidence":"which job or candidate detail this is based on","searchKeywords":"LinkedIn people-search keywords","relevance":0-100,"outreachMessage":"4-sentence warm, specific note with one clear ask"}]}
+Give 6 suggestions, one per connection type, sorted by relevance descending.`,
+        1400,
+        "networking",
+        { jobId: job.id, jobDescriptionLength: (job.description || job.snippet || "").length },
+      );
+      const parsed = safeJsonParse<{ suggestions?: Suggestion[] }>(raw);
+      const suggestions = parsed?.suggestions ?? [];
+      if (!suggestions.length) throw new Error("No suggestions returned. Please retry.");
+
+      await clearTargets.mutateAsync(job.id);
+      await saveTargets.mutateAsync(
+        suggestions.map(s => {
+          const type = (VALID_TYPES as string[]).includes(s.connectionType) ? s.connectionType : "industry_connection";
+          return {
+            imported_job_id: job.id,
+            job_title: job.title,
+            company: job.company,
+            location: job.location ?? "",
+            name: "",
+            headline: s.headline ?? CONNECTION_TYPE_LABEL[type],
+            target_company: job.company,
+            connection_type: type,
+            match_reason: s.matchReason ?? "",
+            evidence: s.evidence ?? "",
+            linkedin_url: "",
+            search_url: linkedInSearchUrl([s.searchKeywords || s.headline, job.company]),
+            relevance: Math.max(0, Math.min(100, Math.round(Number(s.relevance) || 0))),
+            outreach_message: s.outreachMessage ?? "",
+            source: "suggested",
+            status: "not_contacted",
+          };
+        }),
+      );
+    } catch (e) {
+      setGenError((e as Error).message || "Suggestions failed. Please retry.");
+    }
+    setGenerating(false);
   };
 
-  const handleSelectJob = (job: Job) => {
-    setNetJob(job);
-    if (!netResult[job.id]) generateNetworking(job);
-  };
-
-  if (netJob) {
-    const n = netResult[netJob.id];
+  if (job) {
+    const targets = targetsQuery.data ?? [];
     return (
       <div className="max-w-[880px] mx-auto px-6 py-10 animate-fade-up">
-        <button onClick={() => setNetJob(null)} className="text-xs text-muted-foreground hover:text-foreground transition-colors mb-6 flex items-center gap-1">
+        <button onClick={() => setJob(null)} className="text-xs text-muted-foreground hover:text-foreground transition-colors mb-6">
           ← All roles
         </button>
-        <div className="apple-card p-5 mb-4">
-          <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-0.5">{netJob.company}</div>
-          <div className="text-lg font-semibold">{netJob.title}</div>
+
+        <div className="apple-card p-5 mb-3">
+          <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-0.5">{job.company}</div>
+          <div className="text-lg font-semibold">{job.title}</div>
+          <div className="text-xs text-muted-foreground mt-0.5">{job.location || "Location not listed"}</div>
         </div>
 
-        {netLoading === netJob.id ? (
+        <div className="mb-3"><LinkedInConnect /></div>
+
+        <div className="apple-card p-4 mb-3">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Manual LinkedIn search</div>
+          <div className="flex flex-wrap gap-2">
+            {manualSearches.map(s => (
+              <a
+                key={s.label}
+                href={s.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="bg-secondary border border-border rounded-lg px-3 py-1.5 text-[11px] font-medium hover:bg-accent transition-colors"
+              >
+                {s.label} ↗
+              </a>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-xs text-muted-foreground">
+            {targets.length} suggested connection{targets.length !== 1 ? "s" : ""} <AIQuotaBadge feature="networking" />
+          </div>
+          <button
+            onClick={generate}
+            disabled={generating}
+            className="bg-foreground text-background rounded-lg px-3 py-1.5 text-[11px] font-semibold hover:opacity-90 transition-opacity disabled:opacity-40"
+          >
+            {generating ? "Generating…" : targets.length ? "Regenerate suggestions" : "Generate suggestions"}
+          </button>
+        </div>
+
+        {genError && (
+          <div className="rounded-xl p-4 mb-3 text-xs" style={{ background: "hsl(var(--warning-bg))", border: "1px solid hsl(var(--warning-border))" }}>
+            {genError}
+          </div>
+        )}
+
+        {generating ? (
           <div className="text-center py-14 apple-card">
-            <Spinner size={20} />
-            <p className="animate-pulse-dot text-xs text-muted-foreground mt-3">Finding your networking strategy…</p>
+            <div className="flex justify-center"><Spinner size={20} /></div>
+            <p className="animate-pulse-dot text-xs text-muted-foreground mt-3">Ranking the people to reach out to…</p>
           </div>
-        ) : n?.error ? (
-          <div className="text-xs text-muted-foreground apple-card p-5">Analysis failed — please retry.</div>
-        ) : n ? (
+        ) : targetsQuery.isLoading ? (
+          <div className="apple-card p-5 text-xs text-muted-foreground">Loading your networking activity…</div>
+        ) : targetsQuery.error ? (
+          <div className="apple-card p-5 text-xs text-muted-foreground">Could not load saved contacts. Please refresh.</div>
+        ) : targets.length === 0 ? (
+          <div className="apple-card p-8 text-center text-xs text-muted-foreground">
+            No connections yet. Generate suggestions, or use the manual LinkedIn searches above.
+          </div>
+        ) : (
           <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="apple-card p-5">
-                <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-3">Who to Find on LinkedIn</div>
-                {n.connectionAngles?.map((a, i) => (
-                  <div key={i} className="flex gap-2 mb-2.5 text-xs leading-relaxed"><span className="font-semibold shrink-0 text-muted-foreground">{i + 1}.</span>{a}</div>
-                ))}
-              </div>
-              <div className="apple-card p-5">
-                <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-3">LinkedIn Search Strings</div>
-                {n.searchQueries?.map((q, i) => (
-                  <div key={i} onClick={() => copy(q)} className="bg-background border border-border rounded-lg p-2.5 mb-2 text-xs font-mono cursor-pointer hover:bg-secondary/60 transition-colors">
-                    {q} <span className="text-[10px] text-muted-foreground">· click to copy</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="apple-card p-5">
-              <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-3">Outreach Messages</div>
-              {n.outreachMessages?.map((m, i) => (
-                <div key={i} className="bg-background border border-border rounded-xl p-4 mb-2.5">
-                  <div className="text-[10.5px] text-muted-foreground font-semibold uppercase tracking-wide mb-2">{m.persona}</div>
-                  <p className="text-xs leading-relaxed mb-3">{m.message}</p>
-                  <button onClick={() => copy(m.message)} className="bg-secondary text-secondary-foreground rounded-lg px-3 py-1.5 text-[11px] font-medium hover:bg-secondary/80 transition-colors">Copy message</button>
-                </div>
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl p-5" style={{ background: "hsl(var(--success-bg))", border: "1px solid hsl(var(--success-border))" }}>
-                <div className="text-[10px] font-semibold uppercase tracking-wide mb-3 text-success">Smart Questions to Ask</div>
-                {n.insiderQuestions?.map((q, i) => (
-                  <div key={i} className="flex gap-2 mb-2.5 text-xs leading-relaxed text-foreground">
-                    <span className="text-success font-medium">Q{i + 1}</span>{q}
-                  </div>
-                ))}
-              </div>
-              <div className="rounded-xl p-5" style={{ background: "hsl(var(--warning-bg))", border: "1px solid hsl(var(--warning-border))" }}>
-                <div className="text-[10px] font-semibold uppercase tracking-wide mb-3 text-warning">LinkedIn Content Angle</div>
-                <p className="text-xs leading-relaxed text-foreground">{n.contentAngle}</p>
-                <button onClick={() => copy(n.contentAngle || "")} className="mt-3 bg-card border border-border text-secondary-foreground rounded-lg px-3 py-1.5 text-[11px] font-medium hover:bg-secondary/80 transition-colors">Copy idea</button>
-              </div>
-            </div>
+            {targets.map((t, i) => (
+              <TargetCard
+                key={t.id}
+                target={t}
+                rank={i + 1}
+                onUpdate={(u) => updateTarget.mutate(u, { onError: () => toast.error("Could not save change") })}
+              />
+            ))}
           </div>
-        ) : null}
+        )}
+
+        <p className="text-[10px] text-muted-foreground mt-4 leading-relaxed">
+          hireOS never scrapes LinkedIn and never sends messages for you. Suggestions describe who to look for — verify every person before
+          reaching out.
+        </p>
       </div>
     );
   }
@@ -161,12 +239,10 @@ Return: {
   return (
     <div className="max-w-[880px] mx-auto px-6 py-10">
       <h1 className="text-2xl font-semibold tracking-tight mb-0.5">Networking Intelligence</h1>
-      <p className="text-xs text-muted-foreground mb-6">Pick a role — get exactly who to find on LinkedIn, what to say, and how to get on their radar <AIQuotaBadge feature="networking" /></p>
-      <GroupedJobList
-        jobs={jobs}
-        onSelect={handleSelectJob}
-        ctaLabel="Get connections →"
-      />
+      <p className="text-xs text-muted-foreground mb-6">
+        Pick a role — get ranked connection types, why each matters, and a personalized outreach plan you can track.
+      </p>
+      <GroupedJobList jobs={jobs} onSelect={setJob} ctaLabel="Get connections →" />
     </div>
   );
 };
