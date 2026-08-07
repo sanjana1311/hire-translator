@@ -2,28 +2,29 @@ import { useMemo, useState } from "react";
 import { Copy, Check, FileDown, FileText } from "lucide-react";
 import { toast } from "sonner";
 import type { TailoredResume } from "@/lib/resume-guard";
-import { renderTailoredDocument } from "@/lib/resume-template";
+import { buildFormattedDocument, sectionsOf } from "@/lib/resume-document";
 import { downloadTailoredPdf, downloadTailoredDocx } from "@/lib/resume-export";
 
 interface Props {
   resume: TailoredResume;
   sourceResumeText: string;
+  /** Captured visual layout of the uploaded PDF (fonts, geometry, page breaks). */
+  sourceLayout?: unknown;
   fileBase: string;
 }
 
-const IconBtn = ({ onClick, label, active }: { onClick: () => void; label: string; active?: boolean }) => (
-  <button
-    onClick={onClick}
-    className={`text-[10.5px] font-medium px-2 py-1 rounded-md transition-all ${
-      active ? "bg-[hsl(var(--success-bg))] text-success" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-    }`}
-  >
-    {label}
-  </button>
-);
+const cssFamily = (font: string) => {
+  if (/times|serif|georgia|garamond|book|cambria|minion/i.test(font)) return `Georgia, 'Times New Roman', serif`;
+  if (/courier|mono|consol/i.test(font)) return `'Courier New', monospace`;
+  return `Helvetica, Arial, sans-serif`;
+};
 
-const TailoredResumeDocument = ({ resume, sourceResumeText, fileBase }: Props) => {
-  const doc = useMemo(() => renderTailoredDocument(resume, sourceResumeText), [resume, sourceResumeText]);
+const TailoredResumeDocument = ({ resume, sourceResumeText, sourceLayout, fileBase }: Props) => {
+  const doc = useMemo(
+    () => buildFormattedDocument(resume, { layout: sourceLayout, rawText: sourceResumeText }),
+    [resume, sourceResumeText, sourceLayout]
+  );
+  const sections = useMemo(() => sectionsOf(doc), [doc]);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const copy = async (text: string, key: string) => {
@@ -36,6 +37,11 @@ const TailoredResumeDocument = ({ resume, sourceResumeText, fileBase }: Props) =
     }
   };
 
+  const geo = doc.layout.pages[0] ?? { width: 612, height: 792 };
+  // Scale points to the preview column so proportions match the source document.
+  const PREVIEW_WIDTH = 560;
+  const scale = PREVIEW_WIDTH / geo.width;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -47,69 +53,109 @@ const TailoredResumeDocument = ({ resume, sourceResumeText, fileBase }: Props) =
           {copiedKey === "full" ? "Copied" : "Copy full resume"}
         </button>
         <button
+          onClick={() => downloadTailoredDocx(doc, fileBase).catch(() => toast.error("DOCX export failed"))}
+          className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+        >
+          <FileText size={12} /> DOCX (best fidelity)
+        </button>
+        <button
           onClick={() => downloadTailoredPdf(doc, fileBase)}
           className="inline-flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
         >
           <FileDown size={12} /> PDF
         </button>
-        <button
-          onClick={() => downloadTailoredDocx(doc, fileBase).catch(() => toast.error("DOCX export failed"))}
-          className="inline-flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
-        >
-          <FileText size={12} /> DOCX
-        </button>
       </div>
 
-      <div className="rounded-xl border border-border/60 p-4 bg-card">
-        {doc.header.length > 0 && (
-          <div className="mb-3 pb-3 border-b border-border/50">
-            {doc.header.map((l, i) => (
-              <p key={i} className={i === 0 ? "text-[13px] font-semibold text-foreground" : "text-[11px] text-muted-foreground"}>
-                {l}
-              </p>
+      {sections.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {sections
+            .filter((s) => s.name)
+            .map((s, i) => (
+              <button
+                key={i}
+                onClick={() => copy(s.text, `sec${i}`)}
+                className={`text-[10.5px] font-medium px-2 py-1 rounded-md transition-all ${
+                  copiedKey === `sec${i}`
+                    ? "bg-[hsl(var(--success-bg))] text-success"
+                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                }`}
+              >
+                {copiedKey === `sec${i}` ? "Copied" : `Copy ${s.name.toLowerCase()}`}
+              </button>
             ))}
-          </div>
-        )}
+        </div>
+      )}
 
-        {doc.sections.map((s, si) => (
-          <section key={si} className="mb-4 last:mb-0 group">
-            <div className="flex items-center justify-between gap-2 mb-1.5">
-              {s.name ? (
-                <p className="text-[11.5px] font-semibold tracking-wide text-foreground">{s.name}</p>
-              ) : (
-                <span />
-              )}
-              <IconBtn
-                onClick={() => copy(s.text, `s${si}`)}
-                label={copiedKey === `s${si}` ? "Copied" : "Copy section"}
-                active={copiedKey === `s${si}`}
-              />
-            </div>
-            <div className="space-y-0.5">
-              {s.lines.map((l, li) =>
-                l.trim() ? (
-                  <div key={li} className="flex items-start gap-2 group/line">
-                    <p className="text-[11.5px] leading-[1.75] text-secondary-foreground whitespace-pre-wrap flex-1">{l}</p>
-                    <button
-                      onClick={() => copy(l.trim(), `s${si}l${li}`)}
-                      className="opacity-0 group-hover/line:opacity-100 transition-opacity text-[10px] text-muted-foreground hover:text-foreground shrink-0 mt-0.5"
-                      aria-label="Copy line"
-                    >
-                      {copiedKey === `s${si}l${li}` ? <Check size={11} /> : <Copy size={11} />}
-                    </button>
-                  </div>
-                ) : (
-                  <div key={li} className="h-1.5" />
-                )
-              )}
-            </div>
-          </section>
+      <div className="space-y-4 overflow-x-auto">
+        {doc.pages.map((page, pi) => (
+          <div
+            key={pi}
+            className="rounded-xl border border-border/60 bg-card shadow-sm mx-auto"
+            style={{
+              width: PREVIEW_WIDTH,
+              minHeight: geo.height * scale,
+              paddingTop: doc.layout.margins.top * scale,
+              paddingBottom: doc.layout.margins.bottom * scale,
+              paddingLeft: doc.layout.margins.left * scale,
+              paddingRight: doc.layout.margins.right * scale,
+            }}
+          >
+            {page.map((line, li) => {
+              const run = line.runs[0] ?? { size: doc.layout.baseSize, bold: false, italic: false, font: doc.layout.baseFont };
+              const gap = li === 0 ? 0 : Math.max(0, line.spaceBefore - run.size * 1.15) * scale;
+              return (
+                <div
+                  key={li}
+                  className="group/line flex items-start gap-2"
+                  style={{ marginTop: gap }}
+                >
+                  <p
+                    className="flex-1 text-foreground whitespace-pre-wrap break-words"
+                    style={{
+                      fontFamily: cssFamily(run.font),
+                      fontSize: run.size * scale * (96 / 72),
+                      lineHeight: 1.2,
+                      fontWeight: run.bold ? 700 : 400,
+                      fontStyle: run.italic ? "italic" : "normal",
+                      paddingLeft: line.indent * scale,
+                      textAlign: line.align,
+                      textIndent: line.bullet ? -(run.size * 0.9 * scale) : 0,
+                    }}
+                  >
+                    {line.runs.length > 1
+                      ? line.runs.map((r, ri) => (
+                          <span
+                            key={ri}
+                            style={{
+                              fontWeight: r.bold ? 700 : 400,
+                              fontStyle: r.italic ? "italic" : "normal",
+                              fontSize: r.size * scale * (96 / 72),
+                              fontFamily: cssFamily(r.font),
+                            }}
+                          >
+                            {r.text}
+                          </span>
+                        ))
+                      : line.text}
+                  </p>
+                  <button
+                    onClick={() => copy(line.text.trim(), `p${pi}l${li}`)}
+                    className="opacity-0 group-hover/line:opacity-100 transition-opacity text-[10px] text-muted-foreground hover:text-foreground shrink-0 mt-0.5"
+                    aria-label="Copy line"
+                  >
+                    {copiedKey === `p${pi}l${li}` ? <Check size={11} /> : <Copy size={11} />}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         ))}
       </div>
 
       <p className="text-[10.5px] text-muted-foreground">
-        Export keeps your uploaded resume's sections, order and layout. Analysis (skills coverage, evidence, confidence)
-        stays in the analysis panel and is never included in the download.
+        Preview and downloads are generated from the same formatted document model, using your uploaded resume's fonts,
+        spacing, headings, alignment and page breaks. Skills coverage, evidence and confidence stay in the analysis panel
+        and are never included in the file.
       </p>
     </div>
   );
