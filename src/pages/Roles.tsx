@@ -11,6 +11,7 @@ import { cleanText } from "@/lib/clean-text";
 import { parseJsonLoose, normalizeAnalysis, failedAnalysis } from "@/lib/safe-json";
 import { buildTailorPrompt, validateTailoredResume, tailoredResumeToText, type TailoredResume } from "@/lib/resume-guard";
 import TailoredResumeView from "@/components/TailoredResumeView";
+import TailoredResumeDocument from "@/components/TailoredResumeDocument";
 
 
 import {
