@@ -45,6 +45,15 @@ const WeeklyReport = () => {
     if (loading) return;
     setLoading(true);
     setTimedOut(false);
+    let timedOutFlag = false;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        timedOutFlag = true;
+        reject(new Error("BRIEFING_TIMEOUT"));
+      }, BRIEFING_TIMEOUT_MS);
+    });
+    try {
+
 
       let apps: { company: string; title: string; status: string; appliedDate: string; lastEmail: string | null; notes: string }[] = [];
 
