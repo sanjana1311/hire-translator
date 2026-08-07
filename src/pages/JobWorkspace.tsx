@@ -16,6 +16,9 @@ import { useWorkspace, useUpdateWorkspace } from "@/hooks/use-workspaces";
 import { useResume } from "@/hooks/use-resume";
 import { generateResumePDF } from "@/lib/pdf-export";
 import { validateTailoredResume } from "@/lib/resume-guard";
+import { renderTailoredDocument } from "@/lib/resume-template";
+import { downloadTailoredPdf } from "@/lib/resume-export";
+import TailoredResumeDocument from "@/components/TailoredResumeDocument";
 
 import { format } from "date-fns";
 import {
