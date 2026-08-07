@@ -638,6 +638,21 @@ const JobWorkspace = () => {
                 ))}
               </div>
 
+              {/* Export copy — mirrors the uploaded resume's own sections and order */}
+              {resume?.raw_text && (
+                <div className="mb-6">
+                  <TailoredResumeDocument
+                    resume={tailoredResume}
+                    sourceResumeText={resume.raw_text}
+                    fileBase={`${ws.company}_${ws.role_title}_Resume`}
+                  />
+                </div>
+              )}
+
+              <p className="text-xs text-muted-foreground font-medium mb-3 uppercase tracking-wide">Analysis</p>
+
+
+
               {/* Summary */}
               <div className="mb-5">
                 <p className="text-xs text-muted-foreground font-medium mb-2 uppercase tracking-wide">Summary</p>
