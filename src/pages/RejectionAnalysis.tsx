@@ -6,7 +6,7 @@ import { useResume } from "@/hooks/use-resume";
 import { useRejectionEvents, RejectionEvent } from "@/hooks/use-rejection-events";
 import { useGmailImport } from "@/hooks/use-gmail-import";
 import { supabase } from "@/integrations/supabase/client";
-import { safeParseJSON } from "@/lib/safe-json";
+import { parseJsonLoose } from "@/lib/safe-json";
 import { toast } from "sonner";
 
 const Spinner = ({ size = 16 }: { size?: number }) => (
@@ -174,7 +174,7 @@ Return ONLY valid JSON matching this schema, no markdown:
 }`;
 
       const raw = await callAI(prompt, 1400, "rejection");
-      const parsed = safeParseJSON<RejectionAnalysisData>(raw);
+      const parsed = parseJsonLoose<RejectionAnalysisData>(raw);
       if (!parsed) throw new Error("Analysis returned an unreadable response. Please retry.");
       setAnalysis(parsed);
     } catch (err: any) {
