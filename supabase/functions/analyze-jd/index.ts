@@ -198,7 +198,20 @@ const STEP4_TOOL = {
               title: { type: "string" },
               company: { type: "string" },
               dates: { type: "string" },
-              bullets: { type: "array", items: { type: "string" } },
+              bullets: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    text: { type: "string" },
+                    original: { type: "string" },
+                    evidence: { type: "string" },
+                    confidence: { type: "string", enum: ["high", "medium", "low"] },
+                  },
+                  required: ["text", "original", "evidence", "confidence"],
+                  additionalProperties: false,
+                },
+              },
             },
             required: ["title", "company", "dates", "bullets"],
             additionalProperties: false,
@@ -208,6 +221,19 @@ const STEP4_TOOL = {
         verified_skills: { type: "array", items: { type: "string" } },
         transferable_skills: { type: "array", items: { type: "string" } },
         missing_requirements: { type: "array", items: { type: "string" } },
+        requirements: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              requirement: { type: "string" },
+              status: { type: "string", enum: ["verified", "transferable", "missing"] },
+              evidence: { type: "string" },
+            },
+            required: ["requirement", "status", "evidence"],
+            additionalProperties: false,
+          },
+        },
         low_confidence_bullets: { type: "array", items: { type: "string" } },
         projects: {
           type: "array",
@@ -224,7 +250,7 @@ const STEP4_TOOL = {
         },
         changes_made: { type: "array", items: { type: "string" } },
       },
-      required: ["summary", "experience", "skills", "verified_skills", "transferable_skills", "missing_requirements", "low_confidence_bullets", "projects", "changes_made"],
+      required: ["summary", "experience", "skills", "verified_skills", "transferable_skills", "missing_requirements", "requirements", "low_confidence_bullets", "projects", "changes_made"],
 
       additionalProperties: false,
     },
@@ -479,9 +505,18 @@ HARD RULES:
   transferable_skills = adjacent skills the evidence supports indirectly.
   missing_requirements = JD requirements with no evidence.
 - low_confidence_bullets = every rewritten bullet whose wording changed substantially (copy the bullet text).
-ATS keywords must appear naturally — no keyword stuffing.
-Summary must be 3–4 sentences max, role-specific, no generic filler, no new numbers.
-Bullets follow WHAT → HOW → WHO → IMPACT. Prefer 1 sentence per bullet.`,
+- requirements = EVERY JD requirement classified as "verified" (directly supported — cite a verbatim source snippet as evidence), "transferable" (related but not exact), or "missing" (no evidence). Missing requirements never enter the resume body.
+ATS keywords must appear naturally — no keyword stuffing, and only when they accurately describe verified experience.
+
+BULLET REWRITING (XYZ framework): "Accomplished X, measured by Y, by doing Z."
+- Strong action verb, the task/problem, the method/tools/scope, and a measurable result ONLY if that metric already exists in the base resume.
+- If no metric exists, do NOT invent one — write an accurate scope-based bullet instead,
+  e.g. "Built ETL pipelines using Python, Spark, and Airflow to support large-scale data processing."
+- Preserve the original bullet verbatim when evidence is insufficient to rewrite it.
+- Each bullet object must include: text, original (the source bullet), evidence (a verbatim snippet from the base resume), confidence ("high" near-verbatim, "medium" reframed, "low" heavily reworded).
+
+FORMATTING: ATS-safe only — single column, standard headings, plain text, consistent date formats, no tables, graphics, icons, or text boxes.
+Summary must be 3–4 sentences max, role-specific, no generic filler, no new numbers.`,
         user: `Produce a tailored resume draft optimized for this specific role.
 
 Base Resume Text:
@@ -507,6 +542,7 @@ Return the full tailored resume with:
 - experience: array of roles with rewritten bullets (only from base resume facts)
 - skills: reordered and filtered to match JD keywords (only skills present in base resume)
 - verified_skills / transferable_skills / missing_requirements as defined above
+- requirements: every JD requirement classified verified/transferable/missing with evidence
 - low_confidence_bullets: bullets whose wording changed substantially
 - projects: only if user confirmed projects above
 - changes_made: list of what was changed and why`,
@@ -523,7 +559,14 @@ Return the full tailored resume with:
       const { error: updateErr4 } = await supabaseClient.from("job_workspaces").update({
         tailored_resume: tailored,
         rewritten_bullets: tailored.experience?.flatMap((e: any) =>
-          (e.bullets || []).map((b: string) => ({ rewritten: b, company: e.company, title: e.title }))
+          (e.bullets || []).map((b: any) => ({
+            rewritten: typeof b === "string" ? b : b.text,
+            original: typeof b === "string" ? "" : b.original || "",
+            evidence: typeof b === "string" ? "" : b.evidence || "",
+            confidence: typeof b === "string" ? "medium" : b.confidence || "medium",
+            company: e.company,
+            title: e.title,
+          }))
         ) || [],
         status: "ready",
       }).eq("id", workspaceId);
