@@ -8,7 +8,6 @@ const corsHeaders = {
 };
 
 const DAILY_LIMIT = 10;
-const OPENCODE_GO_MODEL = "kimi-k3";
 const FUNCTION_NAME = "ai-chat";
 
 // Set when OpenCode Go rejects us (bad key / no credits) so later calls skip it.
@@ -31,37 +30,6 @@ function redact(value: string) {
 function failure(requestId: string, message: string, status: number, code = "RESUME_REWRITE_FAILED") {
   console.log(JSON.stringify({ requestId, function: FUNCTION_NAME, stage: "final", finalStatus: status, code }));
   return json({ ok: false, code, message, requestId }, status);
-}
-
-async function callOpenCodeGo(
-  messages: Array<{ role: string; content: string }>,
-  temperature: number,
-  maxTokens: number,
-) {
-  const token = Deno.env.get("OPENCODE_GO_API_KEY");
-  if (!token) return "";
-
-  const res = await fetch("https://opencode.ai/zen/go/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: OPENCODE_GO_MODEL,
-      temperature,
-      max_tokens: maxTokens,
-      messages,
-    }),
-  });
-
-  if (!res.ok) {
-    console.error("OpenCode Go API error:", res.status, await res.text());
-    return "";
-  }
-
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content || "";
 }
 
 serve(async (req) => {
@@ -211,9 +179,6 @@ serve(async (req) => {
     const messages = [{ role: "user", content: prompt }];
     const maxOutputTokens = maxTokens || 1000;
     let text = "";
-
-    // Primary provider: OpenCode Go subscription.
-    text = await callOpenCodeGo(messages, temperature, maxOutputTokens);
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
