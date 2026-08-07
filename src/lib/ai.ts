@@ -35,33 +35,43 @@ export async function callAI(
   });
 
   try {
-    const res = await Promise.race([
-      supabase.functions.invoke("ai-chat", {
-        body: { prompt, maxTokens, feature, context },
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new AIRequestError("Please sign in and try again.", "NOT_AUTHENTICATED");
+    }
+
+    const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`;
+    const response = await Promise.race([
+      fetch(endpoint, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ prompt, maxTokens, feature, context }),
       }),
       timeout,
     ]);
 
-    if (res.error) {
-      const response: Response | undefined = (res.error as any)?.context;
-      if (response && typeof response.text === "function") {
-        try {
-          const body = JSON.parse(await response.text());
-          throw new AIRequestError(
-            body?.message || "AI request failed. Please try again.",
-            body?.code,
-            body?.requestId,
-          );
-        } catch (error) {
-          if (error instanceof AIRequestError) throw error;
-        }
+    const responseText = await response.text();
+    let body: { ok?: boolean; text?: string; message?: string; code?: string; requestId?: string } = {};
+    try {
+      body = responseText ? JSON.parse(responseText) : {};
+    } catch {
+      if (!response.ok) {
+        throw new AIRequestError(`AI request failed (${response.status}). Please try again.`);
       }
-      throw new AIRequestError(res.error.message || "AI request failed. Please try again.");
     }
-    if (res.data?.ok === false) {
-      throw new AIRequestError(res.data.message, res.data.code, res.data.requestId);
+
+    if (!response.ok || body.ok === false) {
+      throw new AIRequestError(
+        body.message || `AI request failed (${response.status}). Please try again.`,
+        body.code,
+        body.requestId,
+      );
     }
-    return (res.data?.text || "").replace(/\x60\x60\x60json|\x60\x60\x60/g, "").trim();
+    return (body.text || "").replace(/\x60\x60\x60json|\x60\x60\x60/g, "").trim();
   } finally {
     if (timeoutId) clearTimeout(timeoutId);
   }
