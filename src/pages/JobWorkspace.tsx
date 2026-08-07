@@ -15,6 +15,8 @@ import { toast } from "sonner";
 import { useWorkspace, useUpdateWorkspace } from "@/hooks/use-workspaces";
 import { useResume } from "@/hooks/use-resume";
 import { generateResumePDF } from "@/lib/pdf-export";
+import { validateTailoredResume } from "@/lib/resume-guard";
+
 import { format } from "date-fns";
 import {
   useWorkspaceVersions, useSaveVersion, useDeleteVersion, WorkspaceVersion,
@@ -180,7 +182,14 @@ const JobWorkspace = () => {
   const activeStep = getActiveStep(ws);
   const jdAnalysis = ws.jd_analysis as any || {};
   const gapAnalysis = ws.gap_analysis as any || {};
-  const tailoredResume = ws.tailored_resume as any || {};
+  const rawTailoredResume = ws.tailored_resume as any || {};
+  const tailoredValidation = rawTailoredResume?.summary
+    ? validateTailoredResume(rawTailoredResume as any, resume?.raw_text || "")
+    : null;
+  const tailoredResume: any = tailoredValidation
+    ? { ...rawTailoredResume, ...tailoredValidation.resume }
+    : rawTailoredResume;
+
   const suggestedProjects = Array.isArray(ws.suggested_projects) ? ws.suggested_projects : [];
   const bucket = ws.match_bucket || gapAnalysis?.bucket || "";
   const bucketConfig = BUCKET_CONFIG[bucket];
@@ -603,6 +612,21 @@ const JobWorkspace = () => {
                 </Badge>
               </div>
 
+              {/* Truth-boundary warning */}
+              <div className="mb-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+                <p className="text-xs font-medium text-amber-700 dark:text-amber-400 leading-relaxed">
+                  Review all AI-generated changes before applying. Only claims supported by your uploaded resume are kept.
+                </p>
+                {tailoredValidation && tailoredValidation.rejectedCount > 0 && (
+                  <p className="text-[11px] text-amber-700/80 dark:text-amber-400/80 mt-1">
+                    {tailoredValidation.rejectedCount} unsupported claim{tailoredValidation.rejectedCount > 1 ? "s" : ""} removed by validation.
+                  </p>
+                )}
+                {tailoredResume.warnings?.map((w: string, i: number) => (
+                  <p key={i} className="text-[11px] text-amber-700/80 dark:text-amber-400/80 mt-1">{w}</p>
+                ))}
+              </div>
+
               {/* Summary */}
               <div className="mb-5">
                 <p className="text-xs text-muted-foreground font-medium mb-2 uppercase tracking-wide">Summary</p>
@@ -622,10 +646,21 @@ const JobWorkspace = () => {
                         </div>
                         <p className="text-xs text-muted-foreground mb-2">{exp.company}</p>
                         <ul className="space-y-1.5">
-                          {(exp.bullets || []).map((b: string, j: number) => (
+                          {(exp.bullets || []).map((b: any, j: number) => (
                             <li key={j} className="text-sm text-foreground leading-relaxed flex items-start gap-2">
                               <span className="text-primary mt-1 shrink-0">•</span>
-                              <span>{b}</span>
+                              <span className={b.rejected ? "line-through text-muted-foreground" : ""}>
+                                {b.text}
+                                {b.rejected ? (
+                                  <Badge variant="outline" className="ml-2 text-[10px] text-destructive border-destructive/40">
+                                    Removed — {b.reason}
+                                  </Badge>
+                                ) : b.confidence === "low" ? (
+                                  <Badge variant="outline" className="ml-2 text-[10px] text-amber-600 border-amber-500/40">Low confidence — verify</Badge>
+                                ) : b.confidence === "medium" ? (
+                                  <Badge variant="outline" className="ml-2 text-[10px] text-muted-foreground">Reworded</Badge>
+                                ) : null}
+                              </span>
                             </li>
                           ))}
                         </ul>
@@ -635,8 +670,45 @@ const JobWorkspace = () => {
                 </div>
               )}
 
-              {/* Skills */}
-              {tailoredResume.skills?.length > 0 && (
+              {/* Verified skills */}
+              {tailoredResume.verified_skills?.length > 0 && (
+                <div className="mb-5">
+                  <p className="text-xs text-muted-foreground font-medium mb-2 uppercase tracking-wide">Verified skills</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {tailoredResume.verified_skills.map((s: string) => (
+                      <span key={s} className="text-xs px-2 py-0.5 rounded-full bg-success/10 text-success font-medium">{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Transferable skills */}
+              {tailoredResume.transferable_skills?.length > 0 && (
+                <div className="mb-5">
+                  <p className="text-xs text-muted-foreground font-medium mb-2 uppercase tracking-wide">Transferable skills</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {tailoredResume.transferable_skills.map((s: string) => (
+                      <span key={s} className="text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground font-medium">{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Missing requirements */}
+              {tailoredResume.missing_requirements?.length > 0 && (
+                <div className="mb-5">
+                  <p className="text-xs text-muted-foreground font-medium mb-2 uppercase tracking-wide">Missing requirements (Gap)</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {tailoredResume.missing_requirements.map((s: string) => (
+                      <span key={s} className="text-xs px-2 py-0.5 rounded-full bg-destructive/10 text-destructive font-medium">{s}</span>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1.5">Not added to your resume — these stay listed as gaps.</p>
+                </div>
+              )}
+
+              {/* Other skills from base resume */}
+              {tailoredResume.skills?.length > 0 && !tailoredResume.verified_skills?.length && (
                 <div className="mb-5">
                   <p className="text-xs text-muted-foreground font-medium mb-2 uppercase tracking-wide">Skills</p>
                   <div className="flex flex-wrap gap-1.5">
@@ -646,6 +718,7 @@ const JobWorkspace = () => {
                   </div>
                 </div>
               )}
+
 
               {/* Projects */}
               {tailoredResume.projects?.length > 0 && (

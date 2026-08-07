@@ -9,6 +9,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cleanText } from "@/lib/clean-text";
 import { parseJsonLoose, normalizeAnalysis, failedAnalysis } from "@/lib/safe-json";
+import { buildTailorPrompt, validateTailoredResume, tailoredResumeToText, type TailoredResume } from "@/lib/resume-guard";
+import TailoredResumeView from "@/components/TailoredResumeView";
+
 
 import {
   BUCKET_META,
@@ -17,8 +20,18 @@ import {
 import { classifyRole, getRoleFamilyLabel, ROLE_FAMILIES, type RoleFamilyKey } from "@/lib/role-classifier";
 import { ChevronDown, ChevronRight, SlidersHorizontal, X, Trash2 } from "lucide-react";
 
+const parseStoredResume = (value: string): TailoredResume | null => {
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && parsed.summary ? (parsed as TailoredResume) : null;
+  } catch {
+    return null;
+  }
+};
+
 const Spinner = ({ size = 16 }: { size?: number }) => (
   <div
+
     className="border-2 border-foreground/10 border-t-foreground/60 rounded-full animate-spin"
     style={{ width: size, height: size, flexShrink: 0 }}
   />
@@ -274,24 +287,41 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
     const jobDesc = job.description || job.snippet || `${job.title} at ${job.company}`;
     setRL(prev => new Set([...prev, job.id]));
     try {
-      const tailoredResume = await callAI(`Expert ATS resume writer. Rewrite for this specific job. Keep all real facts. Plain text only, no markdown.
-ORIGINAL: ${resumeText}
-TARGET: ${job.title} at ${job.company}
-JD: ${jobDesc}
-WEAVE IN: ${r.missingKeywords?.join(", ")}
-Output complete rewritten resume:`, 4000, "roles");
-      setResumes(prev => ({ ...prev, [job.id]: tailoredResume }));
+      const raw = await callAI(
+        buildTailorPrompt({
+          resumeText,
+          jobTitle: job.title,
+          company: job.company,
+          jobDescription: jobDesc,
+          missingKeywords: r.missingKeywords,
+        }),
+        4000,
+        "roles"
+      );
+      const parsed = parseJsonLoose(raw) as Partial<TailoredResume> | null;
+      if (!parsed || !parsed.summary) throw new Error("Tailoring temporarily failed — please retry");
+
+      const { resume: validated, rejectedCount } = validateTailoredResume(parsed as TailoredResume, resumeText);
+
+      const payload = JSON.stringify(validated);
+      setResumes(prev => ({ ...prev, [job.id]: payload }));
       await supabase
         .from("imported_jobs")
-        .update({ tailored_resume: tailoredResume })
+        .update({ tailored_resume: payload })
         .eq("id", job.id);
       refreshAIUsage();
+      if (rejectedCount > 0) {
+        toast.warning(`${rejectedCount} unsupported claim${rejectedCount > 1 ? "s" : ""} removed — review before applying`);
+      } else {
+        toast.success("Tailored resume ready — review AI changes before applying");
+      }
     } catch (e: any) {
       console.error('Resume rewrite failed:', e);
-      toast.error(e.message || "Failed to generate tailored resume");
+      toast.error("Tailoring temporarily failed — please retry");
     }
     setRL(prev => { const s = new Set(prev); s.delete(job.id); return s; });
   };
+
 
   const handleMarkApplied = async (job: ImportedJob) => {
     if (!profile?.id || appliedJobs.has(job.id)) return;
@@ -607,7 +637,10 @@ Output complete rewritten resume:`, 4000, "roles");
               </div>
               {resumes[selected.id] && rtab === "tailored" && (
                 <button
-                  onClick={() => copy(resumes[selected.id])}
+                  onClick={() => {
+                    const parsed = parseStoredResume(resumes[selected.id]);
+                    copy(parsed ? tailoredResumeToText(parsed) : resumes[selected.id]);
+                  }}
                   className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
                     copied ? "bg-[hsl(var(--success-bg))] text-success" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                   }`}
@@ -623,8 +656,23 @@ Output complete rewritten resume:`, 4000, "roles");
                     <p className="text-sm text-muted-foreground">Resume tailoring unavailable — scoring must succeed first.</p>
                   </div>
                 ) : resumes[selected.id] ? (
-                  <pre className="font-sans text-[11.5px] leading-[1.85] whitespace-pre-wrap break-words text-secondary-foreground">{resumes[selected.id]}</pre>
+                  (() => {
+                    const parsed = parseStoredResume(resumes[selected.id]);
+                    return parsed ? (
+                      <TailoredResumeView resume={parsed} />
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+                          <p className="text-[11.5px] leading-relaxed text-amber-700 dark:text-amber-300 font-medium">
+                            Review all AI-generated changes before applying.
+                          </p>
+                        </div>
+                        <pre className="font-sans text-[11.5px] leading-[1.85] whitespace-pre-wrap break-words text-secondary-foreground">{resumes[selected.id]}</pre>
+                      </div>
+                    );
+                  })()
                 ) : rLoading.has(selected.id) ? (
+
                   <div className="text-center py-16">
                     <Spinner size={18} />
                     <p className="animate-pulse-dot text-sm text-muted-foreground mt-3">Writing your tailored resume…</p>

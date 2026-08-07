@@ -205,6 +205,10 @@ const STEP4_TOOL = {
           },
         },
         skills: { type: "array", items: { type: "string" } },
+        verified_skills: { type: "array", items: { type: "string" } },
+        transferable_skills: { type: "array", items: { type: "string" } },
+        missing_requirements: { type: "array", items: { type: "string" } },
+        low_confidence_bullets: { type: "array", items: { type: "string" } },
         projects: {
           type: "array",
           items: {
@@ -220,7 +224,8 @@ const STEP4_TOOL = {
         },
         changes_made: { type: "array", items: { type: "string" } },
       },
-      required: ["summary", "experience", "skills", "projects", "changes_made"],
+      required: ["summary", "experience", "skills", "verified_skills", "transferable_skills", "missing_requirements", "low_confidence_bullets", "projects", "changes_made"],
+
       additionalProperties: false,
     },
   },
@@ -458,19 +463,25 @@ ${JSON.stringify({
       console.log("Step 4: Resume Tailoring...");
       const tailored = await callAI({
         apiKey: LOVABLE_API_KEY, model: MODEL, temperature: 0.3, topP: 0.85,
-        system: `You are a precision resume tailoring engine. You operate under strict truth boundaries.
+        system: `You are a precision resume tailoring engine. You operate under STRICT truth boundaries.
 
 The base resume is canonical truth. You cannot expand it — only reshape it.
 
-You may: rewrite, reframe, reorder, emphasize, de-emphasize
-You may NOT: add metrics that don't exist, add tools not mentioned in base resume, invent job titles, change employment dates, fabricate outcomes
-
-Every bullet must be traceable to the base resume.
-If a skill is in the JD but not in the base resume → do NOT add it to skills.
-ATS keywords from the JD must appear naturally in the text — no keyword stuffing.
-Summary must be 3–4 sentences max, role-specific, no generic filler.
-Bullets should follow WHAT → HOW → WHO → IMPACT structure.
-Prefer 1 sentence per bullet. Use 2 only if significantly clearer.`,
+HARD RULES:
+- Use ONLY facts, roles, dates, employers, skills, tools, and metrics present in the base resume.
+- NEVER invent certifications, employers, projects, responsibilities, degrees, or achievements.
+- A skill appearing in the JD does NOT mean the candidate has it. Never claim it.
+- Preserve original job titles, company names, and employment dates EXACTLY.
+- Rewrite a bullet only when the underlying evidence already exists.
+- Keep every number/metric identical to the base resume. Never introduce a new number.
+- If a JD requirement has no evidence, list it in missing_requirements (a "Gap") — never in the resume body.
+- verified_skills = skills literally present in the base resume.
+  transferable_skills = adjacent skills the evidence supports indirectly.
+  missing_requirements = JD requirements with no evidence.
+- low_confidence_bullets = every rewritten bullet whose wording changed substantially (copy the bullet text).
+ATS keywords must appear naturally — no keyword stuffing.
+Summary must be 3–4 sentences max, role-specific, no generic filler, no new numbers.
+Bullets follow WHAT → HOW → WHO → IMPACT. Prefer 1 sentence per bullet.`,
         user: `Produce a tailored resume draft optimized for this specific role.
 
 Base Resume Text:
@@ -495,8 +506,11 @@ Return the full tailored resume with:
 - summary: rewritten for this role (3-4 sentences)
 - experience: array of roles with rewritten bullets (only from base resume facts)
 - skills: reordered and filtered to match JD keywords (only skills present in base resume)
+- verified_skills / transferable_skills / missing_requirements as defined above
+- low_confidence_bullets: bullets whose wording changed substantially
 - projects: only if user confirmed projects above
 - changes_made: list of what was changed and why`,
+
         tools: [STEP4_TOOL],
         toolChoice: { type: "function", function: { name: "tailor_resume" } },
       });
