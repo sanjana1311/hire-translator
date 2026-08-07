@@ -68,6 +68,17 @@ export function extractTemplate(rawText: string): ResumeTemplate {
     }
   }
 
+  // The name line at the very top is part of the contact/header block, not a section.
+  if (!header.length && sections.length) {
+    const first = sections[0];
+    const looksLikeContact = first.lines.some((l) => /@|https?:\/\/|www\.|\d{3}[).\-\s]\d{3}/i.test(l));
+    const isCapsHeading = first.name === first.name.toUpperCase();
+    if (looksLikeContact || !isCapsHeading) {
+      sections.shift();
+      header.push(first.name, ...first.lines);
+    }
+  }
+
   return {
     header: trimBlank(header),
     sections: sections.map((s) => ({ ...s, lines: trimBlank(s.lines) })),
