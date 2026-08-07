@@ -19,6 +19,8 @@ import { validateTailoredResume } from "@/lib/resume-guard";
 import { buildFormattedDocument } from "@/lib/resume-document";
 import { downloadTailoredPdf } from "@/lib/resume-export";
 import TailoredResumeDocument from "@/components/TailoredResumeDocument";
+import { readFunctionError } from "@/lib/function-error";
+
 
 import { format } from "date-fns";
 import {
