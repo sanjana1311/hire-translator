@@ -33,14 +33,28 @@ interface AppRow {
   created_at: string;
 }
 
+const BRIEFING_TIMEOUT_MS = 30_000;
+
 const WeeklyReport = () => {
   const { data: profile } = useProfile();
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
 
   const generateReport = async () => {
+    if (loading) return;
     setLoading(true);
+    setTimedOut(false);
+    let timedOutFlag = false;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        timedOutFlag = true;
+        reject(new Error("BRIEFING_TIMEOUT"));
+      }, BRIEFING_TIMEOUT_MS);
+    });
     try {
+
+
       let apps: { company: string; title: string; status: string; appliedDate: string; lastEmail: string | null; notes: string }[] = [];
 
       if (profile?.id) {
@@ -84,7 +98,7 @@ const WeeklyReport = () => {
         }
       }
 
-      const raw = await callAI(`You are a senior career mentor — direct, warm, strategic. NOT a dashboard generator. Write like you are sitting with the candidate over coffee. Use "you" not "the candidate". Be honest, specific, encouraging. Return ONLY valid JSON.
+      const raw = await Promise.race([callAI(`You are a senior career mentor — direct, warm, strategic. NOT a dashboard generator. Write like you are sitting with the candidate over coffee. Use "you" not "the candidate". Be honest, specific, encouraging. Return ONLY valid JSON.
 
 WHO THEY ARE: ${profile?.full_name || "Job seeker"} — targeting ${profile?.target_roles || "PM/TPM roles"}.
 
@@ -110,14 +124,20 @@ Return: {
   "thisWeekActions": ["5 concrete actions referencing actual companies"],
   "roleToDoubleDown": "which role to focus on and why",
   "encouragement": "1 genuine non-generic sentence"
-}`, 2000, "weekly_report");
+}`, 2000, "weekly_report"), timeoutPromise]);
       setReport(JSON.parse(raw));
     } catch (e: any) {
-      console.error("Report error:", e);
-      setReport({ error: true, message: e.message });
+      if (import.meta.env.DEV) console.error("Weekly briefing error:", e);
+      if (timedOutFlag || e?.message === "BRIEFING_TIMEOUT") {
+        setTimedOut(true);
+        setReport(null);
+      } else {
+        setReport({ error: true, message: e.message });
+      }
     }
     setLoading(false);
   };
+
 
   return (
     <div className="max-w-[760px] mx-auto px-6 py-10">
@@ -143,12 +163,26 @@ Return: {
         </div>
       )}
 
-      {!report && !loading && (
+      {timedOut && !loading && (
+        <div className="apple-card p-8 text-center">
+          <p className="text-sm font-medium mb-1">Your weekly briefing is taking longer than expected. Please retry.</p>
+          <p className="text-xs text-muted-foreground mb-5">The request timed out after 30 seconds.</p>
+          <button
+            onClick={generateReport}
+            className="bg-foreground text-background rounded-xl px-4 py-2.5 text-xs font-semibold transition-opacity hover:opacity-90"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {!report && !loading && !timedOut && (
         <div className="apple-card p-14 text-center">
           <div className="text-xl font-semibold text-muted-foreground/60 mb-2.5">What would your career mentor say right now?</div>
           <p className="text-sm text-muted-foreground leading-relaxed max-w-md mx-auto">This reads your actual applications — jobs applied, rejections received, role scores — and gives you a real mentor conversation, not generic advice.</p>
         </div>
       )}
+
 
       {report && !report.error && (
         <div className="animate-fade-up flex flex-col gap-3">
