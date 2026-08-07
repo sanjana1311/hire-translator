@@ -120,7 +120,8 @@ const Roles = () => {
       let scored = 0;
       for (const job of mapped) {
         if (job.analysis && !job.analysis.error) {
-          loadedResults[job.id] = job.analysis;
+          loadedResults[job.id] = normalizeAnalysis(job.analysis);
+
           scored++;
         }
         if (job.tailored_resume) {
