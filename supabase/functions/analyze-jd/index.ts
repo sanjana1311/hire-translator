@@ -299,27 +299,8 @@ serve(async (req) => {
     const payload = await req.json();
     const { workspaceId, step } = payload;
 
-    // Temporary provider probe (token-gated, no user data, no secrets returned).
-    const diagToken = Deno.env.get("AI_DIAG_TOKEN_V3") || "tmp-diag-probe-8f2a41";
-    if (diagToken && payload?.diag === diagToken) {
 
-      const key = Deno.env.get("LOVABLE_API_KEY");
-      if (!key) return new Response(JSON.stringify({ diag: true, error: "LOVABLE_API_KEY missing" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { "Lovable-API-Key": key, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: payload.model || "google/gemini-3.6-flash",
-          messages: [{ role: "user", content: "Call tailor_resume with minimal placeholder values." }],
-          tools: [STEP4_TOOL],
-          tool_choice: { type: "function", function: { name: "tailor_resume" } },
-        }),
-      });
-      const body = await r.text();
-      return new Response(JSON.stringify({ diag: true, status: r.status, body: body.slice(0, 700) }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+
 
     if (!workspaceId) throw new Error("workspaceId required");
 
