@@ -664,9 +664,48 @@ const JobWorkspace = () => {
                             </li>
                           ))}
                         </ul>
+                        {(exp.bullets || []).some((b: any) => b.evidence && !b.rejected) && (
+                          <div className="mt-1.5 space-y-0.5">
+                            {(exp.bullets || [])
+                              .filter((b: any) => b.evidence && !b.rejected)
+                              .map((b: any, k: number) => (
+                                <p key={k} className="text-[11px] text-muted-foreground/80 italic pl-3 border-l border-border">
+                                  Evidence: “{b.evidence}”
+                                </p>
+                              ))}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Requirement coverage */}
+              {Array.isArray(tailoredResume.requirements) && tailoredResume.requirements.length > 0 && (
+                <div className="mb-5">
+                  <p className="text-xs text-muted-foreground font-medium mb-2 uppercase tracking-wide">Requirement coverage</p>
+                  <ul className="space-y-1.5">
+                    {tailoredResume.requirements.map((r: any, i: number) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 ${
+                            r.status === "verified"
+                              ? "bg-success/10 text-success"
+                              : r.status === "transferable"
+                              ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                              : "bg-destructive/10 text-destructive"
+                          }`}
+                        >
+                          {r.status === "verified" ? "Verified" : r.status === "transferable" ? "Transferable" : "Missing"}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-xs text-foreground leading-relaxed">{r.requirement}</p>
+                          {r.evidence && <p className="text-[11px] text-muted-foreground/80 italic">Evidence: “{r.evidence}”</p>}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
 
@@ -920,8 +959,8 @@ const JobWorkspace = () => {
                     {tailoredResume.experience?.map((e: any, i: number) => (
                       <div key={i}>
                         <p className="text-xs font-medium">{e.title} — {e.company}</p>
-                        {e.bullets?.map((b: string, j: number) => (
-                          <p key={j} className="text-xs text-muted-foreground pl-2">• {b}</p>
+                        {e.bullets?.map((b: any, j: number) => (
+                          <p key={j} className="text-xs text-muted-foreground pl-2">• {typeof b === "string" ? b : b.text}</p>
                         ))}
                       </div>
                     ))}
@@ -942,8 +981,8 @@ const JobWorkspace = () => {
                       {snapResume.experience?.map((e: any, i: number) => (
                         <div key={i}>
                           <p className="text-xs font-medium">{e.title} — {e.company}</p>
-                          {e.bullets?.map((b: string, j: number) => (
-                            <p key={j} className="text-xs text-muted-foreground pl-2">• {b}</p>
+                          {e.bullets?.map((b: any, j: number) => (
+                            <p key={j} className="text-xs text-muted-foreground pl-2">• {typeof b === "string" ? b : b.text}</p>
                           ))}
                         </div>
                       ))}
