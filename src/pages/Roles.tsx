@@ -274,24 +274,40 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
     const jobDesc = job.description || job.snippet || `${job.title} at ${job.company}`;
     setRL(prev => new Set([...prev, job.id]));
     try {
-      const tailoredResume = await callAI(`Expert ATS resume writer. Rewrite for this specific job. Keep all real facts. Plain text only, no markdown.
-ORIGINAL: ${resumeText}
-TARGET: ${job.title} at ${job.company}
-JD: ${jobDesc}
-WEAVE IN: ${r.missingKeywords?.join(", ")}
-Output complete rewritten resume:`, 4000, "roles");
-      setResumes(prev => ({ ...prev, [job.id]: tailoredResume }));
+      const raw = await callAI(
+        buildTailorPrompt({
+          resumeText,
+          jobTitle: job.title,
+          company: job.company,
+          jobDescription: jobDesc,
+          missingKeywords: r.missingKeywords,
+        }),
+        4000,
+        "roles"
+      );
+      const parsed = parseJsonLoose(raw);
+      if (!parsed || !parsed.summary) throw new Error("Tailoring temporarily failed — please retry");
+
+      const { resume: validated, rejectedCount } = validateTailoredResume(parsed as any, resumeText);
+      const payload = JSON.stringify(validated);
+      setResumes(prev => ({ ...prev, [job.id]: payload }));
       await supabase
         .from("imported_jobs")
-        .update({ tailored_resume: tailoredResume })
+        .update({ tailored_resume: payload })
         .eq("id", job.id);
       refreshAIUsage();
+      if (rejectedCount > 0) {
+        toast.warning(`${rejectedCount} unsupported claim${rejectedCount > 1 ? "s" : ""} removed — review before applying`);
+      } else {
+        toast.success("Tailored resume ready — review AI changes before applying");
+      }
     } catch (e: any) {
       console.error('Resume rewrite failed:', e);
-      toast.error(e.message || "Failed to generate tailored resume");
+      toast.error("Tailoring temporarily failed — please retry");
     }
     setRL(prev => { const s = new Set(prev); s.delete(job.id); return s; });
   };
+
 
   const handleMarkApplied = async (job: ImportedJob) => {
     if (!profile?.id || appliedJobs.has(job.id)) return;
