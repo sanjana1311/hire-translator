@@ -308,6 +308,53 @@ export type Database = {
           },
         ]
       }
+      linkedin_accounts: {
+        Row: {
+          access_token: string | null
+          connected_at: string
+          expires_at: string | null
+          headline: string | null
+          id: string
+          member_name: string | null
+          profile_id: string
+          profile_url: string | null
+          scopes: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string | null
+          connected_at?: string
+          expires_at?: string | null
+          headline?: string | null
+          id?: string
+          member_name?: string | null
+          profile_id: string
+          profile_url?: string | null
+          scopes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string | null
+          connected_at?: string
+          expires_at?: string | null
+          headline?: string | null
+          id?: string
+          member_name?: string | null
+          profile_id?: string
+          profile_url?: string | null
+          scopes?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "linkedin_accounts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       networking_contacts: {
         Row: {
           category: string
@@ -357,6 +404,96 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "networking_contacts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      networking_targets: {
+        Row: {
+          company: string
+          connection_type: string
+          created_at: string
+          evidence: string | null
+          follow_up_date: string | null
+          headline: string
+          id: string
+          imported_job_id: string | null
+          job_title: string
+          linkedin_url: string | null
+          location: string | null
+          match_reason: string
+          name: string
+          notes: string | null
+          outreach_message: string | null
+          profile_id: string
+          relevance: number
+          search_url: string | null
+          source: string
+          status: string
+          target_company: string
+          updated_at: string
+        }
+        Insert: {
+          company?: string
+          connection_type?: string
+          created_at?: string
+          evidence?: string | null
+          follow_up_date?: string | null
+          headline?: string
+          id?: string
+          imported_job_id?: string | null
+          job_title?: string
+          linkedin_url?: string | null
+          location?: string | null
+          match_reason?: string
+          name?: string
+          notes?: string | null
+          outreach_message?: string | null
+          profile_id: string
+          relevance?: number
+          search_url?: string | null
+          source?: string
+          status?: string
+          target_company?: string
+          updated_at?: string
+        }
+        Update: {
+          company?: string
+          connection_type?: string
+          created_at?: string
+          evidence?: string | null
+          follow_up_date?: string | null
+          headline?: string
+          id?: string
+          imported_job_id?: string | null
+          job_title?: string
+          linkedin_url?: string | null
+          location?: string | null
+          match_reason?: string
+          name?: string
+          notes?: string | null
+          outreach_message?: string | null
+          profile_id?: string
+          relevance?: number
+          search_url?: string | null
+          source?: string
+          status?: string
+          target_company?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "networking_targets_imported_job_id_fkey"
+            columns: ["imported_job_id"]
+            isOneToOne: false
+            referencedRelation: "imported_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "networking_targets_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"

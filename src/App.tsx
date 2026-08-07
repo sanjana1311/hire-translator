@@ -16,6 +16,7 @@ import InterviewPrep from "./pages/InterviewPrep";
 import WeeklyReport from "./pages/WeeklyReport";
 import RejectionAnalysis from "./pages/RejectionAnalysis";
 import GmailCallback from "./pages/GmailCallback";
+import LinkedInCallback from "./pages/LinkedInCallback";
 import ResetPassword from "./pages/ResetPassword";
 import OAuthConsent from "./pages/OAuthConsent";
 import NotFound from "./pages/NotFound";
@@ -34,6 +35,7 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/gmail-callback" element={<GmailCallback />} />
+          <Route path="/linkedin-callback" element={<LinkedInCallback />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
 
