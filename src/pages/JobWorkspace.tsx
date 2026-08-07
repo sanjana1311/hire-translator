@@ -19,6 +19,8 @@ import { validateTailoredResume } from "@/lib/resume-guard";
 import { buildFormattedDocument } from "@/lib/resume-document";
 import { downloadTailoredPdf } from "@/lib/resume-export";
 import TailoredResumeDocument from "@/components/TailoredResumeDocument";
+import { readFunctionError } from "@/lib/function-error";
+
 
 import { format } from "date-fns";
 import {
@@ -75,7 +77,9 @@ const JobWorkspace = () => {
       const { data, error } = await supabase.functions.invoke("analyze-jd", {
         body: { workspaceId: ws.id, step },
       });
-      if (error) throw error;
+      if (error) {
+        throw new Error(await readFunctionError(error, `${label} failed. Please try again.`));
+      }
       if (data?.error) throw new Error(data.error);
       toast.success(`${label} complete!`);
       await refetch();
@@ -86,6 +90,7 @@ const JobWorkspace = () => {
       setCurrentAction("");
     }
   };
+
 
   const handleSaveSelectedProjects = async () => {
     if (!ws) return;
