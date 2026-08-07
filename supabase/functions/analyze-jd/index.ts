@@ -205,6 +205,10 @@ const STEP4_TOOL = {
           },
         },
         skills: { type: "array", items: { type: "string" } },
+        verified_skills: { type: "array", items: { type: "string" } },
+        transferable_skills: { type: "array", items: { type: "string" } },
+        missing_requirements: { type: "array", items: { type: "string" } },
+        low_confidence_bullets: { type: "array", items: { type: "string" } },
         projects: {
           type: "array",
           items: {
@@ -220,7 +224,8 @@ const STEP4_TOOL = {
         },
         changes_made: { type: "array", items: { type: "string" } },
       },
-      required: ["summary", "experience", "skills", "projects", "changes_made"],
+      required: ["summary", "experience", "skills", "verified_skills", "transferable_skills", "missing_requirements", "low_confidence_bullets", "projects", "changes_made"],
+
       additionalProperties: false,
     },
   },
