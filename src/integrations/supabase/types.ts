@@ -133,6 +133,7 @@ export type Database = {
           created_at: string
           enabled: boolean
           id: string
+          last_rejection_sync_at: string | null
           last_synced_at: string | null
           profile_id: string
           refresh_token: string | null
@@ -142,6 +143,7 @@ export type Database = {
           created_at?: string
           enabled?: boolean
           id?: string
+          last_rejection_sync_at?: string | null
           last_synced_at?: string | null
           profile_id: string
           refresh_token?: string | null
@@ -151,6 +153,7 @@ export type Database = {
           created_at?: string
           enabled?: boolean
           id?: string
+          last_rejection_sync_at?: string | null
           last_synced_at?: string | null
           profile_id?: string
           refresh_token?: string | null
@@ -533,6 +536,85 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      rejection_events: {
+        Row: {
+          application_id: string | null
+          company: string
+          confidence: number
+          created_at: string
+          email_subject: string
+          evidence_snippet: string
+          explicit_reason: string | null
+          gmail_message_id: string
+          id: string
+          imported_job_id: string | null
+          match_status: string
+          profile_id: string
+          received_at: string
+          role_title: string
+          sender: string
+          updated_at: string
+        }
+        Insert: {
+          application_id?: string | null
+          company?: string
+          confidence?: number
+          created_at?: string
+          email_subject?: string
+          evidence_snippet?: string
+          explicit_reason?: string | null
+          gmail_message_id: string
+          id?: string
+          imported_job_id?: string | null
+          match_status?: string
+          profile_id: string
+          received_at?: string
+          role_title?: string
+          sender?: string
+          updated_at?: string
+        }
+        Update: {
+          application_id?: string | null
+          company?: string
+          confidence?: number
+          created_at?: string
+          email_subject?: string
+          evidence_snippet?: string
+          explicit_reason?: string | null
+          gmail_message_id?: string
+          id?: string
+          imported_job_id?: string | null
+          match_status?: string
+          profile_id?: string
+          received_at?: string
+          role_title?: string
+          sender?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rejection_events_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rejection_events_imported_job_id_fkey"
+            columns: ["imported_job_id"]
+            isOneToOne: false
+            referencedRelation: "imported_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rejection_events_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       resumes: {
         Row: {
