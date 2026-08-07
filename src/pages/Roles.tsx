@@ -20,8 +20,6 @@ import {
 import { classifyRole, getRoleFamilyLabel, ROLE_FAMILIES, type RoleFamilyKey } from "@/lib/role-classifier";
 import { ChevronDown, ChevronRight, SlidersHorizontal, X, Trash2 } from "lucide-react";
 
-const Spinner = ({ size = 16 }: { size?: number }) => (
-
 const parseStoredResume = (value: string): TailoredResume | null => {
   try {
     const parsed = JSON.parse(value);
@@ -31,7 +29,9 @@ const parseStoredResume = (value: string): TailoredResume | null => {
   }
 };
 
+const Spinner = ({ size = 16 }: { size?: number }) => (
   <div
+
     className="border-2 border-foreground/10 border-t-foreground/60 rounded-full animate-spin"
     style={{ width: size, height: size, flexShrink: 0 }}
   />
