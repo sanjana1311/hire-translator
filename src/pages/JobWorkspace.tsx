@@ -101,8 +101,16 @@ const JobWorkspace = () => {
     if (!resume || !ws) return;
     setExporting(true);
     try {
-      const selProjects = (ws.selected_projects as any[]) || [];
-      generateResumePDF({ resume, workspace: ws, selectedProjects: selProjects });
+      const raw = (ws.tailored_resume as any) || null;
+      if (raw?.summary && resume.raw_text) {
+        // Export mirrors the uploaded resume's structure — no analysis content.
+        const { resume: validated } = validateTailoredResume(raw, resume.raw_text);
+        const doc = renderTailoredDocument(validated, resume.raw_text);
+        downloadTailoredPdf(doc, `${ws.company}_${ws.role_title}_Resume`);
+      } else {
+        const selProjects = (ws.selected_projects as any[]) || [];
+        generateResumePDF({ resume, workspace: ws, selectedProjects: selProjects });
+      }
       toast.success("PDF exported!");
     } catch (err: any) {
       toast.error("Failed to generate PDF: " + (err.message || "Unknown error"));
