@@ -15,6 +15,8 @@ import { toast } from "sonner";
 import { useWorkspace, useUpdateWorkspace } from "@/hooks/use-workspaces";
 import { useResume } from "@/hooks/use-resume";
 import { generateResumePDF } from "@/lib/pdf-export";
+import { validateTailoredResume } from "@/lib/resume-guard";
+
 import { format } from "date-fns";
 import {
   useWorkspaceVersions, useSaveVersion, useDeleteVersion, WorkspaceVersion,
