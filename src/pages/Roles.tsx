@@ -297,7 +297,13 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
           missingKeywords: r.missingKeywords,
         }),
         4000,
-        "roles"
+        "resume-rewrite",
+        {
+          jobId: job.id,
+          resumeId: resumeData?.id,
+          resumeTextLength: resumeText.length,
+          jobDescriptionLength: jobDesc.length,
+        },
       );
       const parsed = parseJsonLoose(raw) as Partial<TailoredResume> | null;
       if (!parsed || !parsed.summary) throw new Error("Tailoring temporarily failed — please retry");
@@ -318,7 +324,8 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
       }
     } catch (e: any) {
       console.error('Resume rewrite failed:', e);
-      toast.error("Tailoring temporarily failed — please retry");
+      const requestSuffix = e?.requestId ? ` (Request ${e.requestId})` : "";
+      toast.error(`${e?.message || "Tailoring temporarily failed — please retry"}${requestSuffix}`);
     }
     setRL(prev => { const s = new Set(prev); s.delete(job.id); return s; });
   };

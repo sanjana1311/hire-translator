@@ -9,6 +9,7 @@ const corsHeaders = {
 
 const DAILY_LIMIT = 10;
 const OPENCODE_GO_MODEL = "kimi-k3";
+const FUNCTION_NAME = "ai-chat";
 
 // Set when OpenCode Go rejects us (bad key / no credits) so later calls skip it.
 let opencodeDisabled = false;
@@ -18,6 +19,18 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+function redact(value: string) {
+  return value
+    .replace(/(bearer\s+)[^\s"']+/gi, "$1[REDACTED]")
+    .replace(/("?(?:api[_-]?key|token|authorization)"?\s*:\s*")[^"]+/gi, "$1[REDACTED]")
+    .slice(0, 1200);
+}
+
+function failure(requestId: string, message: string, status: number, code = "RESUME_REWRITE_FAILED") {
+  console.log(JSON.stringify({ requestId, function: FUNCTION_NAME, stage: "final", finalStatus: status, code }));
+  return json({ ok: false, code, message, requestId }, status);
 }
 
 async function callOpenCodeGo(
@@ -53,6 +66,10 @@ async function callOpenCodeGo(
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const requestId = req.headers.get("x-request-id")?.trim() || crypto.randomUUID();
+  const deployment = Deno.env.get("DENO_DEPLOYMENT_ID") || "unknown";
+  console.log(JSON.stringify({ requestId, function: FUNCTION_NAME, deployment, stage: "started" }));
 
   try {
     // Diagnostic probe: checks provider reachability only. No user data, no secrets returned.
@@ -124,22 +141,58 @@ serve(async (req) => {
     }
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "Not authenticated" }, 401);
+    if (!authHeader) return failure(requestId, "Please sign in and try again.", 401, "NOT_AUTHENTICATED");
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !serviceKey) {
+      console.error(JSON.stringify({ requestId, stage: "environment", supabaseUrl: !!supabaseUrl, serviceKey: !!serviceKey }));
+      return failure(requestId, "The resume service is not configured. Please contact support.", 500, "BACKEND_NOT_CONFIGURED");
+    }
     const anonClient = createClient(supabaseUrl, serviceKey, {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: { user } } = await anonClient.auth.getUser();
-    if (!user) return json({ error: "Not authenticated" }, 401);
+    if (!user) return failure(requestId, "Your session expired. Please sign in again.", 401, "NOT_AUTHENTICATED");
+    console.log(JSON.stringify({ requestId, stage: "authenticated", userId: user.id }));
 
-    const { prompt, maxTokens, feature } = await req.json();
-    if (!prompt) return json({ error: "prompt required" }, 400);
+    let payload: any;
+    try {
+      payload = await req.json();
+    } catch {
+      return failure(requestId, "The resume request was not valid JSON.", 400, "INVALID_REQUEST");
+    }
+    const { prompt, maxTokens, feature, context } = payload;
+    if (!prompt || typeof prompt !== "string") return failure(requestId, "The resume rewrite prompt is missing.", 400, "INVALID_REQUEST");
     const feat = feature || "general";
+    const isResumeRewrite = feat === "resume-rewrite";
+    console.log(JSON.stringify({
+      requestId,
+      stage: "request_validation",
+      valid: true,
+      feature: feat,
+      jobId: context?.jobId || null,
+      resumeId: context?.resumeId || null,
+      resumeTextLength: context?.resumeTextLength || 0,
+      jobDescriptionLength: context?.jobDescriptionLength || 0,
+    }));
 
     // Rate limit: 10 AI calls per day per user per feature
     const adminClient = createClient(supabaseUrl, serviceKey);
+    if (isResumeRewrite) {
+      const { data: profile } = await adminClient.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+      const { data: resume } = profile
+        ? await adminClient.from("resumes").select("id,raw_text").eq("profile_id", profile.id).order("updated_at", { ascending: false }).limit(1).maybeSingle()
+        : { data: null };
+      const resumeLength = resume?.raw_text?.length || 0;
+      const { data: job } = profile && context?.jobId
+        ? await adminClient.from("imported_jobs").select("id,description,snippet").eq("id", context.jobId).eq("profile_id", profile.id).maybeSingle()
+        : { data: null };
+      console.log(JSON.stringify({ requestId, stage: "records", jobId: context?.jobId || null, jobFound: !!job, resumeFound: !!resume, resumeTextLength: resumeLength }));
+      if (!resume || resumeLength === 0) return failure(requestId, "No resume text was found. Upload your resume again, then retry.", 422, "RESUME_TEXT_MISSING");
+      if (!job) return failure(requestId, "The selected job could not be found for your account.", 404, "JOB_NOT_FOUND");
+      if (!context?.resumeTextLength || !context?.jobDescriptionLength) return failure(requestId, "The job description or resume text was missing from the request.", 400, "INVALID_REQUEST");
+    }
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const { count, error: countErr } = await adminClient
@@ -150,7 +203,8 @@ serve(async (req) => {
       .gte("used_at", today.toISOString());
     if (countErr) console.error("Usage count error:", countErr);
     if ((count ?? 0) >= DAILY_LIMIT) {
-      return json({ error: `Daily AI limit reached for ${feat} (${DAILY_LIMIT}/day). Try again tomorrow.` }, 429);
+      console.warn(JSON.stringify({ requestId, stage: "quota", feature: feat, used: count, limit: DAILY_LIMIT }));
+      return failure(requestId, `Daily AI limit reached for ${feat} (${DAILY_LIMIT}/day). Try again tomorrow.`, 429, "AI_DAILY_LIMIT_REACHED");
     }
 
     const temperature = feat === "roles" ? 0.7 : 0.3;
@@ -173,6 +227,7 @@ serve(async (req) => {
     // (bad key or no balance) so we don't pay the latency on every call.
     if (OPENCODE_API_KEY && !opencodeDisabled) {
       try {
+        console.log(JSON.stringify({ requestId, stage: "provider_request", provider: "opencode", model: OPENCODE_MODEL }));
         const res = await fetch(`${OPENCODE_BASE_URL}/chat/completions`, {
           method: "POST",
           headers: {
@@ -187,11 +242,13 @@ serve(async (req) => {
           }),
         });
         if (res.ok) {
-          const data = await res.json();
+          const responseBody = await res.text();
+          console.log(JSON.stringify({ requestId, stage: "provider_response", provider: "opencode", model: OPENCODE_MODEL, status: res.status, body: redact(responseBody) }));
+          const data = JSON.parse(responseBody);
           text = data.choices?.[0]?.message?.content || "";
         } else {
           const body = await res.text();
-          console.error("OpenCode Go error:", res.status, body);
+          console.error(JSON.stringify({ requestId, stage: "provider_response", provider: "opencode", model: OPENCODE_MODEL, status: res.status, body: redact(body) }));
           if ([401, 402, 403].includes(res.status)) {
             opencodeDisabled = true;
             console.error("OpenCode Go disabled for this instance (auth/credits). Using fallbacks.");
@@ -205,6 +262,8 @@ serve(async (req) => {
 
     // Fallback 1: Lovable AI
     if (!text && LOVABLE_API_KEY) {
+      const lovableModel = "google/gemini-3.6-flash";
+      console.log(JSON.stringify({ requestId, stage: "provider_request", provider: "lovable", model: lovableModel }));
       const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -212,20 +271,22 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-3.6-flash",
+          model: lovableModel,
           temperature,
           max_tokens: maxOutputTokens,
           messages,
         }),
       });
 
+      const responseBody = await res.text();
+      console.log(JSON.stringify({ requestId, stage: "provider_response", provider: "lovable", model: lovableModel, status: res.status, body: redact(responseBody) }));
       if (res.status === 429) console.error("Lovable AI rate limited");
       else if (res.status === 402) console.error("Lovable AI credits exhausted");
       else if (res.ok) {
-        const data = await res.json();
+        const data = JSON.parse(responseBody);
         text = data.choices?.[0]?.message?.content || "";
       } else {
-        console.error("AI gateway error:", res.status, await res.text());
+        console.error("AI gateway error:", res.status);
       }
     }
 
@@ -253,13 +314,14 @@ serve(async (req) => {
       }
     }
 
-    if (!text) return json({ error: "AI provider unavailable. Please try again." }, 502);
+    if (!text) return failure(requestId, "AI provider unavailable. Please try again.", 502);
 
     await adminClient.from("ai_usage").insert({ user_id: user.id, feature: feat });
 
-    return json({ text });
+    console.log(JSON.stringify({ requestId, function: FUNCTION_NAME, stage: "final", finalStatus: 200, textLength: text.length }));
+    return json({ ok: true, text, requestId });
   } catch (err: any) {
-    console.error("ai-chat error:", err);
-    return json({ error: err?.message || "Unexpected error" }, 500);
+    console.error(JSON.stringify({ requestId, stage: "unhandled", error: redact(err?.message || String(err)) }));
+    return failure(requestId, "Resume rewriting failed unexpectedly. Please try again.", 500);
   }
 });
