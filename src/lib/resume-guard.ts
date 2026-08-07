@@ -300,7 +300,13 @@ BULLET REWRITING (XYZ framework): "Accomplished X, measured by Y, by doing Z."
   e.g. "Built ETL pipelines using Python, Spark, and Airflow to support large-scale data processing."
 - For every bullet, set "original" (the source bullet) and "evidence" (a verbatim snippet from the source resume that supports the claim), plus "confidence" ("high" = near-verbatim, "medium" = reframed, "low" = heavily reworded).
 
-FORMATTING: ATS-safe only — single column, standard headings, plain text, consistent date formats, no tables, graphics, icons, columns, or text boxes.
+FORMATTING (the uploaded resume is the template):
+- Preserve the uploaded resume's exact section names and their order. Do not rename or reorder them.
+- Do NOT introduce headings such as "Contact Header", "Summary", "Skills", or "Professional Experience" unless that exact heading already exists in the uploaded resume.
+- Do not create new sections. Only replace or improve content inside existing sections.
+- Preserve the original contact/header block, bullet style, spacing, date formats and visual hierarchy.
+- Analysis output (verified/transferable/missing skills, evidence, confidence) is for the analysis panel only — never part of the resume body.
+- ATS-safe: single column, selectable plain text, no tables, graphics, icons, columns or text boxes.
 
 Return ONLY valid JSON.`;
 
