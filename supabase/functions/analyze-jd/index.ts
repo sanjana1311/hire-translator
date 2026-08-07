@@ -296,22 +296,30 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const payload = await req.json();
+    let payload: { workspaceId?: string; step?: string };
+    try {
+      payload = await req.json();
+    } catch {
+      throw { status: 400, message: "The generation request was invalid. Please refresh and try again." };
+    }
     const { workspaceId, step } = payload;
 
-
-
-
-    if (!workspaceId) throw new Error("workspaceId required");
-
+    if (!workspaceId) {
+      throw { status: 400, message: "No job workspace was selected. Please reopen the job and try again." };
+    }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    if (!LOVABLE_API_KEY) {
+      throw { status: 503, message: "AI generation is temporarily unavailable. Please try again shortly." };
+    }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !supabaseKey) {
+      throw { status: 503, message: "The backend is temporarily unavailable. Please try again shortly." };
+    }
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Not authenticated");
+    if (!authHeader) throw { status: 401, message: "Your session expired. Please sign in again." };
 
     const supabaseClient = createClient(supabaseUrl, supabaseKey);
     const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? supabaseKey, {
@@ -319,15 +327,15 @@ serve(async (req) => {
     });
 
     const { data: { user } } = await anonClient.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+    if (!user) throw { status: 401, message: "Your session expired. Please sign in again." };
 
     const { data: ws, error: wsErr } = await supabaseClient
       .from("job_workspaces").select("*").eq("id", workspaceId).single();
-    if (wsErr || !ws) throw new Error("Workspace not found");
+    if (wsErr || !ws) throw { status: 404, message: "This job workspace could not be found. Please return to Jobs and reopen it." };
 
     const { data: profile } = await supabaseClient
       .from("profiles").select("id").eq("user_id", user.id).eq("id", ws.profile_id).single();
-    if (!profile) throw new Error("Not authorized");
+    if (!profile) throw { status: 403, message: "You do not have access to this job workspace." };
 
     const { data: resume } = await supabaseClient
       .from("resumes").select("*").eq("profile_id", profile.id).maybeSingle();
