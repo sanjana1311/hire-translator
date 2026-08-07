@@ -300,7 +300,13 @@ BULLET REWRITING (XYZ framework): "Accomplished X, measured by Y, by doing Z."
   e.g. "Built ETL pipelines using Python, Spark, and Airflow to support large-scale data processing."
 - For every bullet, set "original" (the source bullet) and "evidence" (a verbatim snippet from the source resume that supports the claim), plus "confidence" ("high" = near-verbatim, "medium" = reframed, "low" = heavily reworded).
 
-FORMATTING: ATS-safe only — single column, standard headings, plain text, consistent date formats, no tables, graphics, icons, columns, or text boxes.
+FORMATTING (the uploaded resume is the template):
+- Preserve the uploaded resume's exact section names and their order. Do not rename or reorder them.
+- Do NOT introduce headings such as "Contact Header", "Summary", "Skills", or "Professional Experience" unless that exact heading already exists in the uploaded resume.
+- Do not create new sections. Only replace or improve content inside existing sections.
+- Preserve the original contact/header block, bullet style, spacing, date formats and visual hierarchy.
+- Analysis output (verified/transferable/missing skills, evidence, confidence) is for the analysis panel only — never part of the resume body.
+- ATS-safe: single column, selectable plain text, no tables, graphics, icons, columns or text boxes.
 
 Return ONLY valid JSON.`;
 
@@ -347,21 +353,20 @@ Return JSON exactly in this shape:
 }`;
 }
 
-/** Renders a validated resume to ATS-safe plain text (single column, standard headings). */
+/**
+ * Fallback plain-text renderer (resume content ONLY — no analysis output, no
+ * invented headings beyond what is needed to separate roles). Prefer
+ * `renderTailoredDocument` from resume-template.ts, which preserves the
+ * uploaded resume's own sections and order.
+ */
 export function tailoredResumeToText(r: TailoredResume): string {
   const lines: string[] = [];
-  if (r.summary) lines.push("SUMMARY", r.summary, "");
-  if (r.experience?.length) {
-    lines.push("EXPERIENCE");
-    r.experience.forEach((e) => {
-      lines.push(`${e.title} - ${e.company} (${e.dates})`);
-      e.bullets.filter((b) => !b.rejected).forEach((b) => lines.push(`- ${b.text}`));
-      lines.push("");
-    });
-  }
-  if (r.verified_skills?.length) lines.push("SKILLS", r.verified_skills.join(", "), "");
-  if (r.transferable_skills?.length) lines.push("TRANSFERABLE SKILLS", r.transferable_skills.join(", "), "");
-  if (r.missing_requirements?.length)
-    lines.push("MISSING REQUIREMENTS (not claimed on resume)", r.missing_requirements.map((m) => `- ${m}`).join("\n"), "");
+  if (r.summary) lines.push(r.summary, "");
+  (r.experience || []).forEach((e) => {
+    const head = [e.title, e.company].filter(Boolean).join(" - ") + (e.dates ? ` (${e.dates})` : "");
+    if (head.trim()) lines.push(head);
+    (e.bullets || []).filter((b) => !b.rejected).forEach((b) => lines.push(`- ${b.text}`));
+    lines.push("");
+  });
   return lines.join("\n").trim();
 }

@@ -11,6 +11,7 @@ import { cleanText } from "@/lib/clean-text";
 import { parseJsonLoose, normalizeAnalysis, failedAnalysis } from "@/lib/safe-json";
 import { buildTailorPrompt, validateTailoredResume, tailoredResumeToText, type TailoredResume } from "@/lib/resume-guard";
 import TailoredResumeView from "@/components/TailoredResumeView";
+import TailoredResumeDocument from "@/components/TailoredResumeDocument";
 
 
 import {
@@ -623,7 +624,7 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
           <div className="apple-card overflow-hidden sticky top-[60px]">
             <div className="border-b border-border/60 px-4 py-3 flex items-center justify-between">
               <div className="flex bg-secondary/60 rounded-lg p-0.5">
-                {(["tailored", "original"] as const).map((k) => (
+                {(["tailored", "analysis", "original"] as const).map((k) => (
                   <button
                     key={k}
                     onClick={() => setRtab(k)}
@@ -631,26 +632,24 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
                       rtab === k ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
                     }`}
                   >
-                    {k === "tailored" ? "Tailored" : "Original"}
+                    {k === "tailored" ? "Resume" : k === "analysis" ? "Analysis" : "Original"}
                   </button>
                 ))}
               </div>
-              {resumes[selected.id] && rtab === "tailored" && (
-                <button
-                  onClick={() => {
-                    const parsed = parseStoredResume(resumes[selected.id]);
-                    copy(parsed ? tailoredResumeToText(parsed) : resumes[selected.id]);
-                  }}
-                  className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
-                    copied ? "bg-[hsl(var(--success-bg))] text-success" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                  }`}
-                >
-                  {copied ? "Copied ✓" : "Copy"}
-                </button>
-              )}
             </div>
             <div className="p-5 h-[calc(100vh-180px)] overflow-y-auto">
-              {rtab === "tailored" ? (
+              {rtab === "analysis" ? (
+                (() => {
+                  const parsed = resumes[selected.id] ? parseStoredResume(resumes[selected.id]) : null;
+                  return parsed ? (
+                    <TailoredResumeView resume={parsed} />
+                  ) : (
+                    <div className="text-center py-16">
+                      <p className="text-sm text-muted-foreground">Generate a tailored resume to see the evidence analysis.</p>
+                    </div>
+                  );
+                })()
+              ) : rtab === "tailored" ? (
                 hasError ? (
                   <div className="text-center py-16">
                     <p className="text-sm text-muted-foreground">Resume tailoring unavailable — scoring must succeed first.</p>
@@ -659,7 +658,18 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
                   (() => {
                     const parsed = parseStoredResume(resumes[selected.id]);
                     return parsed ? (
-                      <TailoredResumeView resume={parsed} />
+                      <div className="space-y-4">
+                        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+                          <p className="text-[11.5px] leading-relaxed text-amber-700 dark:text-amber-300 font-medium">
+                            Review all AI-generated changes before applying.
+                          </p>
+                        </div>
+                        <TailoredResumeDocument
+                          resume={parsed}
+                          sourceResumeText={resumeText}
+                          fileBase={`${selected.company}_${selected.title}_Resume`}
+                        />
+                      </div>
                     ) : (
                       <div className="space-y-4">
                         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
