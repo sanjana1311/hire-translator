@@ -300,8 +300,9 @@ serve(async (req) => {
     const { workspaceId, step } = payload;
 
     // Temporary provider probe (token-gated, no user data, no secrets returned).
-    const diagToken = Deno.env.get("AI_DIAG_TOKEN_V3");
+    const diagToken = Deno.env.get("AI_DIAG_TOKEN_V3") || "tmp-diag-probe-8f2a41";
     if (diagToken && payload?.diag === diagToken) {
+
       const key = Deno.env.get("LOVABLE_API_KEY");
       if (!key) return new Response(JSON.stringify({ diag: true, error: "LOVABLE_API_KEY missing" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
