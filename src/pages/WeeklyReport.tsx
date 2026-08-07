@@ -124,14 +124,20 @@ Return: {
   "thisWeekActions": ["5 concrete actions referencing actual companies"],
   "roleToDoubleDown": "which role to focus on and why",
   "encouragement": "1 genuine non-generic sentence"
-}`, 2000, "weekly_report");
+}`, 2000, "weekly_report"), timeoutPromise]);
       setReport(JSON.parse(raw));
     } catch (e: any) {
-      console.error("Report error:", e);
-      setReport({ error: true, message: e.message });
+      if (import.meta.env.DEV) console.error("Weekly briefing error:", e);
+      if (timedOutFlag || e?.message === "BRIEFING_TIMEOUT") {
+        setTimedOut(true);
+        setReport(null);
+      } else {
+        setReport({ error: true, message: e.message });
+      }
     }
     setLoading(false);
   };
+
 
   return (
     <div className="max-w-[760px] mx-auto px-6 py-10">
