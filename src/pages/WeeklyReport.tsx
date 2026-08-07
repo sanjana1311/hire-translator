@@ -33,14 +33,19 @@ interface AppRow {
   created_at: string;
 }
 
+const BRIEFING_TIMEOUT_MS = 30_000;
+
 const WeeklyReport = () => {
   const { data: profile } = useProfile();
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
 
   const generateReport = async () => {
+    if (loading) return;
     setLoading(true);
-    try {
+    setTimedOut(false);
+
       let apps: { company: string; title: string; status: string; appliedDate: string; lastEmail: string | null; notes: string }[] = [];
 
       if (profile?.id) {
