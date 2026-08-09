@@ -4,6 +4,7 @@ import { AIQuotaBadge } from "@/components/AIQuotaBadge";
 import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtDate, daysSince } from "@/data/seed";
+import { parseJsonLoose } from "@/lib/safe-json";
 
 const Spinner = ({ size = 16 }: { size?: number }) => (
   <div className="border-2 border-foreground/10 border-t-foreground/60 rounded-full animate-spin" style={{ width: size, height: size }} />
@@ -33,13 +34,21 @@ interface AppRow {
   created_at: string;
 }
 
-const BRIEFING_TIMEOUT_MS = 30_000;
+const BRIEFING_TIMEOUT_MS = 45_000;
 
 const WeeklyReport = () => {
   const { data: profile } = useProfile();
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!loading) return;
+    setElapsed(0);
+    const id = setInterval(() => setElapsed((e) => e + 1), 1000);
+    return () => clearInterval(id);
+  }, [loading]);
 
   const generateReport = async () => {
     if (loading) return;
@@ -125,7 +134,9 @@ Return: {
   "roleToDoubleDown": "which role to focus on and why",
   "encouragement": "1 genuine non-generic sentence"
 }`, 2000, "weekly_report"), timeoutPromise]);
-      setReport(JSON.parse(raw));
+      const parsed = parseJsonLoose<Report>(raw);
+      if (!parsed || !parsed.opening) throw new Error("The briefing came back in an unexpected format. Please retry.");
+      setReport(parsed);
     } catch (e: any) {
       if (import.meta.env.DEV) console.error("Weekly briefing error:", e);
       if (timedOutFlag || e?.message === "BRIEFING_TIMEOUT") {
@@ -160,13 +171,14 @@ Return: {
         <div className="text-center py-20 apple-card">
           <Spinner size={20} />
           <p className="animate-pulse-dot text-xs text-muted-foreground mt-4">Reading your data and thinking through your search…</p>
+          <p className="text-[11px] text-muted-foreground/70 mt-2">{elapsed}s elapsed · usually takes 15–40 seconds</p>
         </div>
       )}
 
       {timedOut && !loading && (
         <div className="apple-card p-8 text-center">
           <p className="text-sm font-medium mb-1">Your weekly briefing is taking longer than expected. Please retry.</p>
-          <p className="text-xs text-muted-foreground mb-5">The request timed out after 30 seconds.</p>
+          <p className="text-xs text-muted-foreground mb-5">The request timed out after 45 seconds.</p>
           <button
             onClick={generateReport}
             className="bg-foreground text-background rounded-xl px-4 py-2.5 text-xs font-semibold transition-opacity hover:opacity-90"
