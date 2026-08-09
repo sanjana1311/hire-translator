@@ -194,13 +194,15 @@ Write email body only:`, 350, "applications");
               </div>
               <select
                 value={selApp.status}
-                onChange={e => { const u = { ...selApp, status: e.target.value }; setSelApp(u); setApps(prev => prev.map(a => a.jobId === selApp.jobId ? u : a)); }}
+                onChange={e => changeStatus(selApp, e.target.value)}
                 className="text-xs border border-border rounded-lg px-2.5 py-1.5 bg-background cursor-pointer"
               >
                 {Object.entries(STATUS_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
             </div>
           </div>
+
+          <StatusTimeline events={statusEvents} currentStatus={selApp.status} />
 
           <div className="apple-card p-4">
             <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-2.5">Email Activity</div>
