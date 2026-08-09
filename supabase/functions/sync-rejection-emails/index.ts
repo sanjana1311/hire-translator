@@ -423,6 +423,13 @@ serve(async (req) => {
           .from("applications")
           .update({ status: "rejected", last_email_date: receivedAt.slice(0, 10) })
           .eq("id", best.id);
+        await admin.from("application_status_events").insert({
+          application_id: best.id,
+          profile_id: profile.id,
+          status: "rejected",
+          source: "Gmail sync",
+          entered_at: receivedAt,
+        });
       }
     }
 
