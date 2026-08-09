@@ -10,6 +10,7 @@ import {
 } from "@/data/seed";
 import { classifyRole, getRoleFamilyLabel, ROLE_FAMILIES, type RoleFamilyKey } from "@/lib/role-classifier";
 import { ChevronDown, ChevronRight, SlidersHorizontal, X } from "lucide-react";
+import { StatusTimeline, useStatusEvents } from "@/components/StatusTimeline";
 
 const Spinner = ({ size = 16 }: { size?: number }) => (
   <div className="border-2 border-foreground/10 border-t-foreground/60 rounded-full animate-spin" style={{ width: size, height: size }} />
@@ -36,7 +37,10 @@ interface DBApplication {
   created_at: string;
 }
 
-const toApplication = (db: DBApplication): Application => ({
+type AppRow = Application & { dbId: string };
+
+const toApplication = (db: DBApplication): AppRow => ({
+  dbId: db.id,
   jobId: db.job_seed_id || 0,
   title: db.title,
   company: db.company,
@@ -51,13 +55,31 @@ const toApplication = (db: DBApplication): Application => ({
 
 const Applications = () => {
   const { data: profile } = useProfile();
-  const [applications, setApps] = useState<Application[]>([]);
+  const [applications, setApps] = useState<AppRow[]>([]);
   const [dbApps, setDbApps] = useState<DBApplication[]>([]);
-  const [selApp, setSelApp] = useState<Application | null>(null);
+  const [selApp, setSelApp] = useState<AppRow | null>(null);
+  const { events: statusEvents, reload: reloadEvents } = useStatusEvents(selApp?.dbId);
   const [fuLoading, setFUL] = useState<number | null>(null);
   const [fuDrafts, setFUD] = useState<Record<number, string>>({});
   const [emailSent, setEmailSent] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const changeStatus = async (app: AppRow, status: string) => {
+    const u = { ...app, status };
+    setSelApp(u);
+    setApps(prev => prev.map(a => (a.dbId === app.dbId ? u : a)));
+    if (!profile?.id) return;
+    await supabase.from("applications").update({ status }).eq("id", app.dbId);
+    await supabase.from("application_status_events").insert({
+      application_id: app.dbId,
+      profile_id: profile.id,
+      status,
+      source: "Manual update",
+      entered_at: new Date().toISOString(),
+    });
+    reloadEvents();
+  };
+
 
   const [filterFamily, setFilterFamily] = useState<RoleFamilyKey | "all">("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -172,13 +194,15 @@ Write email body only:`, 350, "applications");
               </div>
               <select
                 value={selApp.status}
-                onChange={e => { const u = { ...selApp, status: e.target.value }; setSelApp(u); setApps(prev => prev.map(a => a.jobId === selApp.jobId ? u : a)); }}
+                onChange={e => changeStatus(selApp, e.target.value)}
                 className="text-xs border border-border rounded-lg px-2.5 py-1.5 bg-background cursor-pointer"
               >
                 {Object.entries(STATUS_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
             </div>
           </div>
+
+          <StatusTimeline events={statusEvents} currentStatus={selApp.status} />
 
           <div className="apple-card p-4">
             <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-2.5">Email Activity</div>

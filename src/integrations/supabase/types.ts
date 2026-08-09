@@ -62,6 +62,51 @@ export type Database = {
         }
         Relationships: []
       }
+      application_status_events: {
+        Row: {
+          application_id: string
+          created_at: string
+          entered_at: string | null
+          id: string
+          profile_id: string
+          source: string
+          status: string
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          entered_at?: string | null
+          id?: string
+          profile_id: string
+          source?: string
+          status: string
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          entered_at?: string | null
+          id?: string
+          profile_id?: string
+          source?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_status_events_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "application_status_events_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       applications: {
         Row: {
           applied_date: string | null
