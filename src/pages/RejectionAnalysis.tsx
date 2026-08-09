@@ -62,6 +62,7 @@ const RejectionAnalysis = () => {
     syncError,
     lastSyncedAt,
     gmailConnected,
+    lastScanCount,
     sync,
     confirmMatch,
     dismissEvent,
@@ -302,7 +303,9 @@ Return ONLY valid JSON matching this schema, no markdown:
           <div className="text-lg font-semibold text-muted-foreground/70 mb-2">No rejection emails found in the last {days} days</div>
           <p className="text-sm text-muted-foreground max-w-md mx-auto">
             {gmailConnected
-              ? "Sync Gmail or widen the date range. Rejections you track manually will also appear here."
+              ? lastScanCount !== null
+                ? `Last sync scanned ${lastScanCount} email${lastScanCount === 1 ? "" : "s"} and found no rejection wording. Widen the date range, or rejections you track manually will also appear here.`
+                : "Sync Gmail or widen the date range. Rejections you track manually will also appear here."
               : "Connect Gmail so rejection emails are detected, matched to your applications, and analyzed."}
           </p>
         </div>

@@ -29,6 +29,7 @@ export function useRejectionEvents(profileId: string | null) {
   const [syncError, setSyncError] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [gmailConnected, setGmailConnected] = useState(false);
+  const [lastScanCount, setLastScanCount] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     if (!profileId) return;
@@ -76,6 +77,7 @@ export function useRejectionEvents(profileId: string | null) {
 
         await load();
         setSyncState("success");
+        setLastScanCount(data?.emailCount ?? 0);
         const found = data?.events?.length ?? 0;
         toast.success(
           found === 0
@@ -151,6 +153,7 @@ export function useRejectionEvents(profileId: string | null) {
     syncError,
     lastSyncedAt,
     gmailConnected,
+    lastScanCount,
     sync,
     reload: load,
     confirmMatch,

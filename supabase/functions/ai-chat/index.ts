@@ -195,6 +195,7 @@ serve(async (req) => {
         console.log(JSON.stringify({ requestId, stage: "provider_request", provider: "opencode", model: OPENCODE_MODEL }));
         const res = await fetch(`${OPENCODE_BASE_URL}/chat/completions`, {
           method: "POST",
+          signal: AbortSignal.timeout(15_000),
           headers: {
             Authorization: `Bearer ${OPENCODE_API_KEY}`,
             "Content-Type": "application/json",
@@ -226,11 +227,12 @@ serve(async (req) => {
 
 
     // Fallback 1: Lovable AI
-    if (!text && LOVABLE_API_KEY) {
+    if (!text && LOVABLE_API_KEY) try {
       const lovableModel = "google/gemini-3.6-flash";
       console.log(JSON.stringify({ requestId, stage: "provider_request", provider: "lovable", model: lovableModel }));
       const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
+        signal: AbortSignal.timeout(45_000),
         headers: {
           "Lovable-API-Key": LOVABLE_API_KEY,
           "Content-Type": "application/json",
@@ -253,12 +255,15 @@ serve(async (req) => {
       } else {
         console.error("AI gateway error:", res.status);
       }
+    } catch (e) {
+      console.error(JSON.stringify({ requestId, stage: "provider_error", provider: "lovable", error: String(e).slice(0, 200) }));
     }
 
     // Fallback 2: Groq
-    if (!text && GROQ_API_KEY) {
+    if (!text && GROQ_API_KEY) try {
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
+        signal: AbortSignal.timeout(45_000),
         headers: {
           Authorization: `Bearer ${GROQ_API_KEY}`,
           "Content-Type": "application/json",
@@ -277,6 +282,8 @@ serve(async (req) => {
         const data = await res.json();
         text = data.choices?.[0]?.message?.content || "";
       }
+    } catch (e) {
+      console.error(JSON.stringify({ requestId, stage: "provider_error", provider: "groq", error: String(e).slice(0, 200) }));
     }
 
     if (!text) return failure(requestId, "AI provider unavailable. Please try again.", 502);
