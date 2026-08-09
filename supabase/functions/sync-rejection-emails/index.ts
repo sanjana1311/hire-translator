@@ -92,6 +92,16 @@ const STRONG_SIGNALS = [
   "position has been filled",
   "pursue other applicants",
   "unable to move forward with your application",
+  "we will not be advancing",
+  "not be advancing your application",
+  "decided to proceed with other",
+  "moving ahead with other candidates",
+  "we have chosen to move forward with",
+  "we won't be moving forward",
+  "you have not been selected",
+  "we are unable to proceed with your application",
+  "not to proceed with your application",
+  "decided not to move forward",
 ];
 
 const WEAK_SIGNALS = [
@@ -103,6 +113,13 @@ const WEAK_SIGNALS = [
   "not selected",
   "application status",
   "update on your application",
+  "thank you for applying",
+  "we appreciate your interest",
+  "wish you the best in your job search",
+  "we encourage you to apply",
+  "keep your resume on file",
+  "future opportunities",
+  "this time",
 ];
 
 const EXPLICIT_REASON_PATTERNS = [
@@ -278,19 +295,46 @@ serve(async (req) => {
 
     const accessToken = await refreshAccessToken(meta.refresh_token);
 
-    const query = `(subject:(application OR candidacy OR "thank you for applying" OR "your application") OR "we regret to inform" OR "move forward with other" OR "not be moving forward" OR "unfortunately") newer_than:${days}d -category:promotions`;
+    const QUERIES = [
+      '"regret to inform"',
+      '"we regret"',
+      '"not be moving forward"',
+      '"will not be moving forward"',
+      '"not moving forward"',
+      '"move forward with other"',
+      '"moving forward with other"',
+      '"decided to move forward with"',
+      '"other candidates"',
+      '"other applicants"',
+      '"another candidate"',
+      '"not selected"',
+      '"no longer under consideration"',
+      '"position has been filled"',
+      '"not be progressing"',
+      '"unable to move forward"',
+      '"after careful consideration"',
+      'subject:("your application" OR "application update" OR "update on your application" OR "application status")',
+    ];
 
-    const listRes = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=60`,
-      { headers: { Authorization: `Bearer ${accessToken}` } },
-    );
-    if (!listRes.ok) {
-      const t = await listRes.text();
-      console.error("Gmail list failed", listRes.status, t);
-      throw new Error(`Gmail request failed (${listRes.status})`);
+    const idSet = new Set<string>();
+    for (const q of QUERIES) {
+      const full = `${q} newer_than:${days}d -category:promotions -category:social`;
+      const r = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(full)}&maxResults=25`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      if (!r.ok) {
+        const t = await r.text();
+        console.error("Gmail list failed", q, r.status, t);
+        if (r.status === 401 || r.status === 403) throw new Error(`Gmail request failed (${r.status})`);
+        continue;
+      }
+      const j = await r.json();
+      for (const m of j.messages || []) idSet.add(m.id);
+      if (idSet.size >= 150) break;
     }
-    const list = await listRes.json();
-    const ids: string[] = (list.messages || []).map((m: any) => m.id);
+
+    const ids: string[] = Array.from(idSet);
 
     const { data: existing } = await admin
       .from("rejection_events")
