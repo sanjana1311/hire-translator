@@ -10,6 +10,7 @@ import {
 } from "@/data/seed";
 import { classifyRole, getRoleFamilyLabel, ROLE_FAMILIES, type RoleFamilyKey } from "@/lib/role-classifier";
 import { ChevronDown, ChevronRight, SlidersHorizontal, X } from "lucide-react";
+import { StatusTimeline, useStatusEvents } from "@/components/StatusTimeline";
 
 const Spinner = ({ size = 16 }: { size?: number }) => (
   <div className="border-2 border-foreground/10 border-t-foreground/60 rounded-full animate-spin" style={{ width: size, height: size }} />
