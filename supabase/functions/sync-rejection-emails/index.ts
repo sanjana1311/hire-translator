@@ -287,6 +287,7 @@ serve(async (req) => {
       .eq("profile_id", profile.id);
 
     const detected: any[] = [];
+    const debugRows: any[] = [];
     let scanned = 0;
 
     for (const id of ids) {
@@ -304,7 +305,8 @@ serve(async (req) => {
       const combined = `${subject}\n${body}`;
 
       const { score, snippet, reason } = detect(combined);
-      if (score < 0.4) continue;
+      debugRows.push({ subject: subject.slice(0, 90), from: from.slice(0, 60), score });
+      if (score < 0.35) continue;
 
       const company = extractCompany(from, subject, body);
       const role = extractRole(subject, body);
@@ -349,7 +351,8 @@ serve(async (req) => {
         .select()
         .maybeSingle();
       if (insErr) {
-        console.error("insert rejection event failed", insErr);
+        console.error("insert rejection event failed", JSON.stringify(insErr));
+        debugRows.push({ insertError: insErr.message });
         continue;
       }
       detected.push(inserted);
@@ -372,6 +375,7 @@ serve(async (req) => {
         emailCount: scanned,
         matched: detected.filter((d) => d.match_status === "matched").length,
         needsReview: detected.filter((d) => d.match_status === "needs_review").length,
+        debug: { idsFound: ids.length, alreadySeen: seen.size, scanned, samples: debugRows.slice(0, 25) },
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
