@@ -64,7 +64,7 @@ function buildGmailQuery(lastSyncedAt: string | null): string {
     "from:workable.com",
     "from:jobvite.com",
     "from:icims.com",
-sorry",
+"from:icims.com",
   ].join(" OR ");
 
   const phrases = [
