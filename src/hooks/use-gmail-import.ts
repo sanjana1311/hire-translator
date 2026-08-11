@@ -437,6 +437,8 @@ export function useGmailImport(profileId: string | null) {
     jobsImportedCount,
     syncStatus,
     syncLog,
+    syncReport,
+
     markSeen,
     loadJobs,
   };
