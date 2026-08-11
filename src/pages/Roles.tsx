@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { callAI } from "@/lib/ai";
 import { useGmailImport } from "@/hooks/use-gmail-import";
+import { GmailSyncSummary } from "@/components/GmailSyncSummary";
+
 import { useProfile } from "@/hooks/use-profile";
 import { useResume } from "@/hooks/use-resume";
 import { useAIUsage } from "@/hooks/use-ai-usage";
@@ -90,7 +92,7 @@ const Roles = () => {
   const [initialLoading, setInitialLoading] = useState(true);
   const { data: profile } = useProfile();
   const { data: resumeData } = useResume();
-  const { triggerSync, connectGmail, signOut, loading: gmailLoading, lastSyncedAt, jobsImportedCount, syncStatus, syncLog } = useGmailImport(profile?.id ?? null);
+  const { triggerSync, connectGmail, signOut, loading: gmailLoading, lastSyncedAt, jobsImportedCount, syncStatus, syncLog, syncReport } = useGmailImport(profile?.id ?? null);
   const [showSyncLog, setShowSyncLog] = useState(false);
   const { remaining: aiRemaining, limit: aiLimit, refresh: refreshAIUsage } = useAIUsage("roles");
 
@@ -782,6 +784,10 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
           )}
         </div>
 
+        {syncReport && <GmailSyncSummary report={syncReport} />}
+
+
+
         <div className="apple-card border-dashed p-14 text-center">
           <div className="text-4xl mb-4">📬</div>
           <h3 className="text-lg font-semibold mb-2">No roles imported yet</h3>
@@ -925,6 +931,10 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
           </>
         ) : null}
       </div>
+
+      {syncReport && <GmailSyncSummary report={syncReport} />}
+
+
 
       {/* Filters */}
       <div className="mb-5">

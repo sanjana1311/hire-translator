@@ -28,7 +28,32 @@ export interface SyncLogEntry {
   message: string;
 }
 
+export interface EmailReport {
+  subject: string;
+  from: string;
+  source: string;
+  status: "imported" | "duplicate" | "no_jobs" | "rejected" | "parse_failed";
+  reason: string | null;
+  method: "ai" | "fallback" | "none";
+  jobsFound: number;
+  jobsImported: number;
+  duplicates: number;
+}
+
+export interface SyncReport {
+  emailsScanned: number;
+  jobAlertsDetected: number;
+  jobsImported: number;
+  duplicatesSkipped: number;
+  emailsRejected: number;
+  parseFailures: number;
+  applicationsMatched: number;
+  query: string;
+  emails: EmailReport[];
+}
+
 const SIX_HOURS = 6 * 60 * 60 * 1000;
+
 
 function timestamp(): string {
   return new Date().toLocaleTimeString("en-US", { hour12: false });
@@ -41,11 +66,26 @@ export function useGmailImport(profileId: string | null) {
   const [jobsImportedCount, setJobsImportedCount] = useState(0);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [syncLog, setSyncLog] = useState<SyncLogEntry[]>([]);
+  const [syncReport, setSyncReport] = useState<SyncReport | null>(null);
   const autoSyncRan = useRef(false);
 
   const log = useCallback((message: string) => {
     setSyncLog(prev => [...prev, { time: timestamp(), message }]);
   }, []);
+
+  const applyReport = useCallback((report: SyncReport | null | undefined) => {
+    if (!report) return;
+    setSyncReport(report);
+    log(
+      `Scanned ${report.emailsScanned} emails · ${report.jobAlertsDetected} job alerts · ${report.jobsImported} imported · ${report.duplicatesSkipped} duplicates · ${report.emailsRejected} rejected · ${report.parseFailures} parse failures · ${report.applicationsMatched} applications matched`
+    );
+    for (const e of report.emails) {
+      if (e.status === "rejected" || e.status === "parse_failed") {
+        log(`✗ ${e.status}: "${e.subject.slice(0, 60)}" — ${e.reason ?? "no reason given"}`);
+      }
+    }
+  }, [log]);
+
 
   // Load persisted imported jobs from database
   const loadJobs = useCallback(async () => {
@@ -135,15 +175,22 @@ export function useGmailImport(profileId: string | null) {
         }
 
         const importedJobs = data?.jobs || [];
+        applyReport(data?.report);
         log(`Sync complete: ${importedJobs.length} new jobs from ${data?.emailCount || 0} emails`);
 
         if (!silent) {
+          const r = data?.report;
           if (importedJobs.length === 0) {
-            toast.info("No new job alerts since last sync.");
+            toast.info(
+              r
+                ? `Scanned ${r.emailsScanned} emails · ${r.duplicatesSkipped} duplicates · ${r.emailsRejected} not job alerts`
+                : "No new job alerts since last sync."
+            );
           } else {
-            toast.success(`Found ${importedJobs.length} new jobs!`);
+            toast.success(`Imported ${importedJobs.length} new jobs from ${r?.jobAlertsDetected ?? 0} job alerts`);
           }
         }
+
 
         await loadJobs();
         setSyncStatus("success");
@@ -172,15 +219,22 @@ export function useGmailImport(profileId: string | null) {
       }
 
       const importedJobs = data?.jobs || [];
+      applyReport(data?.report);
       log(`Sync complete: ${importedJobs.length} new jobs from ${data?.emailCount || 0} emails`);
 
       if (!silent) {
+        const r = data?.report;
         if (importedJobs.length === 0) {
-          toast.info("No new job alerts since last sync.");
+          toast.info(
+            r
+              ? `Scanned ${r.emailsScanned} emails · ${r.duplicatesSkipped} duplicates · ${r.emailsRejected} not job alerts`
+              : "No new job alerts since last sync."
+          );
         } else {
-          toast.success(`Found ${importedJobs.length} new jobs!`);
+          toast.success(`Imported ${importedJobs.length} new jobs from ${r?.jobAlertsDetected ?? 0} job alerts`);
         }
       }
+
 
       await loadJobs();
       setSyncStatus("success");
@@ -193,7 +247,7 @@ export function useGmailImport(profileId: string | null) {
     } finally {
       setLoading(false);
     }
-  }, [profileId, loadJobs, log]);
+  }, [profileId, loadJobs, log, applyReport]);
 
   // Connect Gmail — direct OAuth flow bypassing Supabase auth provider
   const connectGmail = useCallback(async () => {
@@ -383,6 +437,8 @@ export function useGmailImport(profileId: string | null) {
     jobsImportedCount,
     syncStatus,
     syncLog,
+    syncReport,
+
     markSeen,
     loadJobs,
   };
