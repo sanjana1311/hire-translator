@@ -219,15 +219,22 @@ export function useGmailImport(profileId: string | null) {
       }
 
       const importedJobs = data?.jobs || [];
+      applyReport(data?.report);
       log(`Sync complete: ${importedJobs.length} new jobs from ${data?.emailCount || 0} emails`);
 
       if (!silent) {
+        const r = data?.report;
         if (importedJobs.length === 0) {
-          toast.info("No new job alerts since last sync.");
+          toast.info(
+            r
+              ? `Scanned ${r.emailsScanned} emails · ${r.duplicatesSkipped} duplicates · ${r.emailsRejected} not job alerts`
+              : "No new job alerts since last sync."
+          );
         } else {
-          toast.success(`Found ${importedJobs.length} new jobs!`);
+          toast.success(`Imported ${importedJobs.length} new jobs from ${r?.jobAlertsDetected ?? 0} job alerts`);
         }
       }
+
 
       await loadJobs();
       setSyncStatus("success");
