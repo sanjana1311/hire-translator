@@ -90,7 +90,7 @@ const Roles = () => {
   const [initialLoading, setInitialLoading] = useState(true);
   const { data: profile } = useProfile();
   const { data: resumeData } = useResume();
-  const { triggerSync, connectGmail, signOut, loading: gmailLoading, lastSyncedAt, jobsImportedCount, syncStatus, syncLog } = useGmailImport(profile?.id ?? null);
+  const { triggerSync, connectGmail, signOut, loading: gmailLoading, lastSyncedAt, jobsImportedCount, syncStatus, syncLog, syncReport } = useGmailImport(profile?.id ?? null);
   const [showSyncLog, setShowSyncLog] = useState(false);
   const { remaining: aiRemaining, limit: aiLimit, refresh: refreshAIUsage } = useAIUsage("roles");
 
