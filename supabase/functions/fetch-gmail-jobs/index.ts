@@ -920,16 +920,44 @@ Rules:
   // Also deduplicate within the batch
   const seenInBatch = new Set<string>();
   const newJobs = allExtractedJobs.filter((j) => {
-    if (!j.title || !j.company) return false;
+    const rep: EmailReport | undefined = j._report;
+    if (!j.title || !j.company) {
+      if (rep) {
+        rep.jobsFound = Math.max(0, rep.jobsFound - 1);
+        if (rep.jobsFound === 0 && rep.status !== "rejected") {
+          rep.status = "parse_failed";
+          rep.reason = "Parsed listing was missing a title or company name";
+        }
+      }
+      return false;
+    }
     const key = `${normalize(j.title)}__${normalize(j.company)}`;
-    if (existingSet.has(key) || seenInBatch.has(key)) return false;
+    if (existingSet.has(key) || seenInBatch.has(key)) {
+      if (rep) rep.duplicates += 1;
+      return false;
+    }
     seenInBatch.add(key);
+    if (rep) rep.jobsImported += 1;
     return true;
   });
+
+  for (const rep of emailReports) {
+    if (rep.status === "rejected" || rep.status === "parse_failed") continue;
+    if (rep.jobsImported > 0) {
+      rep.status = "imported";
+    } else if (rep.duplicates > 0) {
+      rep.status = "duplicate";
+      rep.reason = `All ${rep.duplicates} listing(s) already imported previously`;
+    } else if (rep.jobsFound === 0) {
+      rep.status = "no_jobs";
+      rep.reason = rep.reason ?? "No open roles were listed in this email";
+    }
+  }
 
   console.log(
     `Extracted: ${allExtractedJobs.length}, new after dedup: ${newJobs.length}`
   );
+
 
   // Step 6 — Fetch full job descriptions for jobs with URLs
   for (const job of newJobs) {
