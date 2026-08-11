@@ -44,7 +44,53 @@ function buildGmailQuery(lastSyncedAt: string | null): string {
 
   console.log("[Gmail Sync] Days since last sync:", daysSinceSync);
 
-  return `(from:jobalerts-noreply@linkedin.com OR "job alert" OR "new jobs" OR "new job" OR "jobs for you" OR "job for you" OR "new openings" OR "jobs matching" OR "roles for you" OR "hiring alert" OR "job recommendations" OR "job recommendation" OR "your job alert") newer_than:${daysSinceSync}d`;
+  // Known job-alert senders across the major ATS / job board platforms
+  const senders = [
+    "from:jobalerts-noreply@linkedin.com",
+    "from:linkedin.com",
+    "from:indeed.com",
+    "from:indeedemail.com",
+    "from:greenhouse.io",
+    "from:greenhouse-mail.io",
+    "from:lever.co",
+    "from:hire.lever.co",
+    "from:myworkday.com",
+    "from:myworkdayjobs.com",
+    "from:workday.com",
+    "from:ziprecruiter.com",
+    "from:glassdoor.com",
+    "from:smartrecruiters.com",
+    "from:ashbyhq.com",
+    "from:workable.com",
+    "from:jobvite.com",
+    "from:icims.com",
+sorry",
+  ].join(" OR ");
+
+  const phrases = [
+    '"job alert"',
+    '"new jobs"',
+    '"new job"',
+    '"jobs for you"',
+    '"job for you"',
+    '"new openings"',
+    '"jobs matching"',
+    '"roles for you"',
+    '"hiring alert"',
+    '"job recommendations"',
+    '"job recommendation"',
+    '"your job alert"',
+    '"we are hiring"',
+    '"now hiring"',
+    '"open position"',
+    '"open roles"',
+    '"careers at"',
+    '"apply now"',
+    '"view job"',
+    '"job opportunity"',
+  ].join(" OR ");
+
+  return `(${senders} OR ${phrases}) newer_than:${daysSinceSync}d`;
 }
 
 /** Pre-filter: only emails that look like real job listings */
@@ -53,16 +99,27 @@ const JOB_SIGNALS = [
   "view job",
   "see job",
   "open position",
+  "open role",
   "job opening",
   "we're hiring",
   "we are hiring",
+  "now hiring",
   "new role",
   "/jobs/",
   "/job/",
   "/careers/",
+  "/career/",
   "/apply/",
   "job alert",
   "new opening",
+  "greenhouse.io",
+  "lever.co",
+  "myworkdayjobs",
+  "smartrecruiters",
+  "ashbyhq",
+  "workable.com",
+  "jobvite",
+  "icims",
 ];
 
 function looksLikeJobEmail(text: string): boolean {
@@ -76,17 +133,28 @@ function inferSource(text: string): string {
   if (lower.includes("indeed")) return "Indeed";
   if (lower.includes("glassdoor")) return "Glassdoor";
   if (lower.includes("ziprecruiter")) return "ZipRecruiter";
+  if (lower.includes("greenhouse")) return "Greenhouse";
+  if (lower.includes("lever.co")) return "Lever";
+  if (lower.includes("myworkdayjobs") || lower.includes("workday")) return "Workday";
+  if (lower.includes("smartrecruiters")) return "SmartRecruiters";
+  if (lower.includes("ashbyhq")) return "Ashby";
+  if (lower.includes("workable")) return "Workable";
+  if (lower.includes("jobvite")) return "Jobvite";
+  if (lower.includes("icims")) return "iCIMS";
+  if (/\/careers?\//i.test(text)) return "Company Careers";
   return "Email Alert";
 }
+
+const JOB_URL_PATTERN =
+  /(linkedin\.com\/jobs|indeed\.com\/(?:viewjob|rc\/clk|job)|boards\.greenhouse\.io|job-boards\.greenhouse\.io|jobs\.lever\.co|myworkdayjobs\.com|smartrecruiters\.com|jobs\.ashbyhq\.com|apply\.workable\.com|jobvite\.com|icims\.com|\/jobs?\/|\/careers?\/|\/apply\/)/i;
 
 function extractJobUrls(text: string): string[] {
   const matches = text.match(/https?:\/\/[^\s"'<>]+/gi) || [];
   return matches
-    .filter((u) =>
-      /(linkedin\.com\/jobs|\/jobs\/|\/job\/|\/careers\/|\/apply\/)/i.test(u)
-    )
+    .filter((u) => JOB_URL_PATTERN.test(u))
     .map((u) => u.replace(/[),.;]+$/, ""));
 }
+
 
 function extractFirstJobUrl(text: string): string | null {
   const jobUrls = extractJobUrls(text);
