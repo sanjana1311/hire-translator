@@ -1003,16 +1003,9 @@ Rules:
     if (insertErr) console.error("Error inserting imported jobs:", insertErr);
   }
 
-  // Update last_synced_at
-  await adminClient
-    .from("gmail_sync_metadata")
-    .upsert(
-      { profile_id: profileId, last_synced_at: new Date().toISOString() },
-      { onConflict: "profile_id" }
-    );
-
-  return { jobs: newJobs, emailCount: relevantEmails.length };
+  return await finish(newJobs);
 }
+
 
 // ─── HTTP handler (manual trigger from frontend) ───
 serve(async (req) => {
