@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { callAI } from "@/lib/ai";
 import { useGmailImport } from "@/hooks/use-gmail-import";
+import { GmailSyncSummary } from "@/components/GmailSyncSummary";
+
 import { useProfile } from "@/hooks/use-profile";
 import { useResume } from "@/hooks/use-resume";
 import { useAIUsage } from "@/hooks/use-ai-usage";
