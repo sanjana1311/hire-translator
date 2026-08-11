@@ -483,24 +483,119 @@ async function fetchJobDescription(
   }
 }
 
+export interface EmailReport {
+  subject: string;
+  from: string;
+  source: string;
+  status: "imported" | "duplicate" | "no_jobs" | "rejected" | "parse_failed";
+  reason: string | null;
+  method: "ai" | "fallback" | "none";
+  jobsFound: number;
+  jobsImported: number;
+  duplicates: number;
+}
+
+export interface SyncReport {
+  emailsScanned: number;
+  jobAlertsDetected: number;
+  jobsImported: number;
+  duplicatesSkipped: number;
+  emailsRejected: number;
+  parseFailures: number;
+  applicationsMatched: number;
+  query: string;
+  emails: EmailReport[];
+}
+
+function logReport(report: SyncReport) {
+  console.log(
+    `[Gmail Sync][SUMMARY] scanned=${report.emailsScanned} jobAlerts=${report.jobAlertsDetected} imported=${report.jobsImported} duplicates=${report.duplicatesSkipped} rejected=${report.emailsRejected} parseFailures=${report.parseFailures} applicationsMatched=${report.applicationsMatched}`
+  );
+  for (const e of report.emails) {
+    console.log(
+      `[Gmail Sync][EMAIL] status=${e.status} method=${e.method} found=${e.jobsFound} imported=${e.jobsImported} dupes=${e.duplicates} source=${e.source} reason=${e.reason ?? "-"} subject="${e.subject.slice(0, 80)}"`
+    );
+  }
+}
+
+/**
+ * Re-run application status matching from imported job records.
+ * Links applications to imported_jobs by normalized title + company.
+ */
+async function rematchApplications(adminClient: any, profileId: string): Promise<number> {
+  const norm = (s: string) => (s || "").toLowerCase().trim().replace(/\s+/g, " ");
+
+  const { data: apps } = await adminClient
+    .from("applications")
+    .select("id, title, company, imported_job_id")
+    .eq("profile_id", profileId);
+
+  const { data: imported } = await adminClient
+    .from("imported_jobs")
+    .select("id, title, company")
+    .eq("profile_id", profileId);
+
+  if (!apps?.length || !imported?.length) return 0;
+
+  const byKey = new Map<string, string>();
+  for (const j of imported) byKey.set(`${norm(j.title)}__${norm(j.company)}`, j.id);
+  const byCompany = new Map<string, string>();
+  for (const j of imported) if (!byCompany.has(norm(j.company))) byCompany.set(norm(j.company), j.id);
+
+  let matched = 0;
+  for (const app of apps) {
+    if (app.imported_job_id) continue;
+    const exact = byKey.get(`${norm(app.title)}__${norm(app.company)}`);
+    const fallback = exact || byCompany.get(norm(app.company));
+    if (!fallback) continue;
+    const { error } = await adminClient
+      .from("applications")
+      .update({ imported_job_id: fallback })
+      .eq("id", app.id);
+    if (!error) matched++;
+  }
+
+  console.log(`[Gmail Sync] Applications re-matched to imported jobs: ${matched}`);
+  return matched;
+}
+
 /** Core sync logic */
 export async function syncGmailJobs(options: {
   accessToken: string;
   profileId: string;
   adminClient: any;
   lastSyncedAt: string | null;
-}): Promise<{ jobs: any[]; emailCount: number }> {
+}): Promise<{ jobs: any[]; emailCount: number; report: SyncReport }> {
   const { accessToken, profileId, adminClient, lastSyncedAt } = options;
 
   // Step 1 — Search Gmail
   const rawQuery = buildGmailQuery(lastSyncedAt);
   console.log("[Gmail Sync] Search query:", rawQuery);
   console.log("[Gmail Sync] lastSyncedAt:", lastSyncedAt);
-  
+
+  const emptyReport = (): SyncReport => ({
+    emailsScanned: 0,
+    jobAlertsDetected: 0,
+    jobsImported: 0,
+    duplicatesSkipped: 0,
+    emailsRejected: 0,
+    parseFailures: 0,
+    applicationsMatched: 0,
+    query: rawQuery,
+    emails: [],
+  });
+
+  const touchSync = () =>
+    adminClient
+      .from("gmail_sync_metadata")
+      .upsert(
+        { profile_id: profileId, last_synced_at: new Date().toISOString() },
+        { onConflict: "profile_id" }
+      );
+
   const query = encodeURIComponent(rawQuery);
   const gmailUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${query}&maxResults=50`;
-  console.log("[Gmail Sync] Gmail API URL:", gmailUrl);
-  
+
   const gmailRes = await fetch(gmailUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -515,38 +610,56 @@ export async function syncGmailJobs(options: {
   }
 
   const gmailData = await gmailRes.json();
-  console.log("[Gmail Sync] Raw Gmail API response:", JSON.stringify(gmailData).slice(0, 500));
   console.log("[Gmail Sync] resultSizeEstimate:", gmailData.resultSizeEstimate);
 
   if (!gmailData.messages?.length) {
-    console.log("[Gmail Sync] Zero messages returned. resultSizeEstimate:", gmailData.resultSizeEstimate);
-    await adminClient
-      .from("gmail_sync_metadata")
-      .upsert(
-        { profile_id: profileId, last_synced_at: new Date().toISOString() },
-        { onConflict: "profile_id" }
-      );
-    return { jobs: [], emailCount: 0, query: rawQuery, resultSizeEstimate: gmailData.resultSizeEstimate };
+    await touchSync();
+    const report = emptyReport();
+    logReport(report);
+    return { jobs: [], emailCount: 0, report };
   }
 
   const messageIds = gmailData.messages.map((m: any) => m.id);
   console.log("[Gmail Sync] Messages found:", messageIds.length);
 
   // Step 2 — Fetch each email body
-  const emails: { subject: string; body: string; bodyText: string; snippet: string }[] = [];
+  type Email = {
+    subject: string;
+    from: string;
+    body: string;
+    bodyText: string;
+    snippet: string;
+    report: EmailReport;
+  };
+  const emails: Email[] = [];
+  const emailReports: EmailReport[] = [];
+
   for (const msgId of messageIds) {
     const msgRes = await fetch(
       `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=full`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
-    if (!msgRes.ok) continue;
+    if (!msgRes.ok) {
+      emailReports.push({
+        subject: `(message ${msgId})`,
+        from: "",
+        source: "Unknown",
+        status: "rejected",
+        reason: `Could not fetch email from Gmail (HTTP ${msgRes.status})`,
+        method: "none",
+        jobsFound: 0,
+        jobsImported: 0,
+        duplicates: 0,
+      });
+      continue;
+    }
     const msg = await msgRes.json();
 
-    const subject =
-      msg.payload?.headers?.find(
-        (h: any) => h.name.toLowerCase() === "subject"
-      )?.value || "";
+    const header = (name: string) =>
+      msg.payload?.headers?.find((h: any) => h.name.toLowerCase() === name)?.value || "";
 
+    const subject = header("subject");
+    const from = header("from");
     const snippet = (msg.snippet || "").replace(/\s+/g, " ").trim();
 
     const { textPlain, textHtml } = collectMessageBodies(msg.payload);
@@ -563,30 +676,67 @@ export async function syncGmailJobs(options: {
     }
 
     const bodyText = htmlToTextWithLineBreaks(rawBody);
-
-    // Compact version for AI prompt
     const body = bodyText.replace(/\s+/g, " ").trim();
 
-    emails.push({ subject, body, bodyText, snippet });
+    const report: EmailReport = {
+      subject,
+      from,
+      source: inferSource(`${from} ${subject} ${body}`),
+      status: "no_jobs",
+      reason: null,
+      method: "none",
+      jobsFound: 0,
+      jobsImported: 0,
+      duplicates: 0,
+    };
+    emailReports.push(report);
+
+    if (!body && !snippet) {
+      report.status = "rejected";
+      report.reason = "Email body could not be decoded (no readable text or HTML part)";
+      continue;
+    }
+
+    emails.push({ subject, from, body, bodyText, snippet, report });
   }
+
+  const emailsScanned = emailReports.length;
 
   // Step 3 — Pre-filter: only emails with job signals
-  const relevantEmails = emails.filter(({ subject, body, snippet }) =>
-    looksLikeJobEmail(`${subject} ${snippet} ${body}`)
-  );
+  const relevantEmails = emails.filter((e) => {
+    const isJobEmail = looksLikeJobEmail(`${e.from} ${e.subject} ${e.snippet} ${e.body}`);
+    if (!isJobEmail) {
+      e.report.status = "rejected";
+      e.report.reason = "No job-alert signals found (no apply/view job/careers link or hiring language)";
+    }
+    return isJobEmail;
+  });
   console.log(
-    `Emails fetched: ${emails.length}, relevant after filter: ${relevantEmails.length}`
+    `Emails fetched: ${emailsScanned}, job alerts detected: ${relevantEmails.length}`
   );
 
+  const finish = async (jobs: any[]) => {
+    await touchSync();
+    const applicationsMatched = await rematchApplications(adminClient, profileId);
+    const report: SyncReport = {
+      emailsScanned,
+      jobAlertsDetected: relevantEmails.length,
+      jobsImported: jobs.length,
+      duplicatesSkipped: emailReports.reduce((n, e) => n + e.duplicates, 0),
+      emailsRejected: emailReports.filter((e) => e.status === "rejected").length,
+      parseFailures: emailReports.filter((e) => e.status === "parse_failed").length,
+      applicationsMatched,
+      query: rawQuery,
+      emails: emailReports,
+    };
+    logReport(report);
+    return { jobs, emailCount: relevantEmails.length, report };
+  };
+
   if (relevantEmails.length === 0) {
-    await adminClient
-      .from("gmail_sync_metadata")
-      .upsert(
-        { profile_id: profileId, last_synced_at: new Date().toISOString() },
-        { onConflict: "profile_id" }
-      );
-    return { jobs: [], emailCount: emails.length };
+    return await finish([]);
   }
+
 
   // Step 4 — AI extraction (one call per email)
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
