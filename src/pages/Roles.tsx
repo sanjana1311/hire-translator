@@ -784,6 +784,10 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
           )}
         </div>
 
+        {syncReport && <GmailSyncSummary report={syncReport} />}
+
+
+
         <div className="apple-card border-dashed p-14 text-center">
           <div className="text-4xl mb-4">📬</div>
           <h3 className="text-lg font-semibold mb-2">No roles imported yet</h3>
