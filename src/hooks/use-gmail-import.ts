@@ -66,11 +66,26 @@ export function useGmailImport(profileId: string | null) {
   const [jobsImportedCount, setJobsImportedCount] = useState(0);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [syncLog, setSyncLog] = useState<SyncLogEntry[]>([]);
+  const [syncReport, setSyncReport] = useState<SyncReport | null>(null);
   const autoSyncRan = useRef(false);
 
   const log = useCallback((message: string) => {
     setSyncLog(prev => [...prev, { time: timestamp(), message }]);
   }, []);
+
+  const applyReport = useCallback((report: SyncReport | null | undefined) => {
+    if (!report) return;
+    setSyncReport(report);
+    log(
+      `Scanned ${report.emailsScanned} emails · ${report.jobAlertsDetected} job alerts · ${report.jobsImported} imported · ${report.duplicatesSkipped} duplicates · ${report.emailsRejected} rejected · ${report.parseFailures} parse failures · ${report.applicationsMatched} applications matched`
+    );
+    for (const e of report.emails) {
+      if (e.status === "rejected" || e.status === "parse_failed") {
+        log(`✗ ${e.status}: "${e.subject.slice(0, 60)}" — ${e.reason ?? "no reason given"}`);
+      }
+    }
+  }, [log]);
+
 
   // Load persisted imported jobs from database
   const loadJobs = useCallback(async () => {
