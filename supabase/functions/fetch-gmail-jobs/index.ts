@@ -834,7 +834,7 @@ Rules:
         } else {
           console.error("AI error:", status);
         }
-        pushFallbackJobs();
+        pushFallbackJobs(`AI request failed with HTTP ${status}`);
         continue;
       }
 
@@ -846,12 +846,14 @@ Rules:
       );
 
       let cleaned = raw.replace(/```json|```/g, "").trim();
+      let repaired = false;
 
       // Repair truncated JSON: if the response was cut off, try to close the array
       if (
         finishReason === "length" ||
         (!cleaned.endsWith("]") && cleaned.includes("{"))
       ) {
+        repaired = true;
         console.warn(
           `[Gmail Sync] Truncated AI response for: ${subject.slice(0, 50)}, attempting repair`
         );
@@ -871,19 +873,26 @@ Rules:
       if (Array.isArray(jobs) && jobs.length > 0) {
         for (const j of jobs) {
           j._sourceSubject = subject;
+          j._report = er;
         }
         allExtractedJobs.push(...jobs);
+        er.method = "ai";
+        er.jobsFound += jobs.length;
+        if (repaired) {
+          er.reason = "AI response was truncated — repaired and recovered the complete listings";
+        }
         console.log(
           `[Gmail Sync] Extracted ${jobs.length} jobs from: ${subject.slice(0, 60)}`
         );
       } else {
-        pushFallbackJobs();
+        pushFallbackJobs("AI returned no listings");
       }
     } catch (e) {
       console.error("AI extraction error for email:", subject, e);
-      pushFallbackJobs();
+      pushFallbackJobs(`AI response was not valid JSON: ${(e as Error).message}`);
       continue;
     }
+
 
     // Stagger calls 300ms apart
     await new Promise((r) => setTimeout(r, 300));
