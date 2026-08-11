@@ -28,7 +28,32 @@ export interface SyncLogEntry {
   message: string;
 }
 
+export interface EmailReport {
+  subject: string;
+  from: string;
+  source: string;
+  status: "imported" | "duplicate" | "no_jobs" | "rejected" | "parse_failed";
+  reason: string | null;
+  method: "ai" | "fallback" | "none";
+  jobsFound: number;
+  jobsImported: number;
+  duplicates: number;
+}
+
+export interface SyncReport {
+  emailsScanned: number;
+  jobAlertsDetected: number;
+  jobsImported: number;
+  duplicatesSkipped: number;
+  emailsRejected: number;
+  parseFailures: number;
+  applicationsMatched: number;
+  query: string;
+  emails: EmailReport[];
+}
+
 const SIX_HOURS = 6 * 60 * 60 * 1000;
+
 
 function timestamp(): string {
   return new Date().toLocaleTimeString("en-US", { hour12: false });
