@@ -779,23 +779,31 @@ Rules:
 - Keep snippet SHORT (under 100 chars) to avoid long output
 - Return raw JSON array only`;
 
-    const pushFallbackJobs = () => {
+    const pushFallbackJobs = (reason: string) => {
       const fallbackJobs = fallbackExtractJobsFromEmail(email);
+      er.method = "fallback";
       if (fallbackJobs.length > 0) {
         for (const j of fallbackJobs) {
           j._sourceSubject = subject;
+          j._report = er;
         }
         allExtractedJobs.push(...fallbackJobs);
+        er.jobsFound += fallbackJobs.length;
+        er.reason = `AI parse unavailable (${reason}) — rescued ${fallbackJobs.length} job(s) with the pattern parser`;
+      } else {
+        er.status = "parse_failed";
+        er.reason = `Could not parse any job from this email (${reason}); pattern parser found no title/company pair`;
       }
       console.log(
-        `[Gmail Sync] Fallback extracted ${fallbackJobs.length} jobs from: ${subject.slice(0, 60)}`
+        `[Gmail Sync] Fallback extracted ${fallbackJobs.length} jobs from: ${subject.slice(0, 60)} (${reason})`
       );
     };
 
     if (aiUnavailable) {
-      pushFallbackJobs();
+      pushFallbackJobs("AI quota exhausted");
       continue;
     }
+
 
     try {
       const aiRes = await fetch(
