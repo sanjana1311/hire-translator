@@ -746,7 +746,8 @@ export async function syncGmailJobs(options: {
   let aiUnavailable = false;
 
   for (const email of relevantEmails) {
-    const { subject, body, snippet } = email;
+    const { subject, body, snippet, report: er } = email;
+
 
     // Limit body to keep prompt manageable but allow enough for multi-job emails
     const truncatedBody = body.slice(0, 5000);
