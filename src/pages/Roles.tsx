@@ -926,6 +926,10 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
         ) : null}
       </div>
 
+      {syncReport && <GmailSyncSummary report={syncReport} />}
+
+
+
       {/* Filters */}
       <div className="mb-5">
         <div className="flex items-center gap-2 mb-2.5">
