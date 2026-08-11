@@ -66,8 +66,6 @@ function buildGmailQuery(lastSyncedAt: string | null): string {
     "from:icims.com",
   ].join(" OR ");
 
-  ].join(" OR ");
-
   const phrases = [
     '"job alert"',
     '"new jobs"',
