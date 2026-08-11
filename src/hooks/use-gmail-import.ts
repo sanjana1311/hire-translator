@@ -247,7 +247,7 @@ export function useGmailImport(profileId: string | null) {
     } finally {
       setLoading(false);
     }
-  }, [profileId, loadJobs, log]);
+  }, [profileId, loadJobs, log, applyReport]);
 
   // Connect Gmail — direct OAuth flow bypassing Supabase auth provider
   const connectGmail = useCallback(async () => {
