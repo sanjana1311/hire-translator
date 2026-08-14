@@ -3,6 +3,9 @@ import { FileText, Upload, ArrowRight, TrendingUp, Briefcase } from "lucide-reac
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useWorkspaces } from "@/hooks/use-workspaces";
+import { useProfile } from "@/hooks/use-profile";
+import { useGmailImport } from "@/hooks/use-gmail-import";
+import { GmailSyncSummary } from "@/components/GmailSyncSummary";
 import { format } from "date-fns";
 
 const staggerContainer = {
@@ -18,6 +21,8 @@ const staggerItem = {
 const Dashboard = () => {
   const navigate = useNavigate();
   const { data: workspaces = [], isLoading } = useWorkspaces();
+  const { data: profile } = useProfile();
+  const { syncReport, syncReportAt, syncError, loading: gmailLoading, triggerSync } = useGmailImport(profile?.id ?? null);
   const recentWorkspaces = workspaces.slice(0, 3);
 
   return (
@@ -25,6 +30,14 @@ const Dashboard = () => {
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
         <h1 className="text-2xl font-semibold tracking-tight mb-0.5 text-foreground">Dashboard</h1>
         <p className="text-muted-foreground text-sm mb-10">Your career command center</p>
+
+        <GmailSyncSummary
+          report={syncReport}
+          syncedAt={syncReportAt}
+          loading={gmailLoading}
+          error={syncError}
+          onRetry={() => triggerSync(false)}
+        />
 
         {/* Quick actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-12">

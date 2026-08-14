@@ -54,6 +54,7 @@ export interface SyncReport {
 
 const SIX_HOURS = 6 * 60 * 60 * 1000;
 
+const reportKey = (profileId: string) => `gmail_sync_report_${profileId}`;
 
 function timestamp(): string {
   return new Date().toLocaleTimeString("en-US", { hour12: false });
@@ -67,7 +68,25 @@ export function useGmailImport(profileId: string | null) {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [syncLog, setSyncLog] = useState<SyncLogEntry[]>([]);
   const [syncReport, setSyncReport] = useState<SyncReport | null>(null);
+  const [syncReportAt, setSyncReportAt] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const autoSyncRan = useRef(false);
+
+  // Restore the last persisted sync summary for this user
+  useEffect(() => {
+    if (!profileId) return;
+    try {
+      const raw = localStorage.getItem(reportKey(profileId));
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { report: SyncReport; at: string };
+      if (parsed?.report) {
+        setSyncReport(parsed.report);
+        setSyncReportAt(parsed.at ?? null);
+      }
+    } catch {
+      /* ignore corrupt cache */
+    }
+  }, [profileId]);
 
   const log = useCallback((message: string) => {
     setSyncLog(prev => [...prev, { time: timestamp(), message }]);
@@ -75,7 +94,17 @@ export function useGmailImport(profileId: string | null) {
 
   const applyReport = useCallback((report: SyncReport | null | undefined) => {
     if (!report) return;
+    const at = new Date().toISOString();
     setSyncReport(report);
+    setSyncReportAt(at);
+    setSyncError(null);
+    if (profileId) {
+      try {
+        localStorage.setItem(reportKey(profileId), JSON.stringify({ report, at }));
+      } catch {
+        /* storage full — non-fatal */
+      }
+    }
     log(
       `Scanned ${report.emailsScanned} emails · ${report.jobAlertsDetected} job alerts · ${report.jobsImported} imported · ${report.duplicatesSkipped} duplicates · ${report.emailsRejected} rejected · ${report.parseFailures} parse failures · ${report.applicationsMatched} applications matched`
     );
@@ -84,7 +113,8 @@ export function useGmailImport(profileId: string | null) {
         log(`✗ ${e.status}: "${e.subject.slice(0, 60)}" — ${e.reason ?? "no reason given"}`);
       }
     }
-  }, [log]);
+  }, [log, profileId]);
+
 
 
   // Load persisted imported jobs from database
@@ -122,6 +152,7 @@ export function useGmailImport(profileId: string | null) {
     if (!profileId) return [];
     setLoading(true);
     setSyncStatus("syncing");
+    setSyncError(null);
     log("Sync triggered");
 
     try {
@@ -146,6 +177,7 @@ export function useGmailImport(profileId: string | null) {
 
         if (res.error) {
           log(`Edge function error: ${res.error.message}`);
+          setSyncError(res.error.message || "Sync failed");
           setSyncStatus("error");
           if (!silent) toast.error(res.error.message || "Sync failed");
           return [];
@@ -169,6 +201,7 @@ export function useGmailImport(profileId: string | null) {
         
         if (data?.error) {
           log(`Sync error: ${data.error}`);
+          setSyncError(String(data.error));
           setSyncStatus("error");
           if (!silent) toast.error(data.error);
           return [];
@@ -205,6 +238,7 @@ export function useGmailImport(profileId: string | null) {
 
       if (res.error) {
         log(`Edge function error: ${res.error.message}`);
+        setSyncError(res.error.message || "Failed to fetch Gmail jobs");
         setSyncStatus("error");
         if (!silent) toast.error(res.error.message || "Failed to fetch Gmail jobs");
         return [];
@@ -213,6 +247,7 @@ export function useGmailImport(profileId: string | null) {
       const data = res.data;
       if (data?.error) {
         log(`Sync error: ${data.error}`);
+        setSyncError(String(data.error));
         setSyncStatus("error");
         if (!silent) toast.error(data.error);
         return [];
@@ -241,6 +276,7 @@ export function useGmailImport(profileId: string | null) {
       return importedJobs;
     } catch (err: any) {
       log(`Sync failed: ${err.message}`);
+      setSyncError(err?.message || "Gmail import failed");
       setSyncStatus("error");
       if (!silent) toast.error(err.message || "Gmail import failed");
       return [];
@@ -438,6 +474,8 @@ export function useGmailImport(profileId: string | null) {
     syncStatus,
     syncLog,
     syncReport,
+    syncReportAt,
+    syncError,
 
     markSeen,
     loadJobs,

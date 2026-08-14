@@ -92,7 +92,7 @@ const Roles = () => {
   const [initialLoading, setInitialLoading] = useState(true);
   const { data: profile } = useProfile();
   const { data: resumeData } = useResume();
-  const { triggerSync, connectGmail, signOut, loading: gmailLoading, lastSyncedAt, jobsImportedCount, syncStatus, syncLog, syncReport } = useGmailImport(profile?.id ?? null);
+  const { triggerSync, connectGmail, signOut, loading: gmailLoading, lastSyncedAt, jobsImportedCount, syncStatus, syncLog, syncReport, syncReportAt, syncError } = useGmailImport(profile?.id ?? null);
   const [showSyncLog, setShowSyncLog] = useState(false);
   const { remaining: aiRemaining, limit: aiLimit, refresh: refreshAIUsage } = useAIUsage("roles");
 
@@ -784,7 +784,7 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
           )}
         </div>
 
-        {syncReport && <GmailSyncSummary report={syncReport} />}
+        <GmailSyncSummary report={syncReport} syncedAt={syncReportAt} loading={gmailLoading} error={syncError} onRetry={() => triggerSync(false)} />
 
 
 
@@ -932,7 +932,7 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
         ) : null}
       </div>
 
-      {syncReport && <GmailSyncSummary report={syncReport} />}
+      <GmailSyncSummary report={syncReport} syncedAt={syncReportAt} loading={gmailLoading} error={syncError} onRetry={() => triggerSync(false)} />
 
 
 
