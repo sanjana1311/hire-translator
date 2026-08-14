@@ -152,6 +152,7 @@ export function useGmailImport(profileId: string | null) {
     if (!profileId) return [];
     setLoading(true);
     setSyncStatus("syncing");
+    setSyncError(null);
     log("Sync triggered");
 
     try {
@@ -176,6 +177,7 @@ export function useGmailImport(profileId: string | null) {
 
         if (res.error) {
           log(`Edge function error: ${res.error.message}`);
+          setSyncError(res.error.message || "Sync failed");
           setSyncStatus("error");
           if (!silent) toast.error(res.error.message || "Sync failed");
           return [];
@@ -199,6 +201,7 @@ export function useGmailImport(profileId: string | null) {
         
         if (data?.error) {
           log(`Sync error: ${data.error}`);
+          setSyncError(String(data.error));
           setSyncStatus("error");
           if (!silent) toast.error(data.error);
           return [];
@@ -235,6 +238,7 @@ export function useGmailImport(profileId: string | null) {
 
       if (res.error) {
         log(`Edge function error: ${res.error.message}`);
+        setSyncError(res.error.message || "Failed to fetch Gmail jobs");
         setSyncStatus("error");
         if (!silent) toast.error(res.error.message || "Failed to fetch Gmail jobs");
         return [];
@@ -243,6 +247,7 @@ export function useGmailImport(profileId: string | null) {
       const data = res.data;
       if (data?.error) {
         log(`Sync error: ${data.error}`);
+        setSyncError(String(data.error));
         setSyncStatus("error");
         if (!silent) toast.error(data.error);
         return [];
@@ -271,6 +276,7 @@ export function useGmailImport(profileId: string | null) {
       return importedJobs;
     } catch (err: any) {
       log(`Sync failed: ${err.message}`);
+      setSyncError(err?.message || "Gmail import failed");
       setSyncStatus("error");
       if (!silent) toast.error(err.message || "Gmail import failed");
       return [];
@@ -468,6 +474,8 @@ export function useGmailImport(profileId: string | null) {
     syncStatus,
     syncLog,
     syncReport,
+    syncReportAt,
+    syncError,
 
     markSeen,
     loadJobs,
