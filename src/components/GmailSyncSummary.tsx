@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
-import type { SyncReport, EmailReport } from "@/hooks/use-gmail-import";
+import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import type { SyncReport, EmailReport, SyncCounts, SyncErrorItem } from "@/hooks/use-gmail-import";
 
 type Bucket = "scanned" | "imported" | "skipped" | "failed";
 
@@ -34,6 +34,16 @@ function inBucket(e: EmailReport, bucket: Bucket) {
   return e.status === "parse_failed";
 }
 
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 60_000) return "just now";
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return new Date(iso).toLocaleString();
+}
+
 function Num({
   value,
   label,
@@ -60,68 +70,119 @@ function Num({
 
 export const GmailSyncSummary = ({
   report,
+  counts,
+  errors,
   syncedAt,
   loading,
   error,
   onRetry,
 }: {
   report: SyncReport | null;
+  counts?: SyncCounts | null;
+  errors?: SyncErrorItem[];
   syncedAt?: string | null;
   loading?: boolean;
   error?: string | null;
   onRetry?: () => void;
 }) => {
   const [bucket, setBucket] = useState<Bucket | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
 
   if (loading) {
     return (
       <div className="mb-5 apple-card px-5 py-4 flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="w-4 h-4 animate-spin" />
-        Syncing your inbox…
+        Syncing…
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="mb-5 apple-card px-5 py-4 flex items-start gap-2">
-        <AlertCircle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
-        <div className="min-w-0">
-          <p className="text-sm text-foreground">Gmail sync failed</p>
-          <p className="text-[12px] text-muted-foreground break-words">{error}</p>
-          {onRetry && (
-            <button onClick={onRetry} className="mt-1 text-[12px] text-primary hover:underline">
-              Retry sync
-            </button>
-          )}
+      <div className="mb-5 apple-card px-5 py-4">
+        <div className="flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm text-foreground">Gmail sync failed</p>
+            <p className="text-[12px] text-muted-foreground break-words">{error}</p>
+            <div className="flex items-center gap-3 mt-1">
+              {onRetry && (
+                <button onClick={onRetry} className="text-[12px] text-primary hover:underline">
+                  Retry sync
+                </button>
+              )}
+              {(errors?.length ?? 0) > 0 && (
+                <button
+                  onClick={() => setShowDetails((v) => !v)}
+                  className="text-[12px] text-muted-foreground hover:underline flex items-center gap-1"
+                >
+                  {showDetails ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                  View details
+                </button>
+              )}
+            </div>
+            {showDetails && (
+              <ul className="mt-2 space-y-1">
+                {errors?.map((e, i) => (
+                  <li key={i} className="text-[11px] text-muted-foreground">
+                    <span className="font-mono">{e.stage} · {e.code}</span> — {e.message}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       </div>
     );
   }
 
-  if (!report) return null;
+  const resolved: SyncCounts = counts ?? {
+    scanned: report?.emailsScanned ?? 0,
+    imported: report?.jobsImported ?? 0,
+    skipped: report ? report.duplicatesSkipped + report.emailsRejected : 0,
+    failed: report?.parseFailures ?? 0,
+  };
 
-  const skipped = report.duplicatesSkipped + report.emailsRejected;
-  const failed = report.parseFailures;
-  const rows = bucket ? report.emails.filter((e) => inBucket(e, bucket)) : [];
+  if (!report && !counts) return null;
+
+  const rows = bucket ? (report?.emails ?? []).filter((e) => inBucket(e, bucket)) : [];
 
   return (
     <div className="mb-5 apple-card px-5 py-4">
       <div className="flex flex-wrap items-center gap-x-1 gap-y-1 text-sm">
         <CheckCircle2 className="w-4 h-4 text-success mr-1.5" />
-        <Num value={report.emailsScanned} label="scanned" active={bucket === "scanned"} onClick={() => setBucket(bucket === "scanned" ? null : "scanned")} />
+        <Num value={resolved.scanned} label="scanned" active={bucket === "scanned"} onClick={() => setBucket(bucket === "scanned" ? null : "scanned")} />
         <span className="text-muted-foreground/50">·</span>
-        <Num value={report.jobsImported} label="jobs imported" active={bucket === "imported"} onClick={() => setBucket(bucket === "imported" ? null : "imported")} />
+        <Num value={resolved.imported} label="imported" active={bucket === "imported"} onClick={() => setBucket(bucket === "imported" ? null : "imported")} />
         <span className="text-muted-foreground/50">·</span>
-        <Num value={skipped} label="skipped" active={bucket === "skipped"} onClick={() => setBucket(bucket === "skipped" ? null : "skipped")} />
+        <Num value={resolved.skipped} label="skipped" active={bucket === "skipped"} onClick={() => setBucket(bucket === "skipped" ? null : "skipped")} />
         <span className="text-muted-foreground/50">·</span>
-        <Num value={failed} label="failed" active={bucket === "failed"} onClick={() => setBucket(bucket === "failed" ? null : "failed")} />
+        <Num value={resolved.failed} label="failed" active={bucket === "failed"} onClick={() => setBucket(bucket === "failed" ? null : "failed")} />
       </div>
 
-      {syncedAt && (
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          Last sync {new Date(syncedAt).toLocaleString()}
-        </p>
+      <div className="mt-1 flex items-center gap-3">
+        {syncedAt && (
+          <p className="text-[11px] text-muted-foreground">Last synced {relativeTime(syncedAt)}</p>
+        )}
+        {report && (
+          <button
+            onClick={() => setBucket(bucket ? null : "scanned")}
+            className="text-[11px] text-primary hover:underline flex items-center gap-1"
+          >
+            {bucket ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+            View details
+          </button>
+        )}
+      </div>
+
+      {(errors?.length ?? 0) > 0 && (
+        <ul className="mt-2 space-y-1">
+          {errors!.map((e, i) => (
+            <li key={i} className="text-[11px] text-warning">
+              {e.message}
+            </li>
+          ))}
+        </ul>
       )}
 
       {bucket && (
