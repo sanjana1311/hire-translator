@@ -559,19 +559,110 @@ async function rematchApplications(adminClient: any, profileId: string): Promise
   return matched;
 }
 
-/** Core sync logic */
+/** Core sync logic *//** Core sync logic */
+
+export type SyncStage =
+  | "auth"
+  | "profile"
+  | "token"
+  | "token_refresh"
+  | "gmail_search"
+  | "gmail_pagination"
+  | "gmail_fetch_message"
+  | "parse"
+  | "dedupe"
+  | "persist"
+  | "summary";
+
+export class SyncError extends Error {
+  stage: SyncStage;
+  code: string;
+  httpStatus?: number;
+  constructor(stage: SyncStage, code: string, message: string, httpStatus?: number) {
+    super(message);
+    this.stage = stage;
+    this.code = code;
+    this.httpStatus = httpStatus;
+  }
+}
+
+export interface SyncErrorItem {
+  stage: SyncStage;
+  code: string;
+  message: string;
+}
+
+export interface SyncResult {
+  success: boolean;
+  requestId: string;
+  scanned: number;
+  imported: number;
+  skipped: number;
+  failed: number;
+  syncStartedAt: string;
+  syncCompletedAt: string;
+  errors: SyncErrorItem[];
+  report: SyncReport | null;
+  jobs: any[];
+  tokenExpired?: boolean;
+  notConnected?: boolean;
+}
+
+/** Structured, PII-safe stage logging */
+export function makeLogger(requestId: string, userId: string) {
+  return (
+    stage: SyncStage,
+    status: "start" | "ok" | "warn" | "error",
+    fields: Record<string, unknown> = {}
+  ) => {
+    const parts = Object.entries(fields)
+      .filter(([, v]) => v !== undefined && v !== null)
+      .map(([k, v]) => `${k}=${typeof v === "string" ? JSON.stringify(v) : v}`)
+      .join(" ");
+    console.log(
+      `[gmail-sync] rid=${requestId} uid=${userId} stage=${stage} status=${status} at=${new Date().toISOString()} ${parts}`
+    );
+  };
+}
+
+/** Map a Gmail API HTTP status to a safe, explicit error */
+export function gmailHttpError(stage: SyncStage, status: number): SyncError {
+  if (status === 401)
+    return new SyncError(stage, "GMAIL_UNAUTHORIZED", "Gmail rejected the access token (401). Please re-connect Gmail.", status);
+  if (status === 403)
+    return new SyncError(stage, "GMAIL_FORBIDDEN", "Gmail denied access (403). The gmail.readonly permission may not have been granted.", status);
+  if (status === 429)
+    return new SyncError(stage, "GMAIL_RATE_LIMITED", "Gmail rate limit reached (429). Please try again in a few minutes.", status);
+  if (status >= 500)
+    return new SyncError(stage, "GMAIL_SERVER_ERROR", `Gmail is temporarily unavailable (${status}). Please retry shortly.`, status);
+  return new SyncError(stage, "GMAIL_REQUEST_FAILED", `Gmail request failed with HTTP ${status}.`, status);
+}
+
+const OVERALL_BUDGET_MS = 100_000;
+const MAX_MESSAGES = 60;
+const MAX_DESCRIPTION_FETCHES = 8;
+
 export async function syncGmailJobs(options: {
   accessToken: string;
   profileId: string;
   adminClient: any;
   lastSyncedAt: string | null;
-}): Promise<{ jobs: any[]; emailCount: number; report: SyncReport }> {
+  requestId?: string;
+  userId?: string;
+}): Promise<{ jobs: any[]; emailCount: number; report: SyncReport; errors: SyncErrorItem[] }> {
   const { accessToken, profileId, adminClient, lastSyncedAt } = options;
+  const requestId = options.requestId ?? crypto.randomUUID();
+  const log = makeLogger(requestId, options.userId ?? profileId);
+  const startedMs = Date.now();
+  const outOfBudget = () => Date.now() - startedMs > OVERALL_BUDGET_MS;
+  const errors: SyncErrorItem[] = [];
+  const noteError = (e: SyncError) => {
+    errors.push({ stage: e.stage, code: e.code, message: e.message });
+    log(e.stage, "error", { code: e.code, message: e.message });
+  };
 
-  // Step 1 — Search Gmail
   const rawQuery = buildGmailQuery(lastSyncedAt);
-  console.log("[Gmail Sync] Search query:", rawQuery);
-  console.log("[Gmail Sync] lastSyncedAt:", lastSyncedAt);
+  log("gmail_search", "start", { lastSyncedAt: lastSyncedAt ?? "never", queryLength: rawQuery.length });
 
   const emptyReport = (): SyncReport => ({
     emailsScanned: 0,
@@ -593,36 +684,56 @@ export async function syncGmailJobs(options: {
         { onConflict: "profile_id" }
       );
 
-  const query = encodeURIComponent(rawQuery);
-  const gmailUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${query}&maxResults=50`;
+  // ── Stage: Gmail search (with pagination) ──
+  const messageIds: string[] = [];
+  let pageToken: string | undefined;
+  let page = 0;
+  do {
+    const url = new URL("https://gmail.googleapis.com/gmail/v1/users/me/messages");
+    url.searchParams.set("q", rawQuery);
+    url.searchParams.set("maxResults", "50");
+    if (pageToken) url.searchParams.set("pageToken", pageToken);
 
-  const gmailRes = await fetch(gmailUrl, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-
-  if (!gmailRes.ok) {
-    const errText = await gmailRes.text();
-    console.error("Gmail API error:", gmailRes.status, errText);
-    if (gmailRes.status === 401 || gmailRes.status === 403) {
-      throw new Error("Gmail access denied. Please sign in again with Google.");
+    let res: Response;
+    try {
+      res = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(20_000),
+      });
+    } catch (e) {
+      throw new SyncError(
+        page === 0 ? "gmail_search" : "gmail_pagination",
+        "GMAIL_NETWORK_ERROR",
+        `Could not reach Gmail: ${(e as Error).name === "TimeoutError" ? "request timed out" : "network error"}.`
+      );
     }
-    throw new Error(`Gmail API error: ${gmailRes.status}`);
-  }
 
-  const gmailData = await gmailRes.json();
-  console.log("[Gmail Sync] resultSizeEstimate:", gmailData.resultSizeEstimate);
+    if (!res.ok) {
+      const err = gmailHttpError(page === 0 ? "gmail_search" : "gmail_pagination", res.status);
+      // Pagination failures are non-fatal — keep what we already have
+      if (page > 0) {
+        noteError(err);
+        break;
+      }
+      throw err;
+    }
 
-  if (!gmailData.messages?.length) {
+    const data = await res.json();
+    for (const m of data.messages ?? []) messageIds.push(m.id);
+    pageToken = data.nextPageToken;
+    page++;
+  } while (pageToken && messageIds.length < MAX_MESSAGES && page < 3 && !outOfBudget());
+
+  log("gmail_search", "ok", { pages: page, messages: messageIds.length });
+
+  if (messageIds.length === 0) {
     await touchSync();
     const report = emptyReport();
     logReport(report);
-    return { jobs: [], emailCount: 0, report };
+    return { jobs: [], emailCount: 0, report, errors };
   }
 
-  const messageIds = gmailData.messages.map((m: any) => m.id);
-  console.log("[Gmail Sync] Messages found:", messageIds.length);
-
-  // Step 2 — Fetch each email body
+  // ── Stage: fetch message bodies ──
   type Email = {
     subject: string;
     from: string;
@@ -634,75 +745,94 @@ export async function syncGmailJobs(options: {
   const emails: Email[] = [];
   const emailReports: EmailReport[] = [];
 
-  for (const msgId of messageIds) {
-    const msgRes = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=full`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
+  const ids = messageIds.slice(0, MAX_MESSAGES);
+  const CHUNK = 6;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    if (outOfBudget()) {
+      noteError(new SyncError("gmail_fetch_message", "TIME_BUDGET_EXCEEDED", "Sync stopped early to stay within the time limit — remaining emails will be picked up on the next sync."));
+      break;
+    }
+    const chunk = ids.slice(i, i + CHUNK);
+    const results = await Promise.all(
+      chunk.map(async (msgId) => {
+        try {
+          const msgRes = await fetch(
+            `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=full`,
+            { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(15_000) }
+          );
+          if (!msgRes.ok) return { error: gmailHttpError("gmail_fetch_message", msgRes.status) };
+          return { msg: await msgRes.json() };
+        } catch (e) {
+          return {
+            error: new SyncError("gmail_fetch_message", "GMAIL_NETWORK_ERROR", `Could not download an email from Gmail (${(e as Error).name}).`),
+          };
+        }
+      })
     );
-    if (!msgRes.ok) {
-      emailReports.push({
-        subject: `(message ${msgId})`,
-        from: "",
-        source: "Unknown",
-        status: "rejected",
-        reason: `Could not fetch email from Gmail (HTTP ${msgRes.status})`,
+
+    for (const r of results) {
+      if ("error" in r && r.error) {
+        emailReports.push({
+          subject: "(unavailable)",
+          from: "",
+          source: "Unknown",
+          status: "rejected",
+          reason: r.error.message,
+          method: "none",
+          jobsFound: 0,
+          jobsImported: 0,
+          duplicates: 0,
+        });
+        noteError(r.error);
+        continue;
+      }
+      const msg = (r as any).msg;
+
+      const header = (name: string) =>
+        msg.payload?.headers?.find((h: any) => h.name.toLowerCase() === name)?.value || "";
+
+      const subject = header("subject");
+      const from = header("from");
+      const snippet = (msg.snippet || "").replace(/\s+/g, " ").trim();
+
+      const { textPlain, textHtml } = collectMessageBodies(msg.payload);
+
+      let rawBody = "";
+      if (textPlain.length > 0) rawBody = textPlain.join("\n");
+      else if (textHtml.length > 0) rawBody = textHtml.join("\n");
+      else if (msg.payload?.body?.data)
+        rawBody = decodeQuotedPrintable(decodeBase64UrlToUtf8(msg.payload.body.data));
+
+      const bodyText = htmlToTextWithLineBreaks(rawBody);
+      const body = bodyText.replace(/\s+/g, " ").trim();
+
+      const report: EmailReport = {
+        subject,
+        from,
+        source: inferSource(`${from} ${subject} ${body}`),
+        status: "no_jobs",
+        reason: null,
         method: "none",
         jobsFound: 0,
         jobsImported: 0,
         duplicates: 0,
-      });
-      continue;
+      };
+      emailReports.push(report);
+
+      if (!body && !snippet) {
+        report.status = "parse_failed";
+        report.reason = "Email body could not be decoded (no readable text or HTML part)";
+        continue;
+      }
+
+      emails.push({ subject, from, body, bodyText, snippet, report });
     }
-    const msg = await msgRes.json();
-
-    const header = (name: string) =>
-      msg.payload?.headers?.find((h: any) => h.name.toLowerCase() === name)?.value || "";
-
-    const subject = header("subject");
-    const from = header("from");
-    const snippet = (msg.snippet || "").replace(/\s+/g, " ").trim();
-
-    const { textPlain, textHtml } = collectMessageBodies(msg.payload);
-
-    let rawBody = "";
-    if (textPlain.length > 0) {
-      rawBody = textPlain.join("\n");
-    } else if (textHtml.length > 0) {
-      rawBody = textHtml.join("\n");
-    } else if (msg.payload?.body?.data) {
-      rawBody = decodeQuotedPrintable(
-        decodeBase64UrlToUtf8(msg.payload.body.data)
-      );
-    }
-
-    const bodyText = htmlToTextWithLineBreaks(rawBody);
-    const body = bodyText.replace(/\s+/g, " ").trim();
-
-    const report: EmailReport = {
-      subject,
-      from,
-      source: inferSource(`${from} ${subject} ${body}`),
-      status: "no_jobs",
-      reason: null,
-      method: "none",
-      jobsFound: 0,
-      jobsImported: 0,
-      duplicates: 0,
-    };
-    emailReports.push(report);
-
-    if (!body && !snippet) {
-      report.status = "rejected";
-      report.reason = "Email body could not be decoded (no readable text or HTML part)";
-      continue;
-    }
-
-    emails.push({ subject, from, body, bodyText, snippet, report });
   }
 
   const emailsScanned = emailReports.length;
+  log("gmail_fetch_message", "ok", { scanned: emailsScanned });
 
-  // Step 3 — Pre-filter: only emails with job signals
+  // ── Stage: relevance pre-filter ──
   const relevantEmails = emails.filter((e) => {
     const isJobEmail = looksLikeJobEmail(`${e.from} ${e.subject} ${e.snippet} ${e.body}`);
     if (!isJobEmail) {
@@ -711,13 +841,16 @@ export async function syncGmailJobs(options: {
     }
     return isJobEmail;
   });
-  console.log(
-    `Emails fetched: ${emailsScanned}, job alerts detected: ${relevantEmails.length}`
-  );
+  log("parse", "start", { scanned: emailsScanned, jobAlerts: relevantEmails.length });
 
   const finish = async (jobs: any[]) => {
     await touchSync();
-    const applicationsMatched = await rematchApplications(adminClient, profileId);
+    let applicationsMatched = 0;
+    try {
+      applicationsMatched = await rematchApplications(adminClient, profileId);
+    } catch (e) {
+      noteError(new SyncError("persist", "APPLICATION_MATCH_FAILED", "Could not re-match applications to imported jobs."));
+    }
     const report: SyncReport = {
       emailsScanned,
       jobAlertsDetected: relevantEmails.length,
@@ -730,28 +863,58 @@ export async function syncGmailJobs(options: {
       emails: emailReports,
     };
     logReport(report);
-    return { jobs, emailCount: relevantEmails.length, report };
+    log("summary", "ok", {
+      scanned: report.emailsScanned,
+      imported: report.jobsImported,
+      duplicates: report.duplicatesSkipped,
+      rejected: report.emailsRejected,
+      parseFailures: report.parseFailures,
+      durationMs: Date.now() - startedMs,
+    });
+    return { jobs, emailCount: relevantEmails.length, report, errors };
   };
 
-  if (relevantEmails.length === 0) {
-    return await finish([]);
-  }
+  if (relevantEmails.length === 0) return await finish([]);
 
-
-  // Step 4 — AI extraction (one call per email)
+  // ── Stage: extraction ──
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-
   const allExtractedJobs: any[] = [];
-  let aiUnavailable = false;
+  let aiUnavailable = !LOVABLE_API_KEY;
+  if (!LOVABLE_API_KEY) {
+    noteError(new SyncError("parse", "AI_KEY_MISSING", "AI parsing is unavailable — falling back to the pattern parser."));
+  }
 
   for (const email of relevantEmails) {
     const { subject, body, snippet, report: er } = email;
 
+    const pushFallbackJobs = (reason: string) => {
+      let fallbackJobs: any[] = [];
+      try {
+        fallbackJobs = fallbackExtractJobsFromEmail(email);
+      } catch (e) {
+        fallbackJobs = [];
+      }
+      er.method = "fallback";
+      if (fallbackJobs.length > 0) {
+        for (const j of fallbackJobs) {
+          j._sourceSubject = subject;
+          j._report = er;
+        }
+        allExtractedJobs.push(...fallbackJobs);
+        er.jobsFound += fallbackJobs.length;
+        er.reason = `AI parse unavailable (${reason}) — rescued ${fallbackJobs.length} job(s) with the pattern parser`;
+      } else {
+        er.status = "parse_failed";
+        er.reason = `Could not parse any job from this email (${reason}); pattern parser found no title/company pair`;
+      }
+    };
 
-    // Limit body to keep prompt manageable but allow enough for multi-job emails
+    if (aiUnavailable || outOfBudget()) {
+      pushFallbackJobs(outOfBudget() ? "time budget reached" : "AI unavailable");
+      continue;
+    }
+
     const truncatedBody = body.slice(0, 5000);
-
     const prompt = `You are parsing a job alert email. Extract every job listing mentioned. Return ONLY a valid JSON array, no other text, no markdown fences.
 
 EMAIL SUBJECT: ${subject}
@@ -776,63 +939,35 @@ Rules:
 - If a job has no URL still include it with url set to null
 - Return [] if no real job listings are found
 - Never invent or guess any field
-- Keep snippet SHORT (under 100 chars) to avoid long output
+- Keep snippet SHORT (under 100 chars)
 - Return raw JSON array only`;
 
-    const pushFallbackJobs = (reason: string) => {
-      const fallbackJobs = fallbackExtractJobsFromEmail(email);
-      er.method = "fallback";
-      if (fallbackJobs.length > 0) {
-        for (const j of fallbackJobs) {
-          j._sourceSubject = subject;
-          j._report = er;
-        }
-        allExtractedJobs.push(...fallbackJobs);
-        er.jobsFound += fallbackJobs.length;
-        er.reason = `AI parse unavailable (${reason}) — rescued ${fallbackJobs.length} job(s) with the pattern parser`;
-      } else {
-        er.status = "parse_failed";
-        er.reason = `Could not parse any job from this email (${reason}); pattern parser found no title/company pair`;
-      }
-      console.log(
-        `[Gmail Sync] Fallback extracted ${fallbackJobs.length} jobs from: ${subject.slice(0, 60)} (${reason})`
-      );
-    };
-
-    if (aiUnavailable) {
-      pushFallbackJobs("AI quota exhausted");
-      continue;
-    }
-
-
     try {
-      const aiRes = await fetch(
-        "https://ai.gateway.lovable.dev/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "google/gemini-2.5-flash-lite",
-            temperature: 0.0,
-            max_tokens: 1200,
-            messages: [{ role: "user", content: prompt }],
-          }),
-        }
-      );
+      const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash-lite",
+          temperature: 0.0,
+          max_tokens: 1200,
+          messages: [{ role: "user", content: prompt }],
+        }),
+        signal: AbortSignal.timeout(25_000),
+      });
 
       if (!aiRes.ok) {
         const status = aiRes.status;
-        if (status === 429) {
-          console.warn("Rate limited, pausing...");
-          await new Promise((r) => setTimeout(r, 2000));
-        } else if (status === 402) {
+        if (status === 402 || status === 429) {
           aiUnavailable = true;
-          console.warn("AI unavailable (402). Falling back to parser for all remaining emails.");
-        } else {
-          console.error("AI error:", status);
+          noteError(
+            new SyncError(
+              "parse",
+              status === 402 ? "AI_CREDITS_EXHAUSTED" : "AI_RATE_LIMITED",
+              status === 402
+                ? "AI parsing credits are exhausted — used the pattern parser instead."
+                : "AI parsing was rate limited — used the pattern parser instead."
+            )
+          );
         }
         pushFallbackJobs(`AI request failed with HTTP ${status}`);
         continue;
@@ -841,31 +976,16 @@ Rules:
       const aiData = await aiRes.json();
       const raw = aiData.choices?.[0]?.message?.content || "";
       const finishReason = aiData.choices?.[0]?.finish_reason;
-      console.log(
-        `[Gmail Sync] AI response for "${subject.slice(0, 50)}": ${raw.length} chars, finish_reason: ${finishReason}`
-      );
 
       let cleaned = raw.replace(/```json|```/g, "").trim();
       let repaired = false;
-
-      // Repair truncated JSON: if the response was cut off, try to close the array
-      if (
-        finishReason === "length" ||
-        (!cleaned.endsWith("]") && cleaned.includes("{"))
-      ) {
+      if (finishReason === "length" || (!cleaned.endsWith("]") && cleaned.includes("{"))) {
         repaired = true;
-        console.warn(
-          `[Gmail Sync] Truncated AI response for: ${subject.slice(0, 50)}, attempting repair`
-        );
         const lastCompleteObj = cleaned.lastIndexOf("}");
         if (lastCompleteObj > 0) {
           cleaned = cleaned.slice(0, lastCompleteObj + 1);
-          if (!cleaned.endsWith("]")) {
-            cleaned += "]";
-          }
-          if (!cleaned.startsWith("[")) {
-            cleaned = "[" + cleaned;
-          }
+          if (!cleaned.endsWith("]")) cleaned += "]";
+          if (!cleaned.startsWith("[")) cleaned = "[" + cleaned;
         }
       }
 
@@ -878,46 +998,36 @@ Rules:
         allExtractedJobs.push(...jobs);
         er.method = "ai";
         er.jobsFound += jobs.length;
-        if (repaired) {
-          er.reason = "AI response was truncated — repaired and recovered the complete listings";
-        }
-        console.log(
-          `[Gmail Sync] Extracted ${jobs.length} jobs from: ${subject.slice(0, 60)}`
-        );
+        if (repaired) er.reason = "AI response was truncated — repaired and recovered the listings";
       } else {
         pushFallbackJobs("AI returned no listings");
       }
     } catch (e) {
-      console.error("AI extraction error for email:", subject, e);
-      pushFallbackJobs(`AI response was not valid JSON: ${(e as Error).message}`);
+      pushFallbackJobs(`AI response was not usable: ${(e as Error).name}`);
       continue;
     }
 
-
-    // Stagger calls 300ms apart
-    await new Promise((r) => setTimeout(r, 300));
+    await new Promise((r) => setTimeout(r, 150));
   }
 
-  // Step 5 — Deduplicate against existing DB rows (last 60 days)
-  const normalize = (str: string) =>
-    str?.toLowerCase().trim().replace(/\s+/g, " ") || "";
+  // ── Stage: dedupe ──
+  const normalize = (str: string) => str?.toLowerCase().trim().replace(/\s+/g, " ") || "";
 
-  const { data: existingJobs } = await adminClient
+  const sixtyDaysAgo = new Date(Date.now() - 60 * 86400000).toISOString();
+  const { data: existingJobs, error: existingErr } = await adminClient
     .from("imported_jobs")
     .select("title, company")
     .eq("profile_id", profileId)
-    .gte(
-      "imported_at",
-      new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
-    );
+    .gte("imported_at", sixtyDaysAgo);
+
+  if (existingErr) {
+    noteError(new SyncError("dedupe", "DB_READ_FAILED", "Could not read previously imported jobs — duplicates may be re-imported."));
+  }
 
   const existingSet = new Set(
-    existingJobs?.map(
-      (j: any) => `${normalize(j.title)}__${normalize(j.company)}`
-    ) || []
+    existingJobs?.map((j: any) => `${normalize(j.title)}__${normalize(j.company)}`) || []
   );
 
-  // Also deduplicate within the batch
   const seenInBatch = new Set<string>();
   const newJobs = allExtractedJobs.filter((j) => {
     const rep: EmailReport | undefined = j._report;
@@ -943,9 +1053,8 @@ Rules:
 
   for (const rep of emailReports) {
     if (rep.status === "rejected" || rep.status === "parse_failed") continue;
-    if (rep.jobsImported > 0) {
-      rep.status = "imported";
-    } else if (rep.duplicates > 0) {
+    if (rep.jobsImported > 0) rep.status = "imported";
+    else if (rep.duplicates > 0) {
       rep.status = "duplicate";
       rep.reason = `All ${rep.duplicates} listing(s) already imported previously`;
     } else if (rep.jobsFound === 0) {
@@ -954,28 +1063,23 @@ Rules:
     }
   }
 
-  console.log(
-    `Extracted: ${allExtractedJobs.length}, new after dedup: ${newJobs.length}`
-  );
+  log("dedupe", "ok", { extracted: allExtractedJobs.length, newJobs: newJobs.length });
 
-
-  // Step 6 — Fetch full job descriptions for jobs with URLs
+  // ── Stage: enrich (best effort, budget-capped) ──
+  let enriched = 0;
   for (const job of newJobs) {
-    if (job.url) {
-      const { description, urlVerified } = await fetchJobDescription(job.url);
-      job._description = description;
-      job._urlVerified = urlVerified;
-      job._descriptionFetchedAt = new Date().toISOString();
-      // 500ms stagger between description fetches
-      await new Promise((r) => setTimeout(r, 500));
-    } else {
-      job._description = null;
-      job._urlVerified = false;
-      job._descriptionFetchedAt = null;
-    }
+    job._description = null;
+    job._urlVerified = false;
+    job._descriptionFetchedAt = null;
+    if (!job.url || enriched >= MAX_DESCRIPTION_FETCHES || outOfBudget()) continue;
+    enriched++;
+    const { description, urlVerified } = await fetchJobDescription(job.url);
+    job._description = description;
+    job._urlVerified = urlVerified;
+    job._descriptionFetchedAt = new Date().toISOString();
   }
 
-  // Step 7 — Insert into Supabase
+  // ── Stage: persist ──
   if (newJobs.length > 0) {
     const rows = newJobs.map((j: any) => ({
       profile_id: profileId,
@@ -995,147 +1099,203 @@ Rules:
 
     const { error: insertErr } = await adminClient
       .from("imported_jobs")
-      .upsert(rows, {
-        onConflict: "profile_id,title,company",
-        ignoreDuplicates: true,
-      });
+      .upsert(rows, { onConflict: "profile_id,title,company", ignoreDuplicates: true });
 
-    if (insertErr) console.error("Error inserting imported jobs:", insertErr);
+    if (insertErr) {
+      log("persist", "error", { code: "DB_INSERT_FAILED" });
+      throw new SyncError("persist", "DB_INSERT_FAILED", "Could not save the imported jobs to the database.");
+    }
+    log("persist", "ok", { inserted: rows.length });
   }
 
   return await finish(newJobs);
 }
 
+/** Build the structured API response shape from a report */
+export function buildSyncResult(params: {
+  requestId: string;
+  report: SyncReport | null;
+  jobs: any[];
+  errors: SyncErrorItem[];
+  syncStartedAt: string;
+  success: boolean;
+  extra?: Record<string, unknown>;
+}): SyncResult {
+  const { report, jobs, errors, requestId, syncStartedAt, success } = params;
+  return {
+    success,
+    requestId,
+    scanned: report?.emailsScanned ?? 0,
+    imported: report?.jobsImported ?? 0,
+    skipped: report ? report.duplicatesSkipped + report.emailsRejected : 0,
+    failed: report?.parseFailures ?? 0,
+    syncStartedAt,
+    syncCompletedAt: new Date().toISOString(),
+    errors,
+    report,
+    jobs,
+    ...(params.extra ?? {}),
+  };
+}
+
+async function saveSummary(adminClient: any, profileId: string, result: SyncResult) {
+  try {
+    await adminClient.from("gmail_sync_metadata").upsert(
+      {
+        profile_id: profileId,
+        last_sync_status: result.success ? "success" : "error",
+        last_sync_summary: {
+          scanned: result.scanned,
+          imported: result.imported,
+          skipped: result.skipped,
+          failed: result.failed,
+          errors: result.errors,
+          report: result.report,
+        },
+        last_sync_started_at: result.syncStartedAt,
+        last_sync_completed_at: result.syncCompletedAt,
+        last_sync_error: result.errors[0]?.message ?? null,
+      },
+      { onConflict: "profile_id" }
+    );
+  } catch (e) {
+    console.error(`[gmail-sync] rid=${result.requestId} stage=summary status=error code=SUMMARY_SAVE_FAILED`);
+  }
+}
 
 // ─── HTTP handler (manual trigger from frontend) ───
 serve(async (req) => {
-  if (req.method === "OPTIONS")
-    return new Response(null, { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const requestId = crypto.randomUUID();
+  const syncStartedAt = new Date().toISOString();
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+
+  let adminClient: any = null;
+  let profileId: string | null = null;
+  let log = makeLogger(requestId, "anonymous");
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Not authenticated");
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey =
-      Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ??
-      Deno.env.get("SUPABASE_ANON_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY")!;
+
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) throw new SyncError("auth", "NOT_AUTHENTICATED", "You are signed out. Please sign in again.");
 
     const anonClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const {
-      data: { user },
-      error: userError,
-    } = await anonClient.auth.getUser();
-    if (userError || !user) throw new Error("Not authenticated");
+    const { data: { user }, error: userError } = await anonClient.auth.getUser();
+    if (userError || !user)
+      throw new SyncError("auth", "NOT_AUTHENTICATED", "Your session has expired. Please sign in again.");
 
-    const adminClient = createClient(supabaseUrl, supabaseKey);
+    log = makeLogger(requestId, user.id);
+    log("auth", "ok");
 
-    // Get profile
+    adminClient = createClient(supabaseUrl, supabaseKey);
+
     const { data: profile } = await adminClient
-      .from("profiles")
-      .select("id")
-      .eq("user_id", user.id)
-      .single();
-    if (!profile) throw new Error("Profile not found");
+      .from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+    if (!profile) throw new SyncError("profile", "PROFILE_NOT_FOUND", "We could not find your profile record.");
+    profileId = profile.id;
+    log("profile", "ok");
 
-    const { providerToken, refreshToken, useRefreshToken } = await req.json();
-    
-    console.log("[Gmail Sync] providerToken:", providerToken ? "present" : "missing");
-    console.log("[Gmail Sync] refreshToken:", refreshToken ? `present (${refreshToken.slice(0, 10)}...)` : "missing");
-    console.log("[Gmail Sync] useRefreshToken flag:", useRefreshToken);
-    
-    let accessToken = providerToken;
-
-    // If no provider token but we have a refresh token, use it to get a fresh access token
-    if (!accessToken && useRefreshToken && refreshToken) {
-      console.log("No provider token — refreshing via stored refresh token");
-      accessToken = await refreshAccessToken(refreshToken);
-      console.log("[Gmail Sync] Successfully refreshed access token");
-    } else if (!accessToken) {
-      // Try to get stored refresh token from DB
-      const { data: storedMeta } = await adminClient
-        .from("gmail_sync_metadata")
-        .select("refresh_token")
-        .eq("profile_id", profile.id)
-        .single();
-
-      if (storedMeta?.refresh_token) {
-        console.log("[Gmail Sync] Using stored refresh token from DB:", storedMeta.refresh_token.slice(0, 10) + "...");
-        accessToken = await refreshAccessToken(storedMeta.refresh_token);
-      } else {
-        console.log("[Gmail Sync] No stored refresh token — Gmail not connected");
-        return new Response(JSON.stringify({ error: "Gmail not connected. Please connect your Gmail account first.", notConnected: true, jobs: [], emailCount: 0 }), {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch {
+      body = {};
     }
+    const { providerToken, refreshToken } = body;
 
-    // Store refresh token if provided
+    let accessToken: string | null = providerToken ?? null;
+    log("token", "start", { providerToken: accessToken ? "present" : "missing" });
+
     if (refreshToken) {
-      console.log("[Gmail Sync] Saving refresh token to DB for profile:", profile.id);
       await adminClient
         .from("gmail_sync_metadata")
-        .upsert(
-          { profile_id: profile.id, refresh_token: refreshToken },
-          { onConflict: "profile_id" }
-        );
-      console.log("[Gmail Sync] Refresh token saved successfully");
+        .upsert({ profile_id: profileId, refresh_token: refreshToken }, { onConflict: "profile_id" });
     }
 
-    // Get last sync time
+    if (!accessToken) {
+      const storedToken = refreshToken ?? (await adminClient
+        .from("gmail_sync_metadata")
+        .select("refresh_token")
+        .eq("profile_id", profileId)
+        .maybeSingle()).data?.refresh_token;
+
+      if (!storedToken) {
+        log("token", "warn", { code: "GMAIL_NOT_CONNECTED" });
+        const result = buildSyncResult({
+          requestId, report: null, jobs: [], syncStartedAt, success: false,
+          errors: [{ stage: "token", code: "GMAIL_NOT_CONNECTED", message: "Gmail is not connected. Connect your Gmail account to import job alerts." }],
+          extra: { notConnected: true, error: "Gmail not connected. Please connect your Gmail account first.", emailCount: 0 },
+        });
+        return json(result);
+      }
+
+      log("token_refresh", "start");
+      accessToken = await refreshAccessToken(storedToken);
+      log("token_refresh", "ok");
+    }
+
     const { data: syncMeta } = await adminClient
       .from("gmail_sync_metadata")
       .select("last_synced_at")
-      .eq("profile_id", profile.id)
-      .single();
+      .eq("profile_id", profileId)
+      .maybeSingle();
 
-    const result = await syncGmailJobs({
-      accessToken,
-      profileId: profile.id,
+    const { jobs, report, errors } = await syncGmailJobs({
+      accessToken: accessToken!,
+      profileId: profileId!,
       adminClient,
       lastSyncedAt: syncMeta?.last_synced_at || null,
+      requestId,
+      userId: user.id,
     });
 
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const result = buildSyncResult({
+      requestId, report, jobs, errors, syncStartedAt, success: true,
+      extra: { emailCount: report.jobAlertsDetected },
     });
-  } catch (err: any) {
-    console.error("fetch-gmail-jobs error:", err);
+    await saveSummary(adminClient, profileId!, result);
+    return json(result);
+  } catch (rawErr: any) {
+    const err: SyncError =
+      rawErr instanceof SyncError
+        ? rawErr
+        : rawErr?.message === "GOOGLE_TOKEN_EXPIRED"
+        ? new SyncError("token_refresh", "GOOGLE_TOKEN_EXPIRED", "Your Google connection has expired. Please re-connect Gmail to continue syncing jobs.")
+        : new SyncError("summary", "UNEXPECTED_ERROR", "The sync failed unexpectedly. Please retry.");
 
-    // If token is expired/revoked, disable sync and return a friendly message
-    if (err.message === "GOOGLE_TOKEN_EXPIRED") {
+    log(err.stage, "error", { code: err.code, message: err.message, httpStatus: err.httpStatus });
+    console.error(`[gmail-sync] rid=${requestId} unhandled:`, rawErr?.name, rawErr?.message);
+
+    if (err.code === "GOOGLE_TOKEN_EXPIRED" && adminClient && profileId) {
       try {
-        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-        const adminClient = createClient(supabaseUrl, supabaseKey);
-        const authHeader = req.headers.get("Authorization");
-        const anonKey = Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY")!;
-        const anonClient = createClient(supabaseUrl, anonKey, {
-          global: { headers: { Authorization: authHeader! } },
-        });
-        const { data: { user } } = await anonClient.auth.getUser();
-        if (user) {
-          const { data: profile } = await adminClient.from("profiles").select("id").eq("user_id", user.id).single();
-          if (profile) {
-            await adminClient.from("gmail_sync_metadata").update({ enabled: false, refresh_token: null }).eq("profile_id", profile.id);
-          }
-        }
-      } catch (disableErr) {
-        console.error("Failed to disable sync after token expiry:", disableErr);
-      }
-      return new Response(JSON.stringify({ error: "Your Google connection has expired. Please re-connect Gmail to continue syncing jobs.", tokenExpired: true }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+        await adminClient
+          .from("gmail_sync_metadata")
+          .update({ enabled: false, refresh_token: null })
+          .eq("profile_id", profileId);
+      } catch { /* non-fatal */ }
     }
 
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const result = buildSyncResult({
+      requestId, report: null, jobs: [], syncStartedAt, success: false,
+      errors: [{ stage: err.stage, code: err.code, message: err.message }],
+      extra: {
+        error: err.message,
+        tokenExpired: err.code === "GOOGLE_TOKEN_EXPIRED" || err.code === "GMAIL_UNAUTHORIZED",
+        emailCount: 0,
+      },
     });
+
+    if (adminClient && profileId) await saveSummary(adminClient, profileId, result);
+    return json(result);
   }
 });
