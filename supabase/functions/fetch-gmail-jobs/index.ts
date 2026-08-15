@@ -1271,6 +1271,8 @@ serve(async (req) => {
         ? rawErr
         : rawErr?.message === "GOOGLE_TOKEN_EXPIRED"
         ? new SyncError("token_refresh", "GOOGLE_TOKEN_EXPIRED", "Your Google connection has expired. Please re-connect Gmail to continue syncing jobs.")
+        : typeof rawErr?.message === "string" && rawErr.message.startsWith("Failed to refresh Google token")
+        ? new SyncError("token_refresh", "OAUTH_REFRESH_FAILED", "Google refused to refresh your Gmail access. Please re-connect Gmail.")
         : new SyncError("summary", "UNEXPECTED_ERROR", "The sync failed unexpectedly. Please retry.");
 
     log(err.stage, "error", { code: err.code, message: err.message, httpStatus: err.httpStatus });
