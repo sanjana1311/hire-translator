@@ -179,6 +179,11 @@ export type Database = {
           enabled: boolean
           id: string
           last_rejection_sync_at: string | null
+          last_sync_completed_at: string | null
+          last_sync_error: string | null
+          last_sync_started_at: string | null
+          last_sync_status: string | null
+          last_sync_summary: Json | null
           last_synced_at: string | null
           profile_id: string
           refresh_token: string | null
@@ -189,6 +194,11 @@ export type Database = {
           enabled?: boolean
           id?: string
           last_rejection_sync_at?: string | null
+          last_sync_completed_at?: string | null
+          last_sync_error?: string | null
+          last_sync_started_at?: string | null
+          last_sync_status?: string | null
+          last_sync_summary?: Json | null
           last_synced_at?: string | null
           profile_id: string
           refresh_token?: string | null
@@ -199,6 +209,11 @@ export type Database = {
           enabled?: boolean
           id?: string
           last_rejection_sync_at?: string | null
+          last_sync_completed_at?: string | null
+          last_sync_error?: string | null
+          last_sync_started_at?: string | null
+          last_sync_status?: string | null
+          last_sync_summary?: Json | null
           last_synced_at?: string | null
           profile_id?: string
           refresh_token?: string | null
