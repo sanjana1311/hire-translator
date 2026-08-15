@@ -22,7 +22,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { data: workspaces = [], isLoading } = useWorkspaces();
   const { data: profile } = useProfile();
-  const { syncReport, syncReportAt, syncError, loading: gmailLoading, triggerSync } = useGmailImport(profile?.id ?? null);
+  const { syncReport, syncReportAt, syncCounts, syncErrors, syncError, loading: gmailLoading, triggerSync } = useGmailImport(profile?.id ?? null);
   const recentWorkspaces = workspaces.slice(0, 3);
 
   return (
@@ -33,6 +33,8 @@ const Dashboard = () => {
 
         <GmailSyncSummary
           report={syncReport}
+          counts={syncCounts}
+          errors={syncErrors}
           syncedAt={syncReportAt}
           loading={gmailLoading}
           error={syncError}
