@@ -96,28 +96,20 @@ export async function saveJobScore(params: {
     analysis: analysis as any,
   };
 
-  const { data: existing } = await supabase
+  let lookup = supabase
     .from("job_scores" as any)
     .select("id")
     .eq("profile_id", profileId)
-    .eq("imported_job_id", jobId)
-    .is("resume_id", resumeId ? (undefined as any) : null)
-    .maybeSingle();
+    .eq("imported_job_id", jobId);
+  lookup = resumeId ? lookup.eq("resume_id", resumeId) : lookup.is("resume_id", null);
+  const { data: existing } = await lookup.maybeSingle();
 
-  if (resumeId) {
-    const { data: row } = await supabase
+  if (existing) {
+    const { error } = await supabase
       .from("job_scores" as any)
-      .select("id")
-      .eq("profile_id", profileId)
-      .eq("imported_job_id", jobId)
-      .eq("resume_id", resumeId)
-      .maybeSingle();
-    if (row) {
-      await supabase.from("job_scores" as any).update(payload).eq("id", (row as any).id);
-      return;
-    }
-  } else if (existing) {
-    await supabase.from("job_scores" as any).update(payload).eq("id", (existing as any).id);
+      .update(payload)
+      .eq("id", (existing as any).id);
+    if (error) console.error("[job-scores] update failed:", error.message);
     return;
   }
 
