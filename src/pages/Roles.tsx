@@ -258,11 +258,20 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
       if (parsed) {
         const normalized = normalizeAnalysis(parsed);
         scoreResult = normalized;
-        setResults(prev => ({ ...prev, [job.id]: normalized }));
+        // Merge: adds/updates only this job, keeps all other scores visible.
+        setResults(prev => mergeScores(prev, { [job.id]: normalized }));
         await supabase
           .from("imported_jobs")
           .update({ analysis: normalized as any, status: "scored" })
           .eq("id", job.id);
+        if (profile?.id) {
+          await saveJobScore({
+            profileId: profile.id,
+            jobId: job.id,
+            resumeId: resumeData?.id ?? null,
+            analysis: normalized,
+          });
+        }
       } else {
         const errResult = failedAnalysis();
         setResults(prev => ({ ...prev, [job.id]: errResult }));
