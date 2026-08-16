@@ -106,7 +106,10 @@ describe("score persistence + tailoring isolation", () => {
   });
 
   it("re-scoring replaces only that job's entry", () => {
-    let results = { "job-a": makeScore(70, "a"), "job-b": makeScore(40, "b") };
+    let results: Record<string, ReturnType<typeof makeScore>> = {
+      "job-a": makeScore(70, "a"),
+      "job-b": makeScore(40, "b"),
+    };
     results = mergeScores(removeScore(results, "job-a"), { "job-a": makeScore(88, "a2") });
     expect(results["job-a"].score).toBe(88);
     expect(results["job-b"].score).toBe(40);
