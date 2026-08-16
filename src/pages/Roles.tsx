@@ -186,12 +186,14 @@ const Roles = () => {
       return;
     }
     if (force) {
-      setResults(prev => { const n = { ...prev }; delete n[job.id]; return n; });
+      // Only this job's score is cleared — every other saved score stays.
+      setResults(prev => removeScore(prev, job.id));
       setDone(prev => Math.max(0, prev - 1));
       await supabase
         .from("imported_jobs")
         .update({ analysis: null, status: "new" } as any)
         .eq("id", job.id);
+      if (profile?.id) await deleteJobScore(profile.id, job.id);
     }
     await analyzeJob(job);
   };
