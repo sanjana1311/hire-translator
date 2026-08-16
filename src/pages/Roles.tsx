@@ -47,15 +47,7 @@ const Tag = ({ children }: { children: React.ReactNode }) => (
   </span>
 );
 
-interface AnalysisResult {
-  score: number;
-  bucket: string;
-  matchSummary: string;
-  strengths: string[];
-  gaps: string[];
-  missingKeywords: string[];
-  error?: boolean;
-}
+type AnalysisResult = ScoreAnalysis;
 
 export interface ImportedJob {
   id: string;
