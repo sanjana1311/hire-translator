@@ -135,20 +135,24 @@ const Roles = () => {
 
       const loadedResults: Record<string, AnalysisResult> = {};
       const loadedResumes: Record<string, string> = {};
-      let scored = 0;
       for (const job of mapped) {
         if (job.analysis && !job.analysis.error) {
           loadedResults[job.id] = normalizeAnalysis(job.analysis);
-
-          scored++;
         }
         if (job.tailored_resume) {
           loadedResumes[job.id] = job.tailored_resume;
         }
       }
-      setResults(prev => ({ ...prev, ...loadedResults }));
+
+      // Authoritative store: every score ever saved for this user, keyed by
+      // profile + job + resume version. Loaded on every mount/refresh and
+      // merged so no previously scored job is ever dropped.
+      const persisted = await loadJobScores(profile.id);
+      const merged = mergeScores(loadedResults, persisted);
+
+      setResults(prev => mergeScores(prev, merged));
       setResumes(prev => ({ ...prev, ...loadedResumes }));
-      setDone(scored);
+      setDone(Object.keys(merged).length);
     }
 
     const { data: apps } = await supabase
