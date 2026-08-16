@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { callConfiguredAI } from "../_shared/ai-provider.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -877,12 +878,8 @@ export async function syncGmailJobs(options: {
   if (relevantEmails.length === 0) return await finish([]);
 
   // ── Stage: extraction ──
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   const allExtractedJobs: any[] = [];
-  let aiUnavailable = !LOVABLE_API_KEY;
-  if (!LOVABLE_API_KEY) {
-    noteError(new SyncError("parse", "AI_KEY_MISSING", "AI parsing is unavailable — falling back to the pattern parser."));
-  }
+  let aiUnavailable = false;
 
   for (const email of relevantEmails) {
     const { subject, body, snippet, report: er } = email;
@@ -943,39 +940,20 @@ Rules:
 - Return raw JSON array only`;
 
     try {
-      const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash-lite",
-          temperature: 0.0,
-          max_tokens: 1200,
-          messages: [{ role: "user", content: prompt }],
-        }),
-        signal: AbortSignal.timeout(25_000),
+      const aiResult = await callConfiguredAI({
+        requestId,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0,
+        maxTokens: 1200,
       });
-
-      if (!aiRes.ok) {
-        const status = aiRes.status;
-        if (status === 402 || status === 429) {
-          aiUnavailable = true;
-          noteError(
-            new SyncError(
-              "parse",
-              status === 402 ? "AI_CREDITS_EXHAUSTED" : "AI_RATE_LIMITED",
-              status === 402
-                ? "AI parsing credits are exhausted — used the pattern parser instead."
-                : "AI parsing was rate limited — used the pattern parser instead."
-            )
-          );
-        }
-        pushFallbackJobs(`AI request failed with HTTP ${status}`);
+      if (!aiResult) {
+        aiUnavailable = true;
+        noteError(new SyncError("parse", "AI_UNAVAILABLE", "No configured AI provider responded — used the pattern parser instead."));
+        pushFallbackJobs("all configured AI providers failed");
         continue;
       }
-
-      const aiData = await aiRes.json();
-      const raw = aiData.choices?.[0]?.message?.content || "";
-      const finishReason = aiData.choices?.[0]?.finish_reason;
+      const raw = aiResult.text;
+      const finishReason = undefined;
 
       let cleaned = raw.replace(/```json|```/g, "").trim();
       let repaired = false;
