@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { callConfiguredAI } from "../_shared/ai-provider.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,8 +11,8 @@ const corsHeaders = {
 // ─── AI helpers ───────────────────────────────────────────────────────
 
 interface AICallOpts {
-  apiKey: string;
-  model: string;
+  apiKey?: string;
+  model?: string;
   temperature: number;
   topP: number;
   system: string;
@@ -20,70 +21,20 @@ interface AICallOpts {
   toolChoice?: any;
 }
 
-const AI_TIMEOUT_MS = 110_000;
-
 async function callAI(opts: AICallOpts): Promise<any> {
-  const body: any = {
-    model: opts.model,
-    temperature: opts.temperature,
-    top_p: opts.topP,
+  const result = await callConfiguredAI({
     messages: [
       { role: "system", content: opts.system },
       { role: "user", content: opts.user },
     ],
-  };
-  if (opts.tools) {
-    body.tools = opts.tools;
-    body.tool_choice = opts.toolChoice;
-  }
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
-
-  let res: Response;
-  try {
-    res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        // The gateway authenticates on this header — not `Authorization: Bearer`.
-        "Lovable-API-Key": opts.apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-  } catch (e) {
-    if ((e as any)?.name === "AbortError") {
-      throw { status: 504, message: "The AI took too long to respond. Please try again." };
-    }
-    throw { status: 502, message: "Could not reach the AI service. Please try again." };
-  } finally {
-    clearTimeout(timer);
-  }
-
-  if (!res.ok) {
-    const status = res.status;
-    const errText = await res.text();
-    console.error("AI gateway error:", status, errText.slice(0, 800));
-    if (status === 429) throw { status: 429, message: "Rate limit exceeded. Please try again in a moment." };
-    if (status === 402) throw { status: 402, message: "AI credits exhausted. Please add credits to continue." };
-    if (status === 401 || status === 403) throw { status: 500, message: "AI service rejected our credentials. Please contact support." };
-    if (status === 400) throw { status: 502, message: `The AI rejected the request (${status}). Please try again.` };
-    throw { status: 502, message: `AI service error (${status}). Please try again.` };
-  }
-
-  const data = await res.json();
-  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-  if (toolCall) {
-    try {
-      return JSON.parse(toolCall.function.arguments);
-    } catch (_e) {
-      console.error("Tool argument parse failed:", String(toolCall.function.arguments).slice(0, 500));
-      throw { status: 502, message: "The AI returned an incomplete response. Please try again." };
-    }
-  }
-  const raw = data.choices?.[0]?.message?.content || "";
-  const jsonStr = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    temperature: opts.temperature,
+    topP: opts.topP,
+    maxTokens: 1800,
+    tools: opts.tools,
+    toolChoice: opts.toolChoice,
+  });
+  if (!result) throw { status: 503, message: "No AI provider is configured or available. Add OPENCODE_GO_API_KEY, GROQ_API_KEY, or LOVABLE_API_KEY and retry." };
+  const jsonStr = result.text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
   if (!jsonStr) throw { status: 502, message: "The AI returned an empty response. Please try again." };
   try {
     return JSON.parse(jsonStr);
@@ -308,11 +259,6 @@ serve(async (req) => {
       throw { status: 400, message: "No job workspace was selected. Please reopen the job and try again." };
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw { status: 503, message: "AI generation is temporarily unavailable. Please try again shortly." };
-    }
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !supabaseKey) {
@@ -355,7 +301,7 @@ serve(async (req) => {
 
       console.log("Step 1: JD Signal Mining...");
       const jdSignals = await callAI({
-        apiKey: LOVABLE_API_KEY, model: MODEL, temperature: 0.0, topP: 0.4,
+        model: MODEL, temperature: 0.0, topP: 0.4,
         system: `You are a hiring manager signal extractor. Return ONLY valid JSON. No prose. Do not hallucinate.`,
         user: `Extract structured hiring signals from this Job Description.
 
@@ -410,7 +356,7 @@ ${jobDescription}`,
 
       console.log("Step 2: Match Scoring...");
       const matchScore = await callAI({
-        apiKey: LOVABLE_API_KEY, model: MODEL, temperature: 0.0, topP: 0.4,
+        model: MODEL, temperature: 0.0, topP: 0.4,
         system: `You are a deterministic resume-job match scoring engine. Be honest. Do not inflate scores. Return ONLY valid JSON.
 
 Scoring rubric:
@@ -474,7 +420,7 @@ ${resumeText}`,
       const jdSignals = ws.jd_analysis as any;
 
       const projectResult = await callAI({
-        apiKey: LOVABLE_API_KEY, model: MODEL, temperature: 0.6, topP: 0.9,
+        model: MODEL, temperature: 0.6, topP: 0.9,
         system: `You are a portfolio project advisor for software engineers. Suggest realistic, completable projects.
 
 Rules:
@@ -541,7 +487,7 @@ ${JSON.stringify({
 
       console.log("Step 4: Resume Tailoring...");
       const tailored = await callAI({
-        apiKey: LOVABLE_API_KEY, model: MODEL, temperature: 0.3, topP: 0.85,
+        model: MODEL, temperature: 0.3, topP: 0.85,
         system: `You are a precision resume tailoring engine. You operate under STRICT truth boundaries.
 
 The base resume is canonical truth. You cannot expand it — only reshape it.

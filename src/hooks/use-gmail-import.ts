@@ -177,12 +177,16 @@ export function useGmailImport(profileId: string | null) {
       });
       setSyncErrors(summary.errors ?? []);
       setSyncReportAt(meta?.last_sync_completed_at ?? null);
-      if (meta?.last_sync_status === "error") {
-        setSyncError(meta?.last_sync_error ?? "Gmail sync failed. Please retry.");
-        setSyncStatus("error");
-      } else {
-        setSyncError(null);
-      }
+    }
+
+    // Preserve a server-side failure even when an older deployment did not
+    // persist a full summary. This keeps the dashboard actionable after a
+    // function crash instead of silently showing stale job data.
+    if (meta?.last_sync_status === "error") {
+      setSyncError(meta.last_sync_error ?? "Gmail sync failed. Please retry.");
+      setSyncStatus("error");
+    } else if (meta?.last_sync_status === "success") {
+      setSyncError(null);
     }
   }, [profileId]);
 

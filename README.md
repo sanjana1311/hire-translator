@@ -27,7 +27,7 @@ supabase secrets set \
   OPENCODE_GO_API_KEY="your-opencode-go-key"
 ```
 
-`GROQ_API_KEY` is optional. If provided, it is used as a fallback provider. Add Google OAuth or Resend secrets only when enabling those integrations.
+`GROQ_API_KEY` is optional. If provided, it is used as a fallback provider. The Edge Functions try OpenCode Go first, then Lovable AI when configured, then Groq. For a fully independent deployment, OpenCode Go or Groq is sufficient; Lovable credits are not required. Add Google OAuth or Resend secrets only when enabling those integrations.
 
 Never commit `.env`, service-role keys, provider keys, OAuth secrets, or user resumes. Only the Supabase publishable/anon key belongs in the browser configuration.
 
