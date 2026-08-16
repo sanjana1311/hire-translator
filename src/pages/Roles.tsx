@@ -714,8 +714,13 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
                 ) : r ? (
                   <div className="text-center py-16">
                     {tailorErrors[selected.id] ? (
-                      <div className="mx-auto mb-4 max-w-md rounded-md border border-destructive/30 bg-destructive/10 p-3 text-left">
-                        <p className="text-sm font-medium text-destructive">{tailorErrors[selected.id]}</p>
+                      <div className="mx-auto mb-4 max-w-md rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-left">
+                        <p className="text-sm font-medium text-destructive">
+                          We couldn't tailor your resume for this role just now.
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Your job score is saved and unchanged. {tailorErrors[selected.id]}
+                        </p>
                       </div>
                     ) : (
                       <p className="text-sm text-muted-foreground mb-4">Tailored resume not generated yet.</p>
@@ -724,7 +729,7 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
                       onClick={() => generateTailoredResume(selected)}
                       className="text-xs font-semibold px-5 py-2.5 rounded-xl bg-foreground text-background hover:opacity-90 transition-opacity"
                     >
-                      Generate Tailored Resume
+                      {tailorErrors[selected.id] ? "Retry tailoring" : "Generate Tailored Resume"}
                     </button>
                   </div>
                 ) : (
