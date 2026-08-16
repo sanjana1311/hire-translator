@@ -376,8 +376,9 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
         .eq("profile_id", profile.id);
       if (error) throw error;
       setJobs(prev => prev.filter(j => j.id !== job.id));
-      setResults(prev => { const n = { ...prev }; delete n[job.id]; return n; });
+      setResults(prev => removeScore(prev, job.id));
       setResumes(prev => { const n = { ...prev }; delete n[job.id]; return n; });
+      await deleteJobScore(profile.id, job.id);
       if (selected?.id === job.id) setSelected(null);
       toast.success("Job deleted");
     } catch (e: any) {
@@ -392,6 +393,7 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
         .from("imported_jobs")
         .update({ analysis: null, status: "new" } as any)
         .eq("id", id);
+      if (profile?.id) await deleteJobScore(profile.id, id);
     }
     setResults({});
     setDone(0);
