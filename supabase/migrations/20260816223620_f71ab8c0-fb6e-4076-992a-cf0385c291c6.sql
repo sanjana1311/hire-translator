@@ -1,0 +1,1 @@
+update public.profiles set onboarded = true, target_roles = array['Product Manager','Program Manager'] where user_id = 'cdec3dd6-a5d5-41e0-9c05-9e146d3b816a';
