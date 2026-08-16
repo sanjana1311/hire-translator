@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cleanText } from "@/lib/clean-text";
 import { parseJsonLoose, normalizeAnalysis, failedAnalysis } from "@/lib/safe-json";
+import { loadJobScores, saveJobScore, deleteJobScore, mergeScores, removeScore } from "@/lib/job-scores";
 import { buildTailorPrompt, validateTailoredResume, tailoredResumeToText, type TailoredResume } from "@/lib/resume-guard";
 import TailoredResumeView from "@/components/TailoredResumeView";
 import TailoredResumeDocument from "@/components/TailoredResumeDocument";
