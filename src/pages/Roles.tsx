@@ -10,7 +10,8 @@ import { useAIUsage } from "@/hooks/use-ai-usage";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cleanText } from "@/lib/clean-text";
-import { parseJsonLoose, normalizeAnalysis, failedAnalysis } from "@/lib/safe-json";
+import { parseJsonLoose, normalizeAnalysis, failedAnalysis, type ScoreAnalysis } from "@/lib/safe-json";
+import { loadJobScores, saveJobScore, deleteJobScore, mergeScores, removeScore } from "@/lib/job-scores";
 import { buildTailorPrompt, validateTailoredResume, tailoredResumeToText, type TailoredResume } from "@/lib/resume-guard";
 import TailoredResumeView from "@/components/TailoredResumeView";
 import TailoredResumeDocument from "@/components/TailoredResumeDocument";
@@ -46,15 +47,7 @@ const Tag = ({ children }: { children: React.ReactNode }) => (
   </span>
 );
 
-interface AnalysisResult {
-  score: number;
-  bucket: string;
-  matchSummary: string;
-  strengths: string[];
-  gaps: string[];
-  missingKeywords: string[];
-  error?: boolean;
-}
+type AnalysisResult = ScoreAnalysis;
 
 export interface ImportedJob {
   id: string;
@@ -134,20 +127,24 @@ const Roles = () => {
 
       const loadedResults: Record<string, AnalysisResult> = {};
       const loadedResumes: Record<string, string> = {};
-      let scored = 0;
       for (const job of mapped) {
         if (job.analysis && !job.analysis.error) {
           loadedResults[job.id] = normalizeAnalysis(job.analysis);
-
-          scored++;
         }
         if (job.tailored_resume) {
           loadedResumes[job.id] = job.tailored_resume;
         }
       }
-      setResults(prev => ({ ...prev, ...loadedResults }));
+
+      // Authoritative store: every score ever saved for this user, keyed by
+      // profile + job + resume version. Loaded on every mount/refresh and
+      // merged so no previously scored job is ever dropped.
+      const persisted = await loadJobScores(profile.id);
+      const merged = mergeScores(loadedResults, persisted);
+
+      setResults(prev => mergeScores(prev, merged));
       setResumes(prev => ({ ...prev, ...loadedResumes }));
-      setDone(scored);
+      setDone(Object.keys(merged).length);
     }
 
     const { data: apps } = await supabase
@@ -189,12 +186,14 @@ const Roles = () => {
       return;
     }
     if (force) {
-      setResults(prev => { const n = { ...prev }; delete n[job.id]; return n; });
+      // Only this job's score is cleared — every other saved score stays.
+      setResults(prev => removeScore(prev, job.id));
       setDone(prev => Math.max(0, prev - 1));
       await supabase
         .from("imported_jobs")
         .update({ analysis: null, status: "new" } as any)
         .eq("id", job.id);
+      if (profile?.id) await deleteJobScore(profile.id, job.id);
     }
     await analyzeJob(job);
   };
@@ -259,11 +258,20 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
       if (parsed) {
         const normalized = normalizeAnalysis(parsed);
         scoreResult = normalized;
-        setResults(prev => ({ ...prev, [job.id]: normalized }));
+        // Merge: adds/updates only this job, keeps all other scores visible.
+        setResults(prev => mergeScores(prev, { [job.id]: normalized }));
         await supabase
           .from("imported_jobs")
           .update({ analysis: normalized as any, status: "scored" })
           .eq("id", job.id);
+        if (profile?.id) {
+          await saveJobScore({
+            profileId: profile.id,
+            jobId: job.id,
+            resumeId: resumeData?.id ?? null,
+            analysis: normalized,
+          });
+        }
       } else {
         const errResult = failedAnalysis();
         setResults(prev => ({ ...prev, [job.id]: errResult }));
@@ -327,11 +335,15 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
         toast.success("Tailored resume ready — review AI changes before applying");
       }
     } catch (e: any) {
+      // Tailoring failures never touch scoring state — saved scores stay intact.
       console.error('Resume rewrite failed:', e);
       const requestSuffix = e?.requestId ? ` (Request ${e.requestId})` : "";
       const message = `${e?.message || "Tailoring temporarily failed — please retry"}${requestSuffix}`;
       setTailorErrors(prev => ({ ...prev, [job.id]: message }));
-      toast.error(message);
+      toast.error("Couldn't tailor your resume — your job score is still saved.", {
+        description: message,
+        action: { label: "Retry", onClick: () => generateTailoredResume(job) },
+      });
     }
     setRL(prev => { const s = new Set(prev); s.delete(job.id); return s; });
   };
@@ -368,8 +380,9 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
         .eq("profile_id", profile.id);
       if (error) throw error;
       setJobs(prev => prev.filter(j => j.id !== job.id));
-      setResults(prev => { const n = { ...prev }; delete n[job.id]; return n; });
+      setResults(prev => removeScore(prev, job.id));
       setResumes(prev => { const n = { ...prev }; delete n[job.id]; return n; });
+      await deleteJobScore(profile.id, job.id);
       if (selected?.id === job.id) setSelected(null);
       toast.success("Job deleted");
     } catch (e: any) {
@@ -384,6 +397,7 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
         .from("imported_jobs")
         .update({ analysis: null, status: "new" } as any)
         .eq("id", id);
+      if (profile?.id) await deleteJobScore(profile.id, id);
     }
     setResults({});
     setDone(0);
@@ -704,8 +718,13 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
                 ) : r ? (
                   <div className="text-center py-16">
                     {tailorErrors[selected.id] ? (
-                      <div className="mx-auto mb-4 max-w-md rounded-md border border-destructive/30 bg-destructive/10 p-3 text-left">
-                        <p className="text-sm font-medium text-destructive">{tailorErrors[selected.id]}</p>
+                      <div className="mx-auto mb-4 max-w-md rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-left">
+                        <p className="text-sm font-medium text-destructive">
+                          We couldn't tailor your resume for this role just now.
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Your job score is saved and unchanged. {tailorErrors[selected.id]}
+                        </p>
                       </div>
                     ) : (
                       <p className="text-sm text-muted-foreground mb-4">Tailored resume not generated yet.</p>
@@ -714,7 +733,7 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
                       onClick={() => generateTailoredResume(selected)}
                       className="text-xs font-semibold px-5 py-2.5 rounded-xl bg-foreground text-background hover:opacity-90 transition-opacity"
                     >
-                      Generate Tailored Resume
+                      {tailorErrors[selected.id] ? "Retry tailoring" : "Generate Tailored Resume"}
                     </button>
                   </div>
                 ) : (

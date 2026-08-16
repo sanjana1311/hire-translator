@@ -300,6 +300,79 @@ export type Database = {
           },
         ]
       }
+      job_scores: {
+        Row: {
+          analysis: Json | null
+          bucket: string
+          created_at: string
+          gaps: Json
+          id: string
+          imported_job_id: string
+          match_summary: string | null
+          missing_keywords: Json
+          profile_id: string
+          recommendation: string | null
+          resume_id: string | null
+          score: number
+          strengths: Json
+          updated_at: string
+        }
+        Insert: {
+          analysis?: Json | null
+          bucket?: string
+          created_at?: string
+          gaps?: Json
+          id?: string
+          imported_job_id: string
+          match_summary?: string | null
+          missing_keywords?: Json
+          profile_id: string
+          recommendation?: string | null
+          resume_id?: string | null
+          score?: number
+          strengths?: Json
+          updated_at?: string
+        }
+        Update: {
+          analysis?: Json | null
+          bucket?: string
+          created_at?: string
+          gaps?: Json
+          id?: string
+          imported_job_id?: string
+          match_summary?: string | null
+          missing_keywords?: Json
+          profile_id?: string
+          recommendation?: string | null
+          resume_id?: string | null
+          score?: number
+          strengths?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_scores_imported_job_id_fkey"
+            columns: ["imported_job_id"]
+            isOneToOne: false
+            referencedRelation: "imported_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_scores_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_scores_resume_id_fkey"
+            columns: ["resume_id"]
+            isOneToOne: false
+            referencedRelation: "resumes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_workspaces: {
         Row: {
           ats_score: number | null
