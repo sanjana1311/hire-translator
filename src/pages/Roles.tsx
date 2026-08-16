@@ -335,11 +335,15 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
         toast.success("Tailored resume ready — review AI changes before applying");
       }
     } catch (e: any) {
+      // Tailoring failures never touch scoring state — saved scores stay intact.
       console.error('Resume rewrite failed:', e);
       const requestSuffix = e?.requestId ? ` (Request ${e.requestId})` : "";
       const message = `${e?.message || "Tailoring temporarily failed — please retry"}${requestSuffix}`;
       setTailorErrors(prev => ({ ...prev, [job.id]: message }));
-      toast.error(message);
+      toast.error("Couldn't tailor your resume — your job score is still saved.", {
+        description: message,
+        action: { label: "Retry", onClick: () => generateTailoredResume(job) },
+      });
     }
     setRL(prev => { const s = new Set(prev); s.delete(job.id); return s; });
   };
