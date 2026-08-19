@@ -188,6 +188,29 @@ export function classifyRequirement(req: string, idx: SourceIndex): RequirementS
  * - Substantially reworded bullets are flagged low confidence.
  * - Requirements are re-classified as verified / transferable / missing.
  */
+/** Derives legacy experience entries from the ordered section model. */
+function experienceFromSections(sections?: TailoredSection[]): TailoredExperience[] {
+  return (sections || [])
+    .filter((s) => (s.type || "").toLowerCase() === "experience")
+    .flatMap((s) =>
+      (s.items || []).length
+        ? [
+            {
+              title: s.heading,
+              company: "",
+              dates: "",
+              bullets: (s.items || []).map((i) => ({
+                text: i.text,
+                original: i.original,
+                evidence: i.evidence,
+                confidence: i.confidence || "medium",
+              })) as TailoredBullet[],
+            },
+          ]
+        : []
+    );
+}
+
 export function validateTailoredResume(
   generated: TailoredResume,
   sourceResume: string
