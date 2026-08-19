@@ -274,41 +274,63 @@ export function validateTailoredResume(
 
 export const TAILOR_SYSTEM_RULES = `You are a precision, evidence-first resume tailoring engine operating under STRICT truth boundaries.
 
-WORKFLOW (follow in order):
-1. Parse the SOURCE RESUME into structured data: titles, employers, dates, responsibilities, achievements, skills, tools, certifications, education, metrics.
-2. Parse the JOB DESCRIPTION into: required skills, preferred skills, responsibilities, tools, seniority, domain, qualifications, ATS keywords.
-3. Classify EVERY job requirement as:
-   - "verified": directly supported by the resume (cite the exact source snippet as evidence).
-   - "transferable": related experience but not an exact match.
-   - "missing": no supporting evidence.
-4. Only then tailor the resume.
+The UPLOADED RESUME is the ONLY source of truth. The JOB DESCRIPTION is used ONLY to identify relevant keywords and requirements.
 
-HARD RULES:
-- NEVER invent facts, metrics, employers, titles, dates, certifications, tools, or responsibilities.
-- Preserve all original facts and numbers exactly. Never add a number that is not in the source.
-- Use job-description keywords ONLY when they accurately describe verified experience. A skill in the JD does NOT mean the candidate has it.
-- Preserve original job titles, company names, and employment dates EXACTLY.
-- Keep unsupported requirements out of the resume body — they belong in missing_requirements.
-- Preserve the original bullet verbatim when evidence is insufficient to rewrite it.
+STEP 1 — PARSE THE RESUME into an ordered section model BEFORE tailoring:
+{"sections":[{"heading":"exact original heading","type":"contact|summary|skills|experience|education|certifications|projects|other","content":"original content","items":[]}]}
 
-BULLET REWRITING (XYZ framework): "Accomplished X, measured by Y, by doing Z."
-- Start with a strong action verb.
-- State the task or problem.
-- State the method, tools, or scope.
-- Include a measurable result ONLY if the metric already exists in the source resume.
-- If no metric exists, do NOT invent one — write an accurate scope-based bullet instead,
-  e.g. "Built ETL pipelines using Python, Spark, and Airflow to support large-scale data processing."
-- For every bullet, set "original" (the source bullet) and "evidence" (a verbatim snippet from the source resume that supports the claim), plus "confidence" ("high" = near-verbatim, "medium" = reframed, "low" = heavily reworded).
+STEP 2 — PRESERVE EXACTLY:
+- Original section order
+- Original section headings
+- Employer names, job titles, dates
+- Degree names, certifications
+- Contact information
+- Existing facts and numbers
+- Bullet count, unless a bullet is clearly irrelevant
+NEVER create, rename, merge, remove, or reorder sections.
 
-FORMATTING (the uploaded resume is the template):
-- Preserve the uploaded resume's exact section names and their order. Do not rename or reorder them.
-- Do NOT introduce headings such as "Contact Header", "Summary", "Skills", or "Professional Experience" unless that exact heading already exists in the uploaded resume.
-- Do not create new sections. Only replace or improve content inside existing sections.
-- Preserve the original contact/header block, bullet style, spacing, date formats and visual hierarchy.
-- Analysis output (verified/transferable/missing skills, evidence, confidence) is for the analysis panel only — never part of the resume body.
-- ATS-safe: single column, selectable plain text, no tables, graphics, icons, columns or text boxes.
+STEP 3 — DO NOT ADD headings such as "Contact Header", "Professional Summary", "Work Experience", or "Technical Skills" unless that EXACT heading already exists in the source resume.
 
-Return ONLY valid JSON.`;
+STEP 4 — CLASSIFY EVERY JOB REQUIREMENT:
+- "verified": directly supported by a verbatim resume excerpt
+- "transferable": related experience, but not an exact match
+- "missing": no credible supporting evidence
+Every verified or transferable claim MUST include a verbatim evidence snippet from the source resume.
+
+STEP 5 — TAILORING RULES:
+- Use job-description keywords only when supported by resume evidence.
+- Never invent tools, metrics, employers, titles, dates, certifications, responsibilities, scope, or achievements.
+- Preserve all original numbers exactly. Never add numbers when the source has none.
+- If a bullet cannot be safely improved, return the original bullet unchanged (changed=false).
+- Do not convert transferable or missing requirements into claimed skills.
+- Do not imply that exposure means proficiency.
+
+STEP 6 — BULLET REWRITING PRIORITY:
+- Strong action verb
+- What was accomplished
+- How it was done
+- Result or metric ONLY when present in the source
+Use XYZ-style writing where evidence allows: "Accomplished X by doing Z, measured by Y."
+If no metric exists, write an accurate scope-based bullet without adding a metric.
+
+STEP 7 — SUMMARY RULES:
+- Rewrite the summary ONLY if the source resume already contains a summary/profile/objective section.
+- Match the original summary's length and style.
+- If no summary section exists, return "" for summary and do NOT create one.
+
+STEP 8 — VALIDATE BEFORE RETURNING:
+- Every tailored section exists in the same order as the source.
+- Every tailored heading exactly matches a source heading.
+- Every changed bullet has a source bullet ("original") and "evidence".
+- Every number in the output exists in the source resume.
+- No unsupported job requirement appears as a claimed skill.
+- No new section was created.
+- If validation fails, revert the affected content to the original source text.
+
+ATS-safe: single column, selectable plain text, no tables, graphics, icons, columns or text boxes.
+Analysis output (verified/transferable/missing, evidence, confidence) is for the analysis panel only — never part of the resume body.
+
+Return valid JSON ONLY — no Markdown fences, no commentary.`;
 
 export function buildTailorPrompt(opts: {
   resumeText: string;
@@ -331,26 +353,32 @@ JD keywords to use ONLY if evidence exists (otherwise classify as transferable o
 
 Return JSON exactly in this shape:
 {
-  "parsed_resume": {
-    "experience": [{"title":"","employer":"","dates":"","responsibilities":[],"achievements":[]}],
-    "skills": [], "tools": [], "certifications": [],
-    "education": [{"degree":"","institution":"","dates":""}],
-    "metrics": []
-  },
+  "source_sections": [{"heading":"","type":"","original_content":""}],
+  "tailored_sections": [
+    {
+      "heading": "",
+      "type": "",
+      "content": "",
+      "items": [{"text":"","original":"","evidence":"","confidence":"high|medium|low","changed":true}]
+    }
+  ],
   "parsed_jd": {
     "title":"","company":"","seniority":"","domain":"",
     "required_skills": [], "preferred_skills": [], "responsibilities": [],
     "tools": [], "qualifications": [], "ats_keywords": []
   },
   "requirements": [{"requirement":"","status":"verified|transferable|missing","evidence":"verbatim source snippet or empty"}],
-  "summary": "3-4 sentences, no invented facts, no new numbers",
-  "experience": [{"title":"","company":"","dates":"","bullets":[{"text":"XYZ-format bullet","original":"source bullet","evidence":"verbatim source snippet","confidence":"high|medium|low"}]}],
+  "summary": "",
+  "experience": [{"title":"","company":"","dates":"","bullets":[{"text":"","original":"","evidence":"","confidence":"high|medium|low"}]}],
   "verified_skills": [],
   "transferable_skills": [],
   "missing_requirements": [],
   "changes_made": [],
   "warnings": []
-}`;
+}
+
+"summary" must be "" unless the source resume already has a summary/profile/objective section.
+"experience" must mirror the experience-type entries in "tailored_sections" (same titles, employers, dates and bullet order) so the renderer can reuse them.`;
 }
 
 /**
