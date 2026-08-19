@@ -314,6 +314,8 @@ export function validateTailoredResume(
     resume: {
       summary,
       experience,
+      source_sections: generated.source_sections,
+      tailored_sections: generated.tailored_sections,
       verified_skills: verified.filter((s) => !missing.includes(s)),
       transferable_skills: transferable,
       missing_requirements: missing,
