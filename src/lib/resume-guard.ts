@@ -196,7 +196,11 @@ export function validateTailoredResume(
   let rejectedCount = 0;
   let flaggedCount = 0;
 
-  const experience = (generated.experience || []).map((exp) => {
+  const sourceExperience = generated.experience?.length
+    ? generated.experience
+    : experienceFromSections(generated.tailored_sections);
+
+  const experience = (sourceExperience || []).map((exp) => {
     const bullets = (exp.bullets || []).map((b) => {
       const text = typeof b === "string" ? (b as unknown as string) : b.text || "";
       const bullet: TailoredBullet = typeof b === "string" ? { text, confidence: "medium" } : { ...b, text };
