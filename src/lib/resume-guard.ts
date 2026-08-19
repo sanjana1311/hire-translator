@@ -52,9 +52,38 @@ export interface ParsedJD {
   ats_keywords: string[];
 }
 
+export type SectionType =
+  | "contact" | "summary" | "skills" | "experience"
+  | "education" | "certifications" | "projects" | "other";
+
+export interface SourceSection {
+  heading: string;
+  type: SectionType | string;
+  original_content: string;
+}
+
+export interface TailoredSectionItem {
+  text: string;
+  original?: string;
+  evidence?: string;
+  confidence?: "high" | "medium" | "low";
+  changed?: boolean;
+}
+
+export interface TailoredSection {
+  heading: string;
+  type: SectionType | string;
+  content?: string;
+  items?: TailoredSectionItem[];
+}
+
 export interface TailoredResume {
   summary: string;
   experience: TailoredExperience[];
+  /** Ordered section model parsed from the uploaded resume. */
+  source_sections?: SourceSection[];
+  /** Tailored content, in the same order/headings as the source. */
+  tailored_sections?: TailoredSection[];
   verified_skills: string[];
   transferable_skills: string[];
   missing_requirements: string[];
