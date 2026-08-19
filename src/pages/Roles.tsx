@@ -318,7 +318,8 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
         },
       );
       const parsed = parseJsonLoose(raw) as Partial<TailoredResume> | null;
-      if (!parsed || !parsed.summary) throw new Error("Tailoring temporarily failed — please retry");
+      const hasContent = !!parsed && (!!parsed.summary || !!parsed.experience?.length || !!parsed.tailored_sections?.length);
+      if (!hasContent) throw new Error("Tailoring temporarily failed — please retry");
 
       const { resume: validated, rejectedCount } = validateTailoredResume(parsed as TailoredResume, resumeText);
 
