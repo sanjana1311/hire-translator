@@ -602,7 +602,7 @@ export interface EmailReport {
   subject: string;
   from: string;
   source: string;
-  status: "imported" | "duplicate" | "no_jobs" | "rejected" | "parse_failed";
+  status: "imported" | "duplicate" | "no_jobs" | "rejected" | "parse_failed" | "application";
   reason: string | null;
   method: "ai" | "fallback" | "none";
   jobsFound: number;
@@ -618,14 +618,16 @@ export interface SyncReport {
   emailsRejected: number;
   parseFailures: number;
   applicationsMatched: number;
+  applicationsImported: number;
   query: string;
   emails: EmailReport[];
 }
 
 function logReport(report: SyncReport) {
   console.log(
-    `[Gmail Sync][SUMMARY] scanned=${report.emailsScanned} jobAlerts=${report.jobAlertsDetected} imported=${report.jobsImported} duplicates=${report.duplicatesSkipped} rejected=${report.emailsRejected} parseFailures=${report.parseFailures} applicationsMatched=${report.applicationsMatched}`
+    `[Gmail Sync][SUMMARY] scanned=${report.emailsScanned} jobAlerts=${report.jobAlertsDetected} imported=${report.jobsImported} duplicates=${report.duplicatesSkipped} rejected=${report.emailsRejected} parseFailures=${report.parseFailures} applicationsMatched=${report.applicationsMatched} applicationsImported=${report.applicationsImported}`
   );
+
   for (const e of report.emails) {
     console.log(
       `[Gmail Sync][EMAIL] status=${e.status} method=${e.method} found=${e.jobsFound} imported=${e.jobsImported} dupes=${e.duplicates} source=${e.source} reason=${e.reason ?? "-"} subject="${e.subject.slice(0, 80)}"`
