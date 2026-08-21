@@ -160,6 +160,14 @@ export const GmailSyncSummary = ({
         <span className="text-muted-foreground/50">·</span>
         <Num value={resolved.imported} label="imported" active={bucket === "imported"} onClick={() => setBucket(bucket === "imported" ? null : "imported")} />
         <span className="text-muted-foreground/50">·</span>
+        <Num
+          value={report?.applicationsImported ?? (report?.emails ?? []).filter((e) => e.status === "application").length}
+          label="applications"
+          active={bucket === "applications"}
+          onClick={() => setBucket(bucket === "applications" ? null : "applications")}
+        />
+        <span className="text-muted-foreground/50">·</span>
+
         <Num value={resolved.skipped} label="skipped" active={bucket === "skipped"} onClick={() => setBucket(bucket === "skipped" ? null : "skipped")} />
         <span className="text-muted-foreground/50">·</span>
         <Num value={resolved.failed} label="failed" active={bucket === "failed"} onClick={() => setBucket(bucket === "failed" ? null : "failed")} />
