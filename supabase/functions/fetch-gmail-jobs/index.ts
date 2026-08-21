@@ -143,6 +143,14 @@ export function parseApplicationConfirmation(
       .replace(/[.,!]+$/, "")
       .replace(/\s+(role|position|opening|job|opportunity)$/i, "")
       .trim();
+  const removeCompanySuffix = (value: string, employer: string) => {
+    if (!value || !employer) return value;
+    const escaped = employer.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return value
+      .replace(new RegExp(`\\s+${escaped}(?:\\s+New)?$`, "i"), "")
+      .replace(/\s+New$/i, "")
+      .trim();
+  };
 
   let title = "";
   let company = "";
@@ -214,6 +222,7 @@ export function parseApplicationConfirmation(
     }
   }
 
+  title = removeCompanySuffix(title, company);
   if (!isPlausibleTitle(title)) title = "";
   if (!company) return null;
   return { title: title || "Role not specified", company };
@@ -711,18 +720,14 @@ async function rematchApplications(adminClient: any, profileId: string): Promise
 
   const byKey = new Map<string, string>();
   for (const j of imported) byKey.set(`${norm(j.title)}__${norm(j.company)}`, j.id);
-  const byCompany = new Map<string, string>();
-  for (const j of imported) if (!byCompany.has(norm(j.company))) byCompany.set(norm(j.company), j.id);
-
   let matched = 0;
   for (const app of apps) {
     if (app.imported_job_id) continue;
     const exact = byKey.get(`${norm(app.title)}__${norm(app.company)}`);
-    const fallback = exact || byCompany.get(norm(app.company));
-    if (!fallback) continue;
+    if (!exact) continue;
     const { error } = await adminClient
       .from("applications")
-      .update({ imported_job_id: fallback })
+      .update({ imported_job_id: exact })
       .eq("id", app.id);
     if (!error) matched++;
   }
@@ -1036,6 +1041,11 @@ export async function syncGmailJobs(options: {
         if (!parsed) {
           e.report.status = "parse_failed";
           e.report.reason = "Looked like an application confirmation but company/role could not be identified";
+          continue;
+        }
+        if (parsed.title === "Role not specified") {
+          e.report.status = "no_jobs";
+          e.report.reason = `Application confirmation from ${parsed.company} did not include a job title`;
           continue;
         }
         const key = `${norm(parsed.title)}__${norm(parsed.company)}`;
