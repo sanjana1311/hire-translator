@@ -88,10 +88,124 @@ function buildGmailQuery(lastSyncedAt: string | null): string {
     '"apply now"',
     '"view job"',
     '"job opportunity"',
+    // Application confirmations (roles the user applied to directly)
+    '"your application was sent"',
+    '"application was sent to"',
+    '"thank you for applying"',
+    '"thanks for applying"',
+    '"we received your application"',
+    '"your application has been received"',
+    '"application received"',
+    '"application submitted"',
+    '"you applied to"',
+    '"indeed application"',
   ].join(" OR ");
 
   return `(${senders} OR ${phrases}) newer_than:${daysSinceSync}d`;
 }
+
+/** ---- Application confirmation detection ("I applied to this role") ---- */
+const APPLICATION_SIGNALS = [
+  "your application was sent",
+  "application was sent to",
+  "thank you for applying",
+  "thanks for applying",
+  "we received your application",
+  "your application has been received",
+  "application received",
+  "application submitted",
+  "you applied to",
+  "indeed application",
+  "application confirmation",
+];
+
+export function looksLikeApplicationEmail(text: string): boolean {
+  const lower = (text || "").toLowerCase();
+  return APPLICATION_SIGNALS.some((s) => lower.includes(s));
+}
+
+/**
+ * Parse "you applied" confirmation emails into { title, company }.
+ * Handles LinkedIn ("Your application was sent to <Company>" + role in body),
+ * Indeed ("Indeed Application: <Title>"), and generic ATS confirmations
+ * ("Thank you for applying to <Company>" / "... for the <Title> role").
+ */
+export function parseApplicationConfirmation(
+  subject: string,
+  from: string,
+  body: string
+): { title: string; company: string } | null {
+  const s = cleanTextLine(subject || "");
+  const b = (body || "").replace(/\s+/g, " ").trim();
+  const strip = (v: string) =>
+    cleanTextLine(v || "")
+      .replace(/^(the|a|an)\s+/i, "")
+      .replace(/[.,!]+$/, "")
+      .replace(/\s+(role|position|opening|job|opportunity)$/i, "")
+      .trim();
+
+  let title = "";
+  let company = "";
+
+  // LinkedIn: subject "Your application was sent to Acme Corp"
+  let m = s.match(/your application was sent to\s+(.+)$/i) || b.match(/your application was sent to\s+([^.·|]+)/i);
+  if (m) {
+    company = strip(m[1]);
+    // Role usually appears in the body right before the company
+    const roleMatch =
+      b.match(/(?:applied for|application for)\s+([^.·|]{3,80}?)\s+at\s+([^.·|]{2,60})/i) ||
+      b.match(/^([^.·|]{3,80}?)\s+·\s+/);
+    if (roleMatch) {
+      title = strip(roleMatch[1]);
+      if (!company && roleMatch[2]) company = strip(roleMatch[2]);
+    }
+  }
+
+  // Indeed: "Indeed Application: Product Manager" (+ company in body)
+  if (!title) {
+    m = s.match(/indeed application[:\-]\s*(.+)$/i);
+    if (m) {
+      title = strip(m[1]);
+      const c = b.match(/\bat\s+([A-Z][\w&.,'’\- ]{2,60})/);
+      if (c) company = strip(c[1]);
+    }
+  }
+
+  // Generic: "Thank you for applying to <Company>" / "... to the <Title> position at <Company>"
+  if (!title || !company) {
+    const g =
+      s.match(/(?:thank you|thanks) for applying (?:to|for)\s+(?:the\s+)?([^.·|]{3,80}?)\s+(?:role|position|job)?\s*(?:at|with)\s+([^.·|]{2,60})$/i) ||
+      b.match(/(?:thank you|thanks) for applying (?:to|for)\s+(?:the\s+)?([^.·|]{3,80}?)\s+(?:role|position|job)?\s*(?:at|with)\s+([^.·|]{2,60})/i);
+    if (g) {
+      title = title || strip(g[1]);
+      company = company || strip(g[2]);
+    } else {
+      const c =
+        s.match(/(?:thank you|thanks) for applying (?:to|at|with)\s+([^.·|]{2,60})$/i) ||
+        b.match(/(?:thank you|thanks) for applying (?:to|at|with)\s+([^.·|]{2,60})/i) ||
+        s.match(/we received your application (?:to|at|for)\s+([^.·|]{2,60})$/i);
+      if (c) company = company || strip(c[1]);
+      const t =
+        b.match(/(?:for the|for your application to the)\s+([^.·|]{3,80}?)\s+(?:role|position|opening)/i) ||
+        s.match(/application (?:received|submitted)[:\-]\s*(.+)$/i) ||
+        b.match(/\b(?:position|role)[:\s]+([A-Z][^.·|]{3,60})/);
+      if (t) title = title || strip(t[1]);
+    }
+  }
+
+  if (!company) {
+    // Fall back to the sender's domain as the company name
+    const dom = (from || "").match(/@([\w.-]+)/)?.[1] || "";
+    const base = dom.split(".").filter((p) => !["com", "net", "org", "io", "co", "mail", "www", "us"].includes(p)).pop();
+    if (base && !["linkedin", "indeed", "greenhouse", "lever", "myworkday", "workday"].includes(base)) {
+      company = base.charAt(0).toUpperCase() + base.slice(1);
+    }
+  }
+
+  if (!company) return null;
+  return { title: title || "Role not specified", company };
+}
+
 
 /** Pre-filter: only emails that look like real job listings */
 const JOB_SIGNALS = [
