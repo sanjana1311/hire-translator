@@ -196,9 +196,12 @@ export function parseApplicationConfirmation(
       if (c) company = company || strip(c[1]);
       const t =
         b.match(/(?:for the|for your application to the)\s+([^.·|]{3,80}?)\s+(?:role|position|opening)/i) ||
-        s.match(/application (?:received|submitted)[:\-]\s*(.+)$/i) ||
+        s.match(/application (?:received|submitted)(?:[:\-]|\s+for)\s*(?:the\s+)?([^.·|]{3,80}?)(?:\s+(?:role|position|opening))?(?:\s+(?:at|with)\s+([^.·|]{2,60}))?$/i) ||
         b.match(/\b(?:position|role)[:\s]+([A-Z][^.·|]{3,60})/);
-      if (t) title = title || strip(t[1]);
+      if (t) {
+        title = title || strip(t[1]);
+        if (!company && t[2]) company = strip(t[2]);
+      }
     }
   }
 
@@ -211,8 +214,51 @@ export function parseApplicationConfirmation(
     }
   }
 
+  if (!isPlausibleTitle(title)) title = "";
   if (!company) return null;
   return { title: title || "Role not specified", company };
+}
+
+/** Reject sentence fragments that are clearly not a real job title */
+export function isPlausibleTitle(raw: string): boolean {
+  const t = (raw || "").trim();
+  if (t.length < 3 || t.length > 70) return false;
+  if (/\b(you applied|along with|any similar|thank you|thanks|we received|your application|click|unsubscribe|view (the )?job)\b/i.test(t)) return false;
+  if (t.split(/\s+/).length > 9) return false;
+  if (/[,;]\s*$/.test(t)) return false;
+  return true;
+}
+
+/** Ask the AI to pull { title, company } out of an application-confirmation email */
+async function aiParseApplication(
+  subject: string,
+  from: string,
+  body: string
+): Promise<{ title: string; company: string } | null> {
+  try {
+    const res = await callConfiguredAI({
+      temperature: 0,
+      maxTokens: 200,
+      tools: [],
+      messages: [
+        {
+          role: "system",
+          content:
+            'You extract the job title and company from a job-application confirmation email. Return ONLY JSON: {"title":"","company":""}. Use the exact job title as written. If the title genuinely is not in the email, use an empty string. Never return a sentence fragment as a title.',
+        },
+        { role: "user", content: `FROM: ${from}\nSUBJECT: ${subject}\n\n${(body || "").slice(0, 3000)}` },
+      ],
+    });
+    if (!res?.text) return null;
+    const cleaned = res.text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    const title = cleanTextLine(String(parsed.title || ""));
+    const company = cleanTextLine(String(parsed.company || ""));
+    if (!company) return null;
+    return { title: isPlausibleTitle(title) ? title : "", company };
+  } catch {
+    return null;
+  }
 }
 
 
