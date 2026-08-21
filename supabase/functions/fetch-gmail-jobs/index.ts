@@ -151,13 +151,22 @@ export function parseApplicationConfirmation(
   let m = s.match(/your application was sent to\s+(.+)$/i) || b.match(/your application was sent to\s+([^.·|]+)/i);
   if (m) {
     company = strip(m[1]);
-    // Role usually appears in the body right before the company
+    // Role usually appears in the body right before/after the company
     const roleMatch =
       b.match(/(?:applied for|application for)\s+([^.·|]{3,80}?)\s+at\s+([^.·|]{2,60})/i) ||
+      b.match(/\byou applied to\s+([^.·|]{3,80}?)\s+at\s+([^.·|]{2,60})/i) ||
       b.match(/^([^.·|]{3,80}?)\s+·\s+/);
     if (roleMatch) {
       title = strip(roleMatch[1]);
       if (!company && roleMatch[2]) company = strip(roleMatch[2]);
+    }
+    if (!title && company) {
+      // LinkedIn layout: "<Company> <Job title> <Location> Applied on ..."
+      const esc = company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const layout =
+        b.match(new RegExp(`${esc}\\s+([A-Z][^.·|]{3,70}?)\\s+(?:·|-|,)?\\s*(?:Applied|Remote|Hybrid|On-?site|[A-Z][a-z]+,\\s*[A-Z]{2})`)) ||
+        b.match(new RegExp(`([A-Z][^.·|]{3,70}?)\\s+(?:at|@)\\s+${esc}\\b`, "i"));
+      if (layout) title = strip(layout[1]);
     }
   }
 
