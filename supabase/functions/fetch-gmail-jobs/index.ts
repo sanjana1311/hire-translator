@@ -88,10 +88,124 @@ function buildGmailQuery(lastSyncedAt: string | null): string {
     '"apply now"',
     '"view job"',
     '"job opportunity"',
+    // Application confirmations (roles the user applied to directly)
+    '"your application was sent"',
+    '"application was sent to"',
+    '"thank you for applying"',
+    '"thanks for applying"',
+    '"we received your application"',
+    '"your application has been received"',
+    '"application received"',
+    '"application submitted"',
+    '"you applied to"',
+    '"indeed application"',
   ].join(" OR ");
 
   return `(${senders} OR ${phrases}) newer_than:${daysSinceSync}d`;
 }
+
+/** ---- Application confirmation detection ("I applied to this role") ---- */
+const APPLICATION_SIGNALS = [
+  "your application was sent",
+  "application was sent to",
+  "thank you for applying",
+  "thanks for applying",
+  "we received your application",
+  "your application has been received",
+  "application received",
+  "application submitted",
+  "you applied to",
+  "indeed application",
+  "application confirmation",
+];
+
+export function looksLikeApplicationEmail(text: string): boolean {
+  const lower = (text || "").toLowerCase();
+  return APPLICATION_SIGNALS.some((s) => lower.includes(s));
+}
+
+/**
+ * Parse "you applied" confirmation emails into { title, company }.
+ * Handles LinkedIn ("Your application was sent to <Company>" + role in body),
+ * Indeed ("Indeed Application: <Title>"), and generic ATS confirmations
+ * ("Thank you for applying to <Company>" / "... for the <Title> role").
+ */
+export function parseApplicationConfirmation(
+  subject: string,
+  from: string,
+  body: string
+): { title: string; company: string } | null {
+  const s = cleanTextLine(subject || "");
+  const b = (body || "").replace(/\s+/g, " ").trim();
+  const strip = (v: string) =>
+    cleanTextLine(v || "")
+      .replace(/^(the|a|an)\s+/i, "")
+      .replace(/[.,!]+$/, "")
+      .replace(/\s+(role|position|opening|job|opportunity)$/i, "")
+      .trim();
+
+  let title = "";
+  let company = "";
+
+  // LinkedIn: subject "Your application was sent to Acme Corp"
+  let m = s.match(/your application was sent to\s+(.+)$/i) || b.match(/your application was sent to\s+([^.·|]+)/i);
+  if (m) {
+    company = strip(m[1]);
+    // Role usually appears in the body right before the company
+    const roleMatch =
+      b.match(/(?:applied for|application for)\s+([^.·|]{3,80}?)\s+at\s+([^.·|]{2,60})/i) ||
+      b.match(/^([^.·|]{3,80}?)\s+·\s+/);
+    if (roleMatch) {
+      title = strip(roleMatch[1]);
+      if (!company && roleMatch[2]) company = strip(roleMatch[2]);
+    }
+  }
+
+  // Indeed: "Indeed Application: Product Manager" (+ company in body)
+  if (!title) {
+    m = s.match(/indeed application[:\-]\s*(.+)$/i);
+    if (m) {
+      title = strip(m[1]);
+      const c = b.match(/\bat\s+([A-Z][\w&.,'’\- ]{2,60})/);
+      if (c) company = strip(c[1]);
+    }
+  }
+
+  // Generic: "Thank you for applying to <Company>" / "... to the <Title> position at <Company>"
+  if (!title || !company) {
+    const g =
+      s.match(/(?:thank you|thanks) for applying (?:to|for)\s+(?:the\s+)?([^.·|]{3,80}?)\s+(?:role|position|job)?\s*(?:at|with)\s+([^.·|]{2,60})$/i) ||
+      b.match(/(?:thank you|thanks) for applying (?:to|for)\s+(?:the\s+)?([^.·|]{3,80}?)\s+(?:role|position|job)?\s*(?:at|with)\s+([^.·|]{2,60})/i);
+    if (g) {
+      title = title || strip(g[1]);
+      company = company || strip(g[2]);
+    } else {
+      const c =
+        s.match(/(?:thank you|thanks) for applying (?:to|at|with)\s+([^.·|]{2,60})$/i) ||
+        b.match(/(?:thank you|thanks) for applying (?:to|at|with)\s+([^.·|]{2,60})/i) ||
+        s.match(/we received your application (?:to|at|for)\s+([^.·|]{2,60})$/i);
+      if (c) company = company || strip(c[1]);
+      const t =
+        b.match(/(?:for the|for your application to the)\s+([^.·|]{3,80}?)\s+(?:role|position|opening)/i) ||
+        s.match(/application (?:received|submitted)[:\-]\s*(.+)$/i) ||
+        b.match(/\b(?:position|role)[:\s]+([A-Z][^.·|]{3,60})/);
+      if (t) title = title || strip(t[1]);
+    }
+  }
+
+  if (!company) {
+    // Fall back to the sender's domain as the company name
+    const dom = (from || "").match(/@([\w.-]+)/)?.[1] || "";
+    const base = dom.split(".").filter((p) => !["com", "net", "org", "io", "co", "mail", "www", "us"].includes(p)).pop();
+    if (base && !["linkedin", "indeed", "greenhouse", "lever", "myworkday", "workday"].includes(base)) {
+      company = base.charAt(0).toUpperCase() + base.slice(1);
+    }
+  }
+
+  if (!company) return null;
+  return { title: title || "Role not specified", company };
+}
+
 
 /** Pre-filter: only emails that look like real job listings */
 const JOB_SIGNALS = [
@@ -488,7 +602,7 @@ export interface EmailReport {
   subject: string;
   from: string;
   source: string;
-  status: "imported" | "duplicate" | "no_jobs" | "rejected" | "parse_failed";
+  status: "imported" | "duplicate" | "no_jobs" | "rejected" | "parse_failed" | "application";
   reason: string | null;
   method: "ai" | "fallback" | "none";
   jobsFound: number;
@@ -504,14 +618,16 @@ export interface SyncReport {
   emailsRejected: number;
   parseFailures: number;
   applicationsMatched: number;
+  applicationsImported: number;
   query: string;
   emails: EmailReport[];
 }
 
 function logReport(report: SyncReport) {
   console.log(
-    `[Gmail Sync][SUMMARY] scanned=${report.emailsScanned} jobAlerts=${report.jobAlertsDetected} imported=${report.jobsImported} duplicates=${report.duplicatesSkipped} rejected=${report.emailsRejected} parseFailures=${report.parseFailures} applicationsMatched=${report.applicationsMatched}`
+    `[Gmail Sync][SUMMARY] scanned=${report.emailsScanned} jobAlerts=${report.jobAlertsDetected} imported=${report.jobsImported} duplicates=${report.duplicatesSkipped} rejected=${report.emailsRejected} parseFailures=${report.parseFailures} applicationsMatched=${report.applicationsMatched} applicationsImported=${report.applicationsImported}`
   );
+
   for (const e of report.emails) {
     console.log(
       `[Gmail Sync][EMAIL] status=${e.status} method=${e.method} found=${e.jobsFound} imported=${e.jobsImported} dupes=${e.duplicates} source=${e.source} reason=${e.reason ?? "-"} subject="${e.subject.slice(0, 80)}"`
@@ -673,6 +789,8 @@ export async function syncGmailJobs(options: {
     emailsRejected: 0,
     parseFailures: 0,
     applicationsMatched: 0,
+    applicationsImported: 0,
+
     query: rawQuery,
     emails: [],
   });
@@ -833,8 +951,63 @@ export async function syncGmailJobs(options: {
   const emailsScanned = emailReports.length;
   log("gmail_fetch_message", "ok", { scanned: emailsScanned });
 
+  // ── Stage: application confirmations ("your application was sent to …") ──
+  const norm = (s: string) => (s || "").toLowerCase().trim().replace(/\s+/g, " ");
+  let applicationsImported = 0;
+  const applicationEmails = emails.filter((e) =>
+    looksLikeApplicationEmail(`${e.subject} ${e.snippet} ${e.body}`)
+  );
+
+  if (applicationEmails.length > 0) {
+    try {
+      const { data: existingApps } = await adminClient
+        .from("applications")
+        .select("id, title, company")
+        .eq("profile_id", profileId);
+      const seen = new Set((existingApps ?? []).map((a: any) => `${norm(a.title)}__${norm(a.company)}`));
+
+      for (const e of applicationEmails) {
+        const parsed = parseApplicationConfirmation(e.subject, e.from, `${e.bodyText}\n${e.snippet}`);
+        if (!parsed) {
+          e.report.status = "parse_failed";
+          e.report.reason = "Looked like an application confirmation but company/role could not be identified";
+          continue;
+        }
+        const key = `${norm(parsed.title)}__${norm(parsed.company)}`;
+        if (seen.has(key)) {
+          e.report.status = "duplicate";
+          e.report.reason = "Application already tracked";
+          e.report.duplicates += 1;
+          continue;
+        }
+        const { error } = await adminClient.from("applications").insert({
+          profile_id: profileId,
+          title: parsed.title,
+          company: parsed.company,
+          status: "applied",
+          applied_date: new Date().toISOString().slice(0, 10),
+          notes: `Imported from Gmail application confirmation (${inferSource(`${e.from} ${e.subject}`)})`,
+        });
+        if (error) {
+          e.report.status = "parse_failed";
+          e.report.reason = "Could not save the application record";
+          continue;
+        }
+        seen.add(key);
+        applicationsImported++;
+        e.report.status = "application";
+        e.report.reason = `Tracked application: ${parsed.title} at ${parsed.company}`;
+      }
+    } catch {
+      noteError(new SyncError("persist", "APPLICATION_IMPORT_FAILED", "Could not import application confirmation emails."));
+    }
+  }
+  const applicationEmailSet = new Set(applicationEmails);
+  log("parse", "ok", { applicationEmails: applicationEmails.length, applicationsImported });
+
   // ── Stage: relevance pre-filter ──
   const relevantEmails = emails.filter((e) => {
+    if (applicationEmailSet.has(e)) return false;
     const isJobEmail = looksLikeJobEmail(`${e.from} ${e.subject} ${e.snippet} ${e.body}`);
     if (!isJobEmail) {
       e.report.status = "rejected";
@@ -860,9 +1033,11 @@ export async function syncGmailJobs(options: {
       emailsRejected: emailReports.filter((e) => e.status === "rejected").length,
       parseFailures: emailReports.filter((e) => e.status === "parse_failed").length,
       applicationsMatched,
+      applicationsImported,
       query: rawQuery,
       emails: emailReports,
     };
+
     logReport(report);
     log("summary", "ok", {
       scanned: report.emailsScanned,

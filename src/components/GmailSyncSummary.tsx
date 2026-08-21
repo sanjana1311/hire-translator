@@ -2,10 +2,11 @@ import { useState } from "react";
 import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import type { SyncReport, EmailReport, SyncCounts, SyncErrorItem } from "@/hooks/use-gmail-import";
 
-type Bucket = "scanned" | "imported" | "skipped" | "failed";
+type Bucket = "scanned" | "imported" | "applications" | "skipped" | "failed";
 
 const STATUS_LABEL: Record<EmailReport["status"], string> = {
   imported: "Imported",
+  application: "Application tracked",
   duplicate: "Duplicate",
   no_jobs: "No roles listed",
   rejected: "Not a job alert",
@@ -14,6 +15,7 @@ const STATUS_LABEL: Record<EmailReport["status"], string> = {
 
 const STATUS_CLASS: Record<EmailReport["status"], string> = {
   imported: "bg-success/10 text-success",
+  application: "bg-primary/10 text-primary",
   duplicate: "bg-secondary text-secondary-foreground",
   no_jobs: "bg-secondary text-muted-foreground",
   rejected: "bg-warning/10 text-warning",
@@ -23,6 +25,7 @@ const STATUS_CLASS: Record<EmailReport["status"], string> = {
 const BUCKET_LABEL: Record<Bucket, string> = {
   scanned: "All scanned emails",
   imported: "Emails that produced jobs",
+  applications: "Roles you applied to",
   skipped: "Skipped — duplicate or irrelevant",
   failed: "Failed to parse",
 };
@@ -30,9 +33,11 @@ const BUCKET_LABEL: Record<Bucket, string> = {
 function inBucket(e: EmailReport, bucket: Bucket) {
   if (bucket === "scanned") return true;
   if (bucket === "imported") return e.status === "imported";
+  if (bucket === "applications") return e.status === "application";
   if (bucket === "skipped") return e.status === "duplicate" || e.status === "rejected" || e.status === "no_jobs";
   return e.status === "parse_failed";
 }
+
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -155,6 +160,14 @@ export const GmailSyncSummary = ({
         <span className="text-muted-foreground/50">·</span>
         <Num value={resolved.imported} label="imported" active={bucket === "imported"} onClick={() => setBucket(bucket === "imported" ? null : "imported")} />
         <span className="text-muted-foreground/50">·</span>
+        <Num
+          value={report?.applicationsImported ?? (report?.emails ?? []).filter((e) => e.status === "application").length}
+          label="applications"
+          active={bucket === "applications"}
+          onClick={() => setBucket(bucket === "applications" ? null : "applications")}
+        />
+        <span className="text-muted-foreground/50">·</span>
+
         <Num value={resolved.skipped} label="skipped" active={bucket === "skipped"} onClick={() => setBucket(bucket === "skipped" ? null : "skipped")} />
         <span className="text-muted-foreground/50">·</span>
         <Num value={resolved.failed} label="failed" active={bucket === "failed"} onClick={() => setBucket(bucket === "failed" ? null : "failed")} />

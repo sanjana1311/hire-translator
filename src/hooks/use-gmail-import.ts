@@ -31,7 +31,7 @@ export interface EmailReport {
   subject: string;
   from: string;
   source: string;
-  status: "imported" | "duplicate" | "no_jobs" | "rejected" | "parse_failed";
+  status: "imported" | "duplicate" | "no_jobs" | "rejected" | "parse_failed" | "application";
   reason: string | null;
   method: "ai" | "fallback" | "none";
   jobsFound: number;
@@ -47,9 +47,11 @@ export interface SyncReport {
   emailsRejected: number;
   parseFailures: number;
   applicationsMatched: number;
+  applicationsImported?: number;
   query: string;
   emails: EmailReport[];
 }
+
 
 export interface SyncErrorItem {
   stage: string;
