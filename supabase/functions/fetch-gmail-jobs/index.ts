@@ -1022,7 +1022,17 @@ export async function syncGmailJobs(options: {
       const seen = new Set((existingApps ?? []).map((a: any) => `${norm(a.title)}__${norm(a.company)}`));
 
       for (const e of applicationEmails) {
-        const parsed = parseApplicationConfirmation(e.subject, e.from, `${e.bodyText}\n${e.snippet}`);
+        let parsed = parseApplicationConfirmation(e.subject, e.from, `${e.bodyText}\n${e.snippet}`);
+        // AI fallback whenever the pattern parser could not pin down a real title
+        if (!parsed || !parsed.title || parsed.title === "Role not specified") {
+          const ai = await aiParseApplication(e.subject, e.from, `${e.bodyText}\n${e.snippet}`);
+          if (ai) {
+            parsed = {
+              title: ai.title || parsed?.title || "Role not specified",
+              company: parsed?.company || ai.company,
+            };
+          }
+        }
         if (!parsed) {
           e.report.status = "parse_failed";
           e.report.reason = "Looked like an application confirmation but company/role could not be identified";
