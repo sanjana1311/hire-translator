@@ -789,6 +789,8 @@ export async function syncGmailJobs(options: {
     emailsRejected: 0,
     parseFailures: 0,
     applicationsMatched: 0,
+    applicationsImported: 0,
+
     query: rawQuery,
     emails: [],
   });
