@@ -1,0 +1,1 @@
+DELETE FROM public.applications WHERE id IN ('508589ba-f68b-493d-ae0a-fa229e9ffd63','7b95b3f7-18a9-42a4-b285-87653fbed09c','51198e29-c08b-4176-b513-74563d05f584','287642f2-5fb7-4a3e-b3ef-9947db05873f');
