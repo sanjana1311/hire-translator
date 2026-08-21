@@ -947,8 +947,63 @@ export async function syncGmailJobs(options: {
   const emailsScanned = emailReports.length;
   log("gmail_fetch_message", "ok", { scanned: emailsScanned });
 
+  // ── Stage: application confirmations ("your application was sent to …") ──
+  const norm = (s: string) => (s || "").toLowerCase().trim().replace(/\s+/g, " ");
+  let applicationsImported = 0;
+  const applicationEmails = emails.filter((e) =>
+    looksLikeApplicationEmail(`${e.subject} ${e.snippet} ${e.body}`)
+  );
+
+  if (applicationEmails.length > 0) {
+    try {
+      const { data: existingApps } = await adminClient
+        .from("applications")
+        .select("id, title, company")
+        .eq("profile_id", profileId);
+      const seen = new Set((existingApps ?? []).map((a: any) => `${norm(a.title)}__${norm(a.company)}`));
+
+      for (const e of applicationEmails) {
+        const parsed = parseApplicationConfirmation(e.subject, e.from, `${e.bodyText}\n${e.snippet}`);
+        if (!parsed) {
+          e.report.status = "parse_failed";
+          e.report.reason = "Looked like an application confirmation but company/role could not be identified";
+          continue;
+        }
+        const key = `${norm(parsed.title)}__${norm(parsed.company)}`;
+        if (seen.has(key)) {
+          e.report.status = "duplicate";
+          e.report.reason = "Application already tracked";
+          e.report.duplicates += 1;
+          continue;
+        }
+        const { error } = await adminClient.from("applications").insert({
+          profile_id: profileId,
+          title: parsed.title,
+          company: parsed.company,
+          status: "applied",
+          applied_date: new Date().toISOString().slice(0, 10),
+          notes: `Imported from Gmail application confirmation (${inferSource(`${e.from} ${e.subject}`)})`,
+        });
+        if (error) {
+          e.report.status = "parse_failed";
+          e.report.reason = "Could not save the application record";
+          continue;
+        }
+        seen.add(key);
+        applicationsImported++;
+        e.report.status = "application";
+        e.report.reason = `Tracked application: ${parsed.title} at ${parsed.company}`;
+      }
+    } catch {
+      noteError(new SyncError("persist", "APPLICATION_IMPORT_FAILED", "Could not import application confirmation emails."));
+    }
+  }
+  const applicationEmailSet = new Set(applicationEmails);
+  log("parse", "ok", { applicationEmails: applicationEmails.length, applicationsImported });
+
   // ── Stage: relevance pre-filter ──
   const relevantEmails = emails.filter((e) => {
+    if (applicationEmailSet.has(e)) return false;
     const isJobEmail = looksLikeJobEmail(`${e.from} ${e.subject} ${e.snippet} ${e.body}`);
     if (!isJobEmail) {
       e.report.status = "rejected";
@@ -974,9 +1029,11 @@ export async function syncGmailJobs(options: {
       emailsRejected: emailReports.filter((e) => e.status === "rejected").length,
       parseFailures: emailReports.filter((e) => e.status === "parse_failed").length,
       applicationsMatched,
+      applicationsImported,
       query: rawQuery,
       emails: emailReports,
     };
+
     logReport(report);
     log("summary", "ok", {
       scanned: report.emailsScanned,
