@@ -6,6 +6,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import ThemeToggle from "@/components/ThemeToggle";
+import Seo from "@/components/Seo";
 import { toast } from "sonner";
 
 const Auth = () => {
@@ -110,6 +111,11 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen bg-background flex relative">
+      <Seo
+        title="Sign in to hireOS — AI Career Operating System"
+        description="Sign in or request early access to hireOS, the open-source AI career OS for job scoring, resume tailoring, and interview prep."
+        path="/auth"
+      />
       <div className="absolute top-4 right-4 z-10">
         <ThemeToggle />
       </div>
