@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import AiResumeRewriter from "./pages/AiResumeRewriter";
 import Onboarding from "./pages/Onboarding";
 import AppLayout from "./components/AppLayout";
 import Roles from "./pages/Roles";
@@ -33,6 +34,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/ai-resume-rewriter" element={<AiResumeRewriter />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/gmail-callback" element={<GmailCallback />} />
           <Route path="/linkedin-callback" element={<LinkedInCallback />} />
