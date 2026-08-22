@@ -427,8 +427,12 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
   };
 
   const classifiedJobs = useMemo(() =>
-    jobs.map(job => ({ ...job, roleFamily: classifyRole(job.title) })),
-    [jobs]
+    jobs.map(job => ({
+      ...job,
+      roleFamily: classifyRole(job.title),
+      freshness: getFreshness(job.imported_at, appliedJobs.has(job.id)),
+    })),
+    [jobs, appliedJobs]
   );
 
   const uniqueCompanies = useMemo(() =>
