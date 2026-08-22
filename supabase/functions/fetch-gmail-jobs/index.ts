@@ -1164,8 +1164,74 @@ export async function syncGmailJobs(options: {
       noteError(new SyncError("persist", "APPLICATION_IMPORT_FAILED", "Could not import application confirmation emails."));
     }
   }
+  // ── Stage: interview / intro-call emails ──
+  // These prove a live conversation happened (e.g. an intro call with a startup),
+  // so we track them as applications already at the "interview" stage.
   const applicationEmailSet = new Set(applicationEmails);
-  log("parse", "ok", { applicationEmails: applicationEmails.length, applicationsImported });
+  const interviewEmails = emails.filter(
+    (e) => !applicationEmailSet.has(e) && looksLikeInterviewEmail(`${e.subject} ${e.snippet} ${e.bodyText}`)
+  );
+  let interviewsTracked = 0;
+
+  if (interviewEmails.length > 0) {
+    try {
+      const { data: apps } = await adminClient
+        .from("applications")
+        .select("id, title, company, status")
+        .eq("profile_id", profileId);
+
+      for (const e of interviewEmails) {
+        const parsed = parseInterviewEmail(e.subject, e.from, `${e.bodyText}\n${e.snippet}`);
+        if (!parsed) {
+          e.report.status = "parse_failed";
+          e.report.reason = "Looked like an interview email but the company could not be identified";
+          continue;
+        }
+        const today = new Date().toISOString().slice(0, 10);
+        const existing = (apps ?? []).find((a: any) => norm(a.company) === norm(parsed.company));
+        if (existing) {
+          if (existing.status !== "interview" && existing.status !== "offer") {
+            await adminClient
+              .from("applications")
+              .update({ status: "interview", last_email_date: today })
+              .eq("id", existing.id);
+            interviewsTracked++;
+            e.report.status = "application";
+            e.report.reason = `Moved ${existing.title} at ${parsed.company} to Interview`;
+          } else {
+            e.report.status = "duplicate";
+            e.report.reason = `Interview with ${parsed.company} already tracked`;
+            e.report.duplicates += 1;
+          }
+          continue;
+        }
+        const { error } = await adminClient.from("applications").insert({
+          profile_id: profileId,
+          title: parsed.title,
+          company: parsed.company,
+          status: "interview",
+          applied_date: today,
+          last_email_date: today,
+          notes: `Imported from Gmail interview/intro-call email (${inferSource(`${e.from} ${e.subject}`)})`,
+        });
+        if (error) {
+          e.report.status = "parse_failed";
+          e.report.reason = "Could not save the interview record";
+          continue;
+        }
+        (apps ?? []).push({ id: "new", title: parsed.title, company: parsed.company, status: "interview" } as any);
+        interviewsTracked++;
+        applicationsImported++;
+        e.report.status = "application";
+        e.report.reason = `Tracked interview: ${parsed.title} at ${parsed.company}`;
+      }
+    } catch {
+      noteError(new SyncError("persist", "INTERVIEW_IMPORT_FAILED", "Could not import interview emails."));
+    }
+  }
+  for (const e of interviewEmails) applicationEmailSet.add(e);
+  log("parse", "ok", { applicationEmails: applicationEmails.length, applicationsImported, interviewsTracked });
+
 
   // ── Stage: relevance pre-filter ──
   const relevantEmails = emails.filter((e) => {
