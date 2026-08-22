@@ -22,7 +22,8 @@ import {
   initials, scoreColor, scoreBg, scoreBorder,
 } from "@/data/seed";
 import { classifyRole, getRoleFamilyLabel, ROLE_FAMILIES, type RoleFamilyKey } from "@/lib/role-classifier";
-import { ChevronDown, ChevronRight, SlidersHorizontal, X, Trash2 } from "lucide-react";
+import { getFreshness, FRESHNESS_STYLES, STALE_AFTER_DAYS, AGING_AFTER_DAYS, type FreshnessLevel } from "@/lib/job-freshness";
+import { ChevronDown, ChevronRight, SlidersHorizontal, X, Trash2, AlertTriangle, Clock, CheckCircle2 } from "lucide-react";
 
 const parseStoredResume = (value: string): TailoredResume | null => {
   try {
@@ -413,6 +414,7 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
   const [filterBucket, setFilterBucket] = useState<string>("all");
   const [filterCompany, setFilterCompany] = useState<string>("all");
   const [filterLocation, setFilterLocation] = useState<string>("all");
+  const [filterAge, setFilterAge] = useState<string>("all");
   const [showFilters, setShowFilters] = useState(false);
   const [collapsedFamilies, setCollapsedFamilies] = useState<Set<string>>(new Set());
 
@@ -425,8 +427,12 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
   };
 
   const classifiedJobs = useMemo(() =>
-    jobs.map(job => ({ ...job, roleFamily: classifyRole(job.title) })),
-    [jobs]
+    jobs.map(job => ({
+      ...job,
+      roleFamily: classifyRole(job.title),
+      freshness: getFreshness(job.imported_at, appliedJobs.has(job.id)),
+    })),
+    [jobs, appliedJobs]
   );
 
   const uniqueCompanies = useMemo(() =>
@@ -447,9 +453,10 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
       }
       if (filterCompany !== "all" && job.company !== filterCompany) return false;
       if (filterLocation !== "all" && (job.location || "Remote") !== filterLocation) return false;
+      if (filterAge !== "all" && job.freshness.level !== filterAge) return false;
       return true;
     });
-  }, [classifiedJobs, filterFamily, filterBucket, filterCompany, filterLocation, results]);
+  }, [classifiedJobs, filterFamily, filterBucket, filterCompany, filterLocation, filterAge, results]);
 
   const groupedData = useMemo(() => {
     const familyMap: Record<string, typeof filteredJobs> = {};
@@ -482,14 +489,22 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
     low: jobs.filter(j => results[j.id]?.bucket === "low"),
   };
 
-  const activeFilterCount = [filterFamily, filterBucket, filterCompany, filterLocation].filter(v => v !== "all").length;
+  const freshnessCounts = useMemo(() => {
+    const counts: Record<FreshnessLevel, number> = { applied: 0, fresh: 0, aging: 0, stale: 0 };
+    for (const job of classifiedJobs) counts[job.freshness.level]++;
+    return counts;
+  }, [classifiedJobs]);
+
+  const activeFilterCount = [filterFamily, filterBucket, filterCompany, filterLocation, filterAge].filter(v => v !== "all").length;
 
   const clearFilters = () => {
     setFilterFamily("all");
     setFilterBucket("all");
     setFilterCompany("all");
     setFilterLocation("all");
+    setFilterAge("all");
   };
+
 
   const analysisInProgress = aLoading.size > 0;
   const isRunning = aLoading.size > 0 || rLoading.size > 0;
@@ -864,24 +879,34 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleClearAllScores}
-              className="text-[11px] font-medium px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
-            >
-              Clear all scores
-            </button>
-            <div className="flex gap-1">
-              {([["must", "hsl(var(--success))", buckets.must.length], ["tweak", "hsl(var(--warning))", buckets.tweak.length], ["low", "hsl(var(--danger))", buckets.low.length]] as const).map(([k, c, n]) => (
-                <div key={k} className="flex items-center gap-1 bg-secondary rounded-full px-2.5 py-1">
-                  <div className="w-1.5 h-1.5 rounded-full" style={{ background: c as string }} />
-                  <span className="text-[11px] text-secondary-foreground font-medium">{n as number}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <button
+            onClick={handleClearAllScores}
+            className="text-[11px] font-medium px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors shrink-0"
+          >
+            Clear all scores
+          </button>
         )}
       </div>
+
+      {/* Stale alert — job alerts sitting unapplied for 10+ days */}
+      {freshnessCounts.stale > 0 && (
+        <div className="mb-4 rounded-xl border border-destructive/20 bg-destructive/[0.06] px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
+            <p className="text-xs text-foreground/80 truncate">
+              <span className="font-semibold">{freshnessCounts.stale} role{freshnessCounts.stale === 1 ? "" : "s"}</span> have been sitting for {STALE_AFTER_DAYS}+ days with no application — these postings are likely closed.
+            </p>
+          </div>
+          <button
+            onClick={() => { setFilterAge(filterAge === "stale" ? "all" : "stale"); setShowFilters(false); }}
+            className="text-[11px] font-medium px-3 py-1.5 rounded-lg border border-destructive/25 text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+          >
+            {filterAge === "stale" ? "Show all" : "Review them"}
+          </button>
+        </div>
+      )}
+
+
 
       {/* Gmail Sync Status Bar */}
       <div className="mb-5 apple-card px-5 py-3.5 flex items-center justify-between">
@@ -916,13 +941,24 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
                 })() : "never"} · {jobsImportedCount} jobs imported
               </span>
             </div>
-            <button
-              onClick={() => triggerSync(false)}
-              disabled={gmailLoading}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50"
-            >
-              Refresh ↻
-            </button>
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={() => triggerSync(false, 30)}
+                disabled={gmailLoading}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
+                title="Rescan the last 30 days — picks up older applications and intro calls"
+              >
+                Deep scan 30d
+              </button>
+              <button
+                onClick={() => triggerSync(false)}
+                disabled={gmailLoading}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50"
+              >
+                Refresh ↻
+              </button>
+            </div>
+
           </>
         ) : syncStatus === "error" ? (
           <>
@@ -975,18 +1011,46 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
               <X className="w-3 h-3" /> Clear
             </button>
           )}
-          <div className="ml-auto flex gap-1">
-            {([["must", "hsl(var(--success))", buckets.must.length], ["tweak", "hsl(var(--warning))", buckets.tweak.length], ["low", "hsl(var(--danger))", buckets.low.length]] as const).map(([k, c, n]) => (
-              <div key={k} className="flex items-center gap-1 bg-secondary rounded-full px-2.5 py-1">
-                <div className="w-1.5 h-1.5 rounded-full" style={{ background: c as string }} />
-                <span className="text-[11px] text-secondary-foreground font-medium">{n as number}</span>
-              </div>
+          <div className="ml-auto flex flex-wrap items-center gap-1.5">
+            {([["must", "hsl(var(--success))", "Must apply", buckets.must.length], ["tweak", "hsl(var(--warning))", "Tweak", buckets.tweak.length], ["low", "hsl(var(--danger))", "Low", buckets.low.length]] as const).map(([k, c, label, n]) => (
+              <button
+                key={k}
+                onClick={() => setFilterBucket(filterBucket === k ? "all" : k)}
+                className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 transition-colors ${filterBucket === k ? "bg-foreground/[0.08]" : "bg-secondary hover:bg-secondary/70"}`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: c as string }} />
+                <span className="text-[11px] text-secondary-foreground font-medium">{label as string} {n as number}</span>
+              </button>
             ))}
+            {freshnessCounts.stale > 0 && (
+              <button
+                onClick={() => setFilterAge(filterAge === "stale" ? "all" : "stale")}
+                className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 border transition-colors ${filterAge === "stale" ? "bg-destructive/15 border-destructive/30" : "bg-destructive/[0.06] border-destructive/20 hover:bg-destructive/10"}`}
+              >
+                <AlertTriangle className="w-3 h-3 text-destructive" />
+                <span className="text-[11px] font-medium text-destructive">Stale {freshnessCounts.stale}</span>
+              </button>
+            )}
           </div>
         </div>
 
         {showFilters && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 apple-card p-4 animate-fade-up">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 apple-card p-4 animate-fade-up">
+            <div>
+              <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">Freshness</label>
+              <select
+                value={filterAge}
+                onChange={e => setFilterAge(e.target.value)}
+                className="w-full text-xs bg-background border border-border rounded-lg px-2.5 py-2 text-foreground"
+              >
+                <option value="all">Any age</option>
+                <option value="fresh">Fresh (under {AGING_AFTER_DAYS}d)</option>
+                <option value="aging">Aging ({AGING_AFTER_DAYS}–{STALE_AFTER_DAYS - 1}d)</option>
+                <option value="stale">Stale ({STALE_AFTER_DAYS}d+, not applied)</option>
+                <option value="applied">Applied</option>
+              </select>
+            </div>
+
             <div>
               <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">Role Family</label>
               <select
@@ -1086,28 +1150,42 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
                           <div className="flex flex-col gap-1.5">
                             {bucketJobs.map((job, i) => {
                               const r = results[job.id];
+                              const f = job.freshness;
                               return (
                                 <div
                                   key={job.id}
                                   onClick={() => setSelected(job)}
-                                  className="group apple-card apple-card-interactive p-4 grid animate-fade-up"
+                                  className={`group apple-card apple-card-interactive p-4 grid animate-fade-up ${f.level === "stale" ? "border-destructive/25" : ""}`}
                                   style={{ gridTemplateColumns: "38px 1fr auto 100px", gap: 12, alignItems: "center", animationDelay: `${i * 0.04}s` }}
                                 >
                                   <div className="w-[38px] h-[38px] bg-secondary rounded-lg flex items-center justify-center">
                                     <span className="text-[10px] font-bold text-secondary-foreground">{initials(job.company)}</span>
                                   </div>
-                                  <div>
+                                  <div className="min-w-0">
                                     <div className="flex items-center flex-wrap gap-1.5 mb-0.5">
-                                      <span className="text-sm font-semibold">{cleanText(job.title)}</span>
+                                      <span className={`text-sm font-semibold ${f.level === "stale" ? "opacity-70" : ""}`}>{cleanText(job.title)}</span>
+                                      <span
+                                        className={`inline-flex items-center gap-1 text-[10px] font-medium rounded-md border px-1.5 py-0.5 ${FRESHNESS_STYLES[f.level]}`}
+                                        title={f.hint || ""}
+                                      >
+                                        {f.level === "stale" && <AlertTriangle className="w-2.5 h-2.5" />}
+                                        {f.level === "aging" && <Clock className="w-2.5 h-2.5" />}
+                                        {f.level === "applied" && <CheckCircle2 className="w-2.5 h-2.5" />}
+                                        {f.label}
+                                      </span>
                                       {job.source && <span className="text-[10px] text-muted-foreground bg-secondary rounded-md px-1.5 py-0.5">{job.source}</span>}
                                     </div>
-                                    <div className="text-xs text-muted-foreground">{job.company} · {job.location || "Remote"}{job.salary ? ` · ${job.salary}` : ""}</div>
+                                    <div className="text-xs text-muted-foreground truncate">{job.company} · {job.location || "Remote"}{job.salary ? ` · ${job.salary}` : ""}</div>
+                                    {f.hint && f.level !== "applied" && (
+                                      <div className={`text-[10.5px] mt-1 ${f.level === "stale" ? "text-destructive" : "text-warning"}`}>{f.hint}</div>
+                                    )}
                                     {r && (
                                       <div className="flex flex-wrap gap-0.5 mt-1.5">
                                         {r.missingKeywords?.slice(0, 4).map(kw => <Tag key={kw}>{kw}</Tag>)}
                                       </div>
                                     )}
                                   </div>
+
                                   <button
                                     onClick={(e) => { e.stopPropagation(); handleDeleteJob(job); }}
                                     className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"

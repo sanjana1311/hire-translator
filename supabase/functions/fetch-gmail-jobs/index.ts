@@ -99,6 +99,17 @@ function buildGmailQuery(lastSyncedAt: string | null): string {
     '"application submitted"',
     '"you applied to"',
     '"indeed application"',
+    // Interview / intro-call invitations (a live conversation happened)
+    '"intro call"',
+    '"introductory call"',
+    '"schedule your interview"',
+    '"interview invitation"',
+    '"invitation to interview"',
+    '"phone screen"',
+    '"recruiter screen"',
+    '"schedule a time"',
+    '"book a time"',
+    '"next steps"',
   ].join(" OR ");
 
   return `(${senders} OR ${phrases}) newer_than:${daysSinceSync}d`;
@@ -123,6 +134,82 @@ export function looksLikeApplicationEmail(text: string): boolean {
   const lower = (text || "").toLowerCase();
   return APPLICATION_SIGNALS.some((s) => lower.includes(s));
 }
+
+/**
+ * ---- Interview / intro-call detection ----
+ * These emails prove the user is further along than "applied" — an intro call,
+ * recruiter screen or scheduled interview. They rarely contain the phrase
+ * "your application was sent", so they were previously dropped entirely.
+ */
+const INTERVIEW_SIGNALS = [
+  "intro call",
+  "introductory call",
+  "introduction call",
+  "initial call",
+  "screening call",
+  "recruiter screen",
+  "phone screen",
+  "phone interview",
+  "interview invitation",
+  "invitation to interview",
+  "invite you to interview",
+  "schedule your interview",
+  "schedule an interview",
+  "interview scheduled",
+  "your interview with",
+  "book a time to chat",
+  "chat about the role",
+  "would love to chat",
+  "next steps in the process",
+  "move forward with your application",
+  "hiring manager interview",
+  "calendly.com",
+];
+
+export function looksLikeInterviewEmail(text: string): boolean {
+  const lower = (text || "").toLowerCase();
+  return INTERVIEW_SIGNALS.some((s) => lower.includes(s));
+}
+
+/** Best-effort company name from an interview email (sender domain or subject) */
+export function parseInterviewEmail(
+  subject: string,
+  from: string,
+  body: string
+): { title: string; company: string } | null {
+  const s = cleanTextLine(subject || "");
+  const b = (body || "").replace(/\s+/g, " ").trim();
+  const clean = (v: string) =>
+    cleanTextLine(v || "").replace(/[.,!]+$/, "").replace(/\s+(role|position|opening)$/i, "").trim();
+
+  let company = "";
+  let title = "";
+
+  const cm =
+    s.match(/(?:interview|intro(?:ductory)? call|call)\s+with\s+([A-Z][\w&.,'’\- ]{1,50})/i) ||
+    s.match(/^([A-Z][\w&.'’\- ]{1,40})\s*[<|:·-]\s*(?:interview|intro)/i) ||
+    b.match(/(?:interview|intro(?:ductory)? call)\s+with\s+(?:the\s+)?([A-Z][\w&.,'’\- ]{1,50})\s+team/i);
+  if (cm) company = clean(cm[1]);
+
+  const tm =
+    s.match(/(?:for|regarding|re:)\s+(?:the\s+)?([^.·|]{3,70}?)\s+(?:role|position|opening)/i) ||
+    b.match(/(?:for|regarding)\s+(?:the\s+)?([^.·|]{3,70}?)\s+(?:role|position|opening)/i) ||
+    b.match(/\b(?:position|role)[:\s]+([A-Z][^.·|]{3,60})/);
+  if (tm) title = clean(tm[1]);
+
+  if (!company) {
+    const dom = (from || "").match(/@([\w.-]+)/)?.[1] || "";
+    const base = dom.split(".").filter((p) => !["com", "net", "org", "io", "ai", "co", "mail", "www", "us", "email"].includes(p)).pop();
+    if (base && !["linkedin", "indeed", "greenhouse", "lever", "myworkday", "workday", "ashbyhq", "gmail", "google"].includes(base)) {
+      company = base.charAt(0).toUpperCase() + base.slice(1);
+    }
+  }
+  if (!company) return null;
+  if (!isPlausibleTitle(title)) title = "";
+  return { title: title || "Interview conversation", company };
+}
+
+
 
 /**
  * Parse "you applied" confirmation emails into { title, company }.
@@ -1077,8 +1164,74 @@ export async function syncGmailJobs(options: {
       noteError(new SyncError("persist", "APPLICATION_IMPORT_FAILED", "Could not import application confirmation emails."));
     }
   }
+  // ── Stage: interview / intro-call emails ──
+  // These prove a live conversation happened (e.g. an intro call with a startup),
+  // so we track them as applications already at the "interview" stage.
   const applicationEmailSet = new Set(applicationEmails);
-  log("parse", "ok", { applicationEmails: applicationEmails.length, applicationsImported });
+  const interviewEmails = emails.filter(
+    (e) => !applicationEmailSet.has(e) && looksLikeInterviewEmail(`${e.subject} ${e.snippet} ${e.bodyText}`)
+  );
+  let interviewsTracked = 0;
+
+  if (interviewEmails.length > 0) {
+    try {
+      const { data: apps } = await adminClient
+        .from("applications")
+        .select("id, title, company, status")
+        .eq("profile_id", profileId);
+
+      for (const e of interviewEmails) {
+        const parsed = parseInterviewEmail(e.subject, e.from, `${e.bodyText}\n${e.snippet}`);
+        if (!parsed) {
+          e.report.status = "parse_failed";
+          e.report.reason = "Looked like an interview email but the company could not be identified";
+          continue;
+        }
+        const today = new Date().toISOString().slice(0, 10);
+        const existing = (apps ?? []).find((a: any) => norm(a.company) === norm(parsed.company));
+        if (existing) {
+          if (existing.status !== "interview" && existing.status !== "offer") {
+            await adminClient
+              .from("applications")
+              .update({ status: "interview", last_email_date: today })
+              .eq("id", existing.id);
+            interviewsTracked++;
+            e.report.status = "application";
+            e.report.reason = `Moved ${existing.title} at ${parsed.company} to Interview`;
+          } else {
+            e.report.status = "duplicate";
+            e.report.reason = `Interview with ${parsed.company} already tracked`;
+            e.report.duplicates += 1;
+          }
+          continue;
+        }
+        const { error } = await adminClient.from("applications").insert({
+          profile_id: profileId,
+          title: parsed.title,
+          company: parsed.company,
+          status: "interview",
+          applied_date: today,
+          last_email_date: today,
+          notes: `Imported from Gmail interview/intro-call email (${inferSource(`${e.from} ${e.subject}`)})`,
+        });
+        if (error) {
+          e.report.status = "parse_failed";
+          e.report.reason = "Could not save the interview record";
+          continue;
+        }
+        (apps ?? []).push({ id: "new", title: parsed.title, company: parsed.company, status: "interview" } as any);
+        interviewsTracked++;
+        applicationsImported++;
+        e.report.status = "application";
+        e.report.reason = `Tracked interview: ${parsed.title} at ${parsed.company}`;
+      }
+    } catch {
+      noteError(new SyncError("persist", "INTERVIEW_IMPORT_FAILED", "Could not import interview emails."));
+    }
+  }
+  for (const e of interviewEmails) applicationEmailSet.add(e);
+  log("parse", "ok", { applicationEmails: applicationEmails.length, applicationsImported, interviewsTracked });
+
 
   // ── Stage: relevance pre-filter ──
   const relevantEmails = emails.filter((e) => {
@@ -1439,7 +1592,11 @@ serve(async (req) => {
     } catch {
       body = {};
     }
-    const { providerToken, refreshToken } = body;
+    const { providerToken, refreshToken, lookbackDays } = body;
+    // Deep scan: caller can force a wider window (e.g. 30 days) to pick up
+    // older interview/intro-call threads that the incremental window missed.
+    const forcedLookback =
+      typeof lookbackDays === "number" && lookbackDays > 0 ? Math.min(90, Math.floor(lookbackDays)) : null;
 
     let accessToken: string | null = providerToken ?? null;
     log("token", "start", { providerToken: accessToken ? "present" : "missing" });
@@ -1482,7 +1639,9 @@ serve(async (req) => {
       accessToken: accessToken!,
       profileId: profileId!,
       adminClient,
-      lastSyncedAt: syncMeta?.last_synced_at || null,
+      lastSyncedAt: forcedLookback
+        ? new Date(Date.now() - forcedLookback * 86400000).toISOString()
+        : syncMeta?.last_synced_at || null,
       requestId,
       userId: user.id,
     });
