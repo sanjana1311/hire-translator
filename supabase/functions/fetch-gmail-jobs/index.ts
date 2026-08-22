@@ -1639,7 +1639,9 @@ serve(async (req) => {
       accessToken: accessToken!,
       profileId: profileId!,
       adminClient,
-      lastSyncedAt: syncMeta?.last_synced_at || null,
+      lastSyncedAt: forcedLookback
+        ? new Date(Date.now() - forcedLookback * 86400000).toISOString()
+        : syncMeta?.last_synced_at || null,
       requestId,
       userId: user.id,
     });
