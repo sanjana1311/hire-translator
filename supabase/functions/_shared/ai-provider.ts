@@ -83,7 +83,7 @@ async function callProvider(provider: string, opts: ProviderOptions): Promise<Pr
       method: "POST",
       headers,
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(provider === "opencode" ? 15_000 : DEFAULT_TIMEOUT_MS),
+      signal: AbortSignal.timeout(provider === "opencode" ? 120_000 : DEFAULT_TIMEOUT_MS),
     });
     const raw = await response.text();
     if (!response.ok) {
