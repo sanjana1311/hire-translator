@@ -414,6 +414,7 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
   const [filterBucket, setFilterBucket] = useState<string>("all");
   const [filterCompany, setFilterCompany] = useState<string>("all");
   const [filterLocation, setFilterLocation] = useState<string>("all");
+  const [filterAge, setFilterAge] = useState<string>("all");
   const [showFilters, setShowFilters] = useState(false);
   const [collapsedFamilies, setCollapsedFamilies] = useState<Set<string>>(new Set());
 
