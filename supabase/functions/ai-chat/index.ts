@@ -208,7 +208,9 @@ serve(async (req) => {
         console.log(JSON.stringify({ requestId, stage: "provider_request", provider: "opencode", model: OPENCODE_MODEL }));
         const res = await fetch(`${OPENCODE_BASE_URL}/chat/completions`, {
           method: "POST",
-          signal: AbortSignal.timeout(15_000),
+          // Resume rewrites are long generations; a short deadline made every
+          // OpenCode call abort and silently fall through to paid fallbacks.
+          signal: AbortSignal.timeout(120_000),
           headers: {
             Authorization: `Bearer ${OPENCODE_API_KEY}`,
             "Content-Type": "application/json",
