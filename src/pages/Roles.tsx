@@ -489,14 +489,22 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
     low: jobs.filter(j => results[j.id]?.bucket === "low"),
   };
 
-  const activeFilterCount = [filterFamily, filterBucket, filterCompany, filterLocation].filter(v => v !== "all").length;
+  const freshnessCounts = useMemo(() => {
+    const counts: Record<FreshnessLevel, number> = { applied: 0, fresh: 0, aging: 0, stale: 0 };
+    for (const job of classifiedJobs) counts[job.freshness.level]++;
+    return counts;
+  }, [classifiedJobs]);
+
+  const activeFilterCount = [filterFamily, filterBucket, filterCompany, filterLocation, filterAge].filter(v => v !== "all").length;
 
   const clearFilters = () => {
     setFilterFamily("all");
     setFilterBucket("all");
     setFilterCompany("all");
     setFilterLocation("all");
+    setFilterAge("all");
   };
+
 
   const analysisInProgress = aLoading.size > 0;
   const isRunning = aLoading.size > 0 || rLoading.size > 0;
