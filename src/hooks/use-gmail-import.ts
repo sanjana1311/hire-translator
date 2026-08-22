@@ -196,7 +196,7 @@ export function useGmailImport(profileId: string | null) {
     loadJobs();
   }, [loadJobs]);
 
-  const triggerSync = useCallback(async (silent = false) => {
+  const triggerSync = useCallback(async (silent = false, lookbackDays?: number) => {
     if (!profileId) return [];
     setLoading(true);
     setSyncStatus("syncing");
@@ -217,6 +217,7 @@ export function useGmailImport(profileId: string | null) {
         body: {
           providerToken: session.provider_token ?? null,
           refreshToken: session.provider_refresh_token ?? null,
+          ...(lookbackDays ? { lookbackDays } : {}),
         },
       });
 
