@@ -453,9 +453,10 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
       }
       if (filterCompany !== "all" && job.company !== filterCompany) return false;
       if (filterLocation !== "all" && (job.location || "Remote") !== filterLocation) return false;
+      if (filterAge !== "all" && job.freshness.level !== filterAge) return false;
       return true;
     });
-  }, [classifiedJobs, filterFamily, filterBucket, filterCompany, filterLocation, results]);
+  }, [classifiedJobs, filterFamily, filterBucket, filterCompany, filterLocation, filterAge, results]);
 
   const groupedData = useMemo(() => {
     const familyMap: Record<string, typeof filteredJobs> = {};
