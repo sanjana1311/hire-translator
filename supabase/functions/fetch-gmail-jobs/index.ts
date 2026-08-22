@@ -99,6 +99,17 @@ function buildGmailQuery(lastSyncedAt: string | null): string {
     '"application submitted"',
     '"you applied to"',
     '"indeed application"',
+    // Interview / intro-call invitations (a live conversation happened)
+    '"intro call"',
+    '"introductory call"',
+    '"schedule your interview"',
+    '"interview invitation"',
+    '"invitation to interview"',
+    '"phone screen"',
+    '"recruiter screen"',
+    '"schedule a time"',
+    '"book a time"',
+    '"next steps"',
   ].join(" OR ");
 
   return `(${senders} OR ${phrases}) newer_than:${daysSinceSync}d`;
@@ -123,6 +134,82 @@ export function looksLikeApplicationEmail(text: string): boolean {
   const lower = (text || "").toLowerCase();
   return APPLICATION_SIGNALS.some((s) => lower.includes(s));
 }
+
+/**
+ * ---- Interview / intro-call detection ----
+ * These emails prove the user is further along than "applied" — an intro call,
+ * recruiter screen or scheduled interview. They rarely contain the phrase
+ * "your application was sent", so they were previously dropped entirely.
+ */
+const INTERVIEW_SIGNALS = [
+  "intro call",
+  "introductory call",
+  "introduction call",
+  "initial call",
+  "screening call",
+  "recruiter screen",
+  "phone screen",
+  "phone interview",
+  "interview invitation",
+  "invitation to interview",
+  "invite you to interview",
+  "schedule your interview",
+  "schedule an interview",
+  "interview scheduled",
+  "your interview with",
+  "book a time to chat",
+  "chat about the role",
+  "would love to chat",
+  "next steps in the process",
+  "move forward with your application",
+  "hiring manager interview",
+  "calendly.com",
+];
+
+export function looksLikeInterviewEmail(text: string): boolean {
+  const lower = (text || "").toLowerCase();
+  return INTERVIEW_SIGNALS.some((s) => lower.includes(s));
+}
+
+/** Best-effort company name from an interview email (sender domain or subject) */
+export function parseInterviewEmail(
+  subject: string,
+  from: string,
+  body: string
+): { title: string; company: string } | null {
+  const s = cleanTextLine(subject || "");
+  const b = (body || "").replace(/\s+/g, " ").trim();
+  const clean = (v: string) =>
+    cleanTextLine(v || "").replace(/[.,!]+$/, "").replace(/\s+(role|position|opening)$/i, "").trim();
+
+  let company = "";
+  let title = "";
+
+  const cm =
+    s.match(/(?:interview|intro(?:ductory)? call|call)\s+with\s+([A-Z][\w&.,'’\- ]{1,50})/i) ||
+    s.match(/^([A-Z][\w&.'’\- ]{1,40})\s*[<|:·-]\s*(?:interview|intro)/i) ||
+    b.match(/(?:interview|intro(?:ductory)? call)\s+with\s+(?:the\s+)?([A-Z][\w&.,'’\- ]{1,50})\s+team/i);
+  if (cm) company = clean(cm[1]);
+
+  const tm =
+    s.match(/(?:for|regarding|re:)\s+(?:the\s+)?([^.·|]{3,70}?)\s+(?:role|position|opening)/i) ||
+    b.match(/(?:for|regarding)\s+(?:the\s+)?([^.·|]{3,70}?)\s+(?:role|position|opening)/i) ||
+    b.match(/\b(?:position|role)[:\s]+([A-Z][^.·|]{3,60})/);
+  if (tm) title = clean(tm[1]);
+
+  if (!company) {
+    const dom = (from || "").match(/@([\w.-]+)/)?.[1] || "";
+    const base = dom.split(".").filter((p) => !["com", "net", "org", "io", "ai", "co", "mail", "www", "us", "email"].includes(p)).pop();
+    if (base && !["linkedin", "indeed", "greenhouse", "lever", "myworkday", "workday", "ashbyhq", "gmail", "google"].includes(base)) {
+      company = base.charAt(0).toUpperCase() + base.slice(1);
+    }
+  }
+  if (!company) return null;
+  if (!isPlausibleTitle(title)) title = "";
+  return { title: title || "Interview conversation", company };
+}
+
+
 
 /**
  * Parse "you applied" confirmation emails into { title, company }.
