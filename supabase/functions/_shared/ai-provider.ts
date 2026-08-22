@@ -17,7 +17,7 @@ export type ProviderResult = {
   model: string;
 };
 
-const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_TIMEOUT_MS = 120_000;
 
 function env(name: string): string | undefined {
   return Deno.env.get(name)?.trim() || undefined;
