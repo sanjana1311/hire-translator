@@ -217,7 +217,6 @@ serve(async (req) => {
             model: OPENCODE_MODEL,
             temperature,
             max_tokens: maxOutputTokens,
-            ...(isResumeRewrite ? { reasoning_effort: "low" } : {}),
             messages,
           }),
         });
@@ -262,7 +261,6 @@ serve(async (req) => {
           model: lovableModel,
           temperature,
           max_tokens: maxOutputTokens,
-          ...(isResumeRewrite ? { reasoning_effort: "low" } : {}),
           messages,
         }),
       });
