@@ -1000,18 +1000,46 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
               <X className="w-3 h-3" /> Clear
             </button>
           )}
-          <div className="ml-auto flex gap-1">
-            {([["must", "hsl(var(--success))", buckets.must.length], ["tweak", "hsl(var(--warning))", buckets.tweak.length], ["low", "hsl(var(--danger))", buckets.low.length]] as const).map(([k, c, n]) => (
-              <div key={k} className="flex items-center gap-1 bg-secondary rounded-full px-2.5 py-1">
-                <div className="w-1.5 h-1.5 rounded-full" style={{ background: c as string }} />
-                <span className="text-[11px] text-secondary-foreground font-medium">{n as number}</span>
-              </div>
+          <div className="ml-auto flex flex-wrap items-center gap-1.5">
+            {([["must", "hsl(var(--success))", "Must apply", buckets.must.length], ["tweak", "hsl(var(--warning))", "Tweak", buckets.tweak.length], ["low", "hsl(var(--danger))", "Low", buckets.low.length]] as const).map(([k, c, label, n]) => (
+              <button
+                key={k}
+                onClick={() => setFilterBucket(filterBucket === k ? "all" : k)}
+                className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 transition-colors ${filterBucket === k ? "bg-foreground/[0.08]" : "bg-secondary hover:bg-secondary/70"}`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: c as string }} />
+                <span className="text-[11px] text-secondary-foreground font-medium">{label as string} {n as number}</span>
+              </button>
             ))}
+            {freshnessCounts.stale > 0 && (
+              <button
+                onClick={() => setFilterAge(filterAge === "stale" ? "all" : "stale")}
+                className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 border transition-colors ${filterAge === "stale" ? "bg-destructive/15 border-destructive/30" : "bg-destructive/[0.06] border-destructive/20 hover:bg-destructive/10"}`}
+              >
+                <AlertTriangle className="w-3 h-3 text-destructive" />
+                <span className="text-[11px] font-medium text-destructive">Stale {freshnessCounts.stale}</span>
+              </button>
+            )}
           </div>
         </div>
 
         {showFilters && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 apple-card p-4 animate-fade-up">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 apple-card p-4 animate-fade-up">
+            <div>
+              <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">Freshness</label>
+              <select
+                value={filterAge}
+                onChange={e => setFilterAge(e.target.value)}
+                className="w-full text-xs bg-background border border-border rounded-lg px-2.5 py-2 text-foreground"
+              >
+                <option value="all">Any age</option>
+                <option value="fresh">Fresh (under {AGING_AFTER_DAYS}d)</option>
+                <option value="aging">Aging ({AGING_AFTER_DAYS}–{STALE_AFTER_DAYS - 1}d)</option>
+                <option value="stale">Stale ({STALE_AFTER_DAYS}d+, not applied)</option>
+                <option value="applied">Applied</option>
+              </select>
+            </div>
+
             <div>
               <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">Role Family</label>
               <select
