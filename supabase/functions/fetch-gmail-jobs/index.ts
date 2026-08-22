@@ -1592,7 +1592,11 @@ serve(async (req) => {
     } catch {
       body = {};
     }
-    const { providerToken, refreshToken } = body;
+    const { providerToken, refreshToken, lookbackDays } = body;
+    // Deep scan: caller can force a wider window (e.g. 30 days) to pick up
+    // older interview/intro-call threads that the incremental window missed.
+    const forcedLookback =
+      typeof lookbackDays === "number" && lookbackDays > 0 ? Math.min(90, Math.floor(lookbackDays)) : null;
 
     let accessToken: string | null = providerToken ?? null;
     log("token", "start", { providerToken: accessToken ? "present" : "missing" });
