@@ -22,7 +22,8 @@ import {
   initials, scoreColor, scoreBg, scoreBorder,
 } from "@/data/seed";
 import { classifyRole, getRoleFamilyLabel, ROLE_FAMILIES, type RoleFamilyKey } from "@/lib/role-classifier";
-import { ChevronDown, ChevronRight, SlidersHorizontal, X, Trash2 } from "lucide-react";
+import { getFreshness, FRESHNESS_STYLES, STALE_AFTER_DAYS, AGING_AFTER_DAYS, type FreshnessLevel } from "@/lib/job-freshness";
+import { ChevronDown, ChevronRight, SlidersHorizontal, X, Trash2, AlertTriangle, Clock, CheckCircle2 } from "lucide-react";
 
 const parseStoredResume = (value: string): TailoredResume | null => {
   try {
