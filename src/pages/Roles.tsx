@@ -941,13 +941,24 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
                 })() : "never"} · {jobsImportedCount} jobs imported
               </span>
             </div>
-            <button
-              onClick={() => triggerSync(false)}
-              disabled={gmailLoading}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50"
-            >
-              Refresh ↻
-            </button>
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={() => triggerSync(false, 30)}
+                disabled={gmailLoading}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
+                title="Rescan the last 30 days — picks up older applications and intro calls"
+              >
+                Deep scan 30d
+              </button>
+              <button
+                onClick={() => triggerSync(false)}
+                disabled={gmailLoading}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50"
+              >
+                Refresh ↻
+              </button>
+            </div>
+
           </>
         ) : syncStatus === "error" ? (
           <>
