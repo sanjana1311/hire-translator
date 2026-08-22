@@ -879,24 +879,34 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleClearAllScores}
-              className="text-[11px] font-medium px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
-            >
-              Clear all scores
-            </button>
-            <div className="flex gap-1">
-              {([["must", "hsl(var(--success))", buckets.must.length], ["tweak", "hsl(var(--warning))", buckets.tweak.length], ["low", "hsl(var(--danger))", buckets.low.length]] as const).map(([k, c, n]) => (
-                <div key={k} className="flex items-center gap-1 bg-secondary rounded-full px-2.5 py-1">
-                  <div className="w-1.5 h-1.5 rounded-full" style={{ background: c as string }} />
-                  <span className="text-[11px] text-secondary-foreground font-medium">{n as number}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <button
+            onClick={handleClearAllScores}
+            className="text-[11px] font-medium px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors shrink-0"
+          >
+            Clear all scores
+          </button>
         )}
       </div>
+
+      {/* Stale alert — job alerts sitting unapplied for 10+ days */}
+      {freshnessCounts.stale > 0 && (
+        <div className="mb-4 rounded-xl border border-destructive/20 bg-destructive/[0.06] px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
+            <p className="text-xs text-foreground/80 truncate">
+              <span className="font-semibold">{freshnessCounts.stale} role{freshnessCounts.stale === 1 ? "" : "s"}</span> have been sitting for {STALE_AFTER_DAYS}+ days with no application — these postings are likely closed.
+            </p>
+          </div>
+          <button
+            onClick={() => { setFilterAge(filterAge === "stale" ? "all" : "stale"); setShowFilters(false); }}
+            className="text-[11px] font-medium px-3 py-1.5 rounded-lg border border-destructive/25 text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+          >
+            {filterAge === "stale" ? "Show all" : "Review them"}
+          </button>
+        </div>
+      )}
+
+
 
       {/* Gmail Sync Status Bar */}
       <div className="mb-5 apple-card px-5 py-3.5 flex items-center justify-between">
