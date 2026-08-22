@@ -177,8 +177,21 @@ serve(async (req) => {
 
     const temperature = feat === "roles" ? 0.7 : 0.3;
     const messages = [{ role: "user", content: prompt }];
-    const maxOutputTokens = maxTokens || 1000;
+    // Gemini/GLM reasoning tokens are billed against max_tokens, so a 4k budget
+    // can be consumed by thinking and return a JSON body that stops mid-string.
+    // Resume rewrites get a much larger floor plus reasoning turned down.
+    const requestedTokens = maxTokens || 1000;
+    const maxOutputTokens = isResumeRewrite
+      ? Math.min(16000, Math.max(requestedTokens, 8000))
+      : requestedTokens;
     let text = "";
+    let truncated = false;
+
+    /** OpenAI-compatible finish_reason === "length" means the reply was cut off. */
+    const wasTruncated = (data: any) => {
+      const reason = data?.choices?.[0]?.finish_reason;
+      return reason === "length" || reason === "MAX_TOKENS";
+    };
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
@@ -203,7 +216,7 @@ serve(async (req) => {
           body: JSON.stringify({
             model: OPENCODE_MODEL,
             temperature,
-            max_tokens: maxTokens || 1000,
+            max_tokens: maxOutputTokens,
             messages,
           }),
         });
@@ -211,7 +224,14 @@ serve(async (req) => {
           const responseBody = await res.text();
           console.log(JSON.stringify({ requestId, stage: "provider_response", provider: "opencode", model: OPENCODE_MODEL, status: res.status, body: redact(responseBody) }));
           const data = JSON.parse(responseBody);
-          text = data.choices?.[0]?.message?.content || "";
+          const candidate = data.choices?.[0]?.message?.content || "";
+          if (candidate && wasTruncated(data)) {
+            // Don't hand the client half a JSON object — let the next provider try.
+            console.warn(JSON.stringify({ requestId, stage: "truncated", provider: "opencode", chars: candidate.length }));
+            truncated = true;
+          } else {
+            text = candidate;
+          }
         } else {
           const body = await res.text();
           console.error(JSON.stringify({ requestId, stage: "provider_response", provider: "opencode", model: OPENCODE_MODEL, status: res.status, body: redact(body) }));
@@ -251,7 +271,13 @@ serve(async (req) => {
       else if (res.status === 402) console.error("Lovable AI credits exhausted");
       else if (res.ok) {
         const data = JSON.parse(responseBody);
-        text = data.choices?.[0]?.message?.content || "";
+        const candidate = data.choices?.[0]?.message?.content || "";
+        if (candidate && wasTruncated(data)) {
+          console.warn(JSON.stringify({ requestId, stage: "truncated", provider: "lovable", chars: candidate.length }));
+          truncated = true;
+        } else {
+          text = candidate;
+        }
       } else {
         console.error("AI gateway error:", res.status);
       }
@@ -280,12 +306,26 @@ serve(async (req) => {
         console.error("Groq API error:", res.status, await res.text());
       } else {
         const data = await res.json();
-        text = data.choices?.[0]?.message?.content || "";
+        const candidate = data.choices?.[0]?.message?.content || "";
+        if (candidate && wasTruncated(data)) {
+          console.warn(JSON.stringify({ requestId, stage: "truncated", provider: "groq", chars: candidate.length }));
+          truncated = true;
+        } else {
+          text = candidate;
+        }
       }
     } catch (e) {
       console.error(JSON.stringify({ requestId, stage: "provider_error", provider: "groq", error: String(e).slice(0, 200) }));
     }
 
+    if (!text && truncated) {
+      return failure(
+        requestId,
+        "The tailored resume came back cut off mid-way. Retry — we'll ask for a shorter version.",
+        503,
+        "AI_RESPONSE_TRUNCATED",
+      );
+    }
     if (!text) return failure(requestId, "AI provider unavailable. Please try again.", 502);
 
     await adminClient.from("ai_usage").insert({ user_id: user.id, feature: feat });

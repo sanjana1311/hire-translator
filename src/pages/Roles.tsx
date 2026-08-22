@@ -301,26 +301,47 @@ Your previous reply was not valid JSON or was cut off. Reply again with ONLY the
     setTailorErrors(prev => { const next = { ...prev }; delete next[job.id]; return next; });
     setRL(prev => new Set([...prev, job.id]));
     try {
-      const raw = await callAI(
-        buildTailorPrompt({
-          resumeText,
-          jobTitle: job.title,
-          company: job.company,
-          jobDescription: jobDesc,
-          missingKeywords: r.missingKeywords,
-        }),
-        4000,
-        "resume-rewrite",
-        {
+      const basePrompt = buildTailorPrompt({
+        resumeText,
+        jobTitle: job.title,
+        company: job.company,
+        jobDescription: jobDesc,
+        missingKeywords: r.missingKeywords,
+      });
+      const requestTailored = (prompt: string) =>
+        callAI(prompt, 8000, "resume-rewrite", {
           jobId: job.id,
           resumeId: resumeData?.id,
           resumeTextLength: resumeText.length,
           jobDescriptionLength: jobDesc.length,
-        },
-      );
-      const parsed = parseJsonLoose(raw) as Partial<TailoredResume> | null;
-      const hasContent = !!parsed && (!!parsed.summary || !!parsed.experience?.length || !!parsed.tailored_sections?.length);
-      if (!hasContent) throw new Error("Tailoring temporarily failed — please retry");
+        });
+
+      const readTailored = (raw: string) => {
+        const parsed = parseJsonLoose(raw) as Partial<TailoredResume> | null;
+        const ok = !!parsed && (!!parsed.summary || !!parsed.experience?.length || !!parsed.tailored_sections?.length);
+        return ok ? parsed : null;
+      };
+
+      let parsed: Partial<TailoredResume> | null = null;
+      try {
+        parsed = readTailored(await requestTailored(basePrompt));
+      } catch (firstError: any) {
+        // A cut-off reply is retryable; anything else (quota, auth) is not.
+        if (firstError?.code !== "AI_RESPONSE_TRUNCATED") throw firstError;
+      }
+
+      if (!parsed) {
+        // Retry once asking for a compact reply so the JSON completes.
+        parsed = readTailored(
+          await requestTailored(
+            `${basePrompt}
+
+Your previous reply was cut off before the JSON closed. Reply again with ONLY the JSON object, minified, no code fences. Keep every bullet under 220 characters and include at most 4 bullets per role so the object finishes.`,
+          ),
+        );
+      }
+      if (!parsed) throw new Error("Tailoring temporarily failed — please retry");
+
 
       const { resume: validated, rejectedCount } = validateTailoredResume(parsed as TailoredResume, resumeText);
 
