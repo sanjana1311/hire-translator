@@ -26,6 +26,7 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import ThemeToggle from "@/components/ThemeToggle";
+import Seo from "@/components/Seo";
 import { useToast } from "@/hooks/use-toast";
 
 // Update this once the public repository is created.
@@ -156,6 +157,22 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <Seo
+        title="hireOS — Open-Source AI Career Operating System"
+        description="Open-source, self-hostable AI career OS: score jobs against your resume, rewrite bullets with real JD keywords, track applications, and prep interviews. MIT licensed."
+        path="/"
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "SoftwareApplication",
+          name: "hireOS",
+          applicationCategory: "BusinessApplication",
+          operatingSystem: "Web",
+          license: "https://opensource.org/licenses/MIT",
+          description:
+            "Open-source, self-hostable AI career operating system for job scoring, resume tailoring, application tracking, and interview prep.",
+          offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+        }}
+      />
       {/* Nav */}
       <nav className="sticky top-0 z-50 glass-nav border-b border-border h-[52px] px-5 md:px-7 flex items-center justify-between">
         <div className="flex items-center gap-1.5">

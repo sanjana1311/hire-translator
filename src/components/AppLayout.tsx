@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { LogOut } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { toast } from "sonner";
+import Seo from "@/components/Seo";
 
 const NAV_ITEMS = [
   { key: "roles", label: "Roles", path: "/dashboard" },
@@ -70,6 +71,12 @@ const AppLayout = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <Seo
+        title="Dashboard — hireOS"
+        description="Your hireOS workspace: scored roles, tailored resumes, applications, and interview prep."
+        path="/dashboard"
+        noindex
+      />
       {/* Frosted glass nav */}
       <nav className="glass-nav sticky top-0 z-50 border-b border-border/60 h-[52px] px-6 flex items-center justify-between">
         <div className="flex items-center gap-1">

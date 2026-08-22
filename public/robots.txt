@@ -12,3 +12,10 @@ Allow: /
 
 User-agent: *
 Allow: /
+Disallow: /dashboard
+Disallow: /onboarding
+Disallow: /gmail-callback
+Disallow: /linkedin-callback
+Disallow: /reset-password
+
+Sitemap: https://hire-translator.lovable.app/sitemap.xml
