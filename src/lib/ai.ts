@@ -1,6 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 
-const AI_REQUEST_TIMEOUT_MS = 115_000;
+// Resume rewrites can legitimately run ~2 minutes on the provider chain.
+const AI_REQUEST_TIMEOUT_MS = 170_000;
+
 
 export interface AIRequestContext {
   jobId?: string;
