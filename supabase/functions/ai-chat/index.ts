@@ -256,7 +256,8 @@ serve(async (req) => {
       console.log(JSON.stringify({ requestId, stage: "provider_request", provider: "lovable", model: lovableModel }));
       const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
-        signal: AbortSignal.timeout(45_000),
+        signal: AbortSignal.timeout(isResumeRewrite ? 110_000 : 45_000),
+
         headers: {
           "Lovable-API-Key": LOVABLE_API_KEY,
           "Content-Type": "application/json",
