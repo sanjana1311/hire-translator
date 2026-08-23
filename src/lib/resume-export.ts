@@ -104,17 +104,27 @@ export function downloadTailoredPdf(doc_: FormattedDocument, fileBase: string) {
   pdf.save(`${safeName(fileBase)}.pdf`);
 }
 
+/** Symbol-font bullets (Wingdings/Symbol private-use codepoints) render as junk in Word. */
+const docxSafeText = (s: string) =>
+  (s || "").replace(/[\uf000-\uf0ff]/g, "\u2022").replace(/[ \t]{2,}/g, " ");
+
+const docxFont = (font: string) => (/wingding|symbol|webding/i.test(font) ? "Helvetica" : font);
+
 function toParagraph(line: FormattedLine, isFirstOnPage: boolean, pageBreak: boolean): Paragraph {
-  const runs = (line.runs.length ? line.runs : [{ text: line.text, bold: false, italic: false, size: 10, font: "Helvetica" }]).map(
-    (r) =>
-      new TextRun({
-        text: r.text,
-        bold: r.bold,
-        italics: r.italic,
-        size: Math.round(r.size * 2),
-        font: r.font,
-      })
-  );
+  const runs = (line.runs.length ? line.runs : [{ text: line.text, bold: false, italic: false, size: 10, font: "Helvetica" }])
+    .map((r) => ({ ...r, text: docxSafeText(r.text) }))
+    .filter((r) => r.text)
+    .map(
+      (r) =>
+        new TextRun({
+          text: r.text,
+          bold: r.bold,
+          italics: r.italic,
+          size: Math.round(r.size * 2),
+          font: docxFont(r.font),
+        })
+    );
+
   const children: (TextRun | PageBreak)[] = pageBreak ? [new PageBreak(), ...runs] : runs;
   const hanging = line.bullet ? Math.round(line.runs[0]?.size ?? 10) * PT_TO_TWIP * 0.9 : 0;
   return new Paragraph({
