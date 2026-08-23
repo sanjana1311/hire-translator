@@ -23,6 +23,39 @@ function pdfFamily(font: string): "helvetica" | "times" | "courier" {
   return "helvetica";
 }
 
+// jsPDF's built-in fonts only cover WinAnsi. Anything outside it (arrows, math
+// symbols, emoji, Wingdings bullets from the source PDF) renders as mojibake,
+// so map it to a readable equivalent before drawing.
+const PDF_CHAR_MAP: Record<string, string> = {
+  "\u2192": "->", "\u2190": "<-", "\u2194": "<->", "\u21d2": "=>",
+  "\u2265": ">=", "\u2264": "<=", "\u2260": "!=", "\u2248": "~",
+  "\u2022": "\u2022", "\u2023": "\u2022", "\u25aa": "\u2022", "\u25cf": "\u2022",
+  "\u25a0": "\u2022", "\u25e6": "\u2022", "\u00b7": "\u2022", "\uf0a7": "\u2022",
+  "\uf0b7": "\u2022", "\uf0a8": "\u2022", "\uf076": "\u2022", "\uf0fc": "\u2022",
+  "\u2713": "\u2022", "\u2714": "\u2022", "\u2026": "...", "\u2032": "'",
+  "\u2033": '"', "\u00a0": " ", "\u200b": "", "\ufeff": "",
+};
+
+export function pdfSafeText(input: string): string {
+  return Array.from(input || "")
+    .map((ch) => {
+      const code = ch.codePointAt(0)!;
+      if (code <= 0xff) return ch;
+      if (PDF_CHAR_MAP[ch] !== undefined) return PDF_CHAR_MAP[ch];
+      if (code >= 0x2018 && code <= 0x201f) return code % 2 === 0 ? "'" : "'";
+      if (code >= 0x2010 && code <= 0x2015) return "-";
+      // Emoji, pictographs, private-use icons: drop them rather than print junk.
+      if (code >= 0x1f000 || (code >= 0x2190 && code <= 0x2bff) || (code >= 0xe000 && code <= 0xf8ff)) return "";
+      if (code >= 0xfe00 && code <= 0xfe0f) return "";
+      return "";
+    })
+    .join("")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\s+([|,.;:])/g, "$1")
+    .trim();
+}
+
+
 /** Best-effort PDF recreation: absolute positioning from the captured layout. */
 export function downloadTailoredPdf(doc_: FormattedDocument, fileBase: string) {
   const geo = doc_.layout.pages[0] ?? { width: 612, height: 792 };
