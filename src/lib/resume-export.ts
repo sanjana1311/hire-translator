@@ -77,7 +77,10 @@ export function downloadTailoredPdf(doc_: FormattedDocument, fileBase: string) {
       pdf.setTextColor(17, 17, 17);
 
       const available = contentWidth - line.indent;
-      const wrapped: string[] = pdf.splitTextToSize(line.text, Math.max(80, available));
+      const safe = pdfSafeText(line.text);
+      if (!safe) return;
+      const wrapped: string[] = pdf.splitTextToSize(safe, Math.max(80, available));
+
       let y = line.y + drift;
       wrapped.forEach((seg, i) => {
         if (y > geo.height - doc_.layout.margins.bottom + run.size) {
