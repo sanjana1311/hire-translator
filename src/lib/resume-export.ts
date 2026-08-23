@@ -23,6 +23,42 @@ function pdfFamily(font: string): "helvetica" | "times" | "courier" {
   return "helvetica";
 }
 
+// jsPDF's built-in fonts only cover WinAnsi. Anything outside it (arrows, math
+// symbols, emoji, Wingdings bullets from the source PDF) renders as mojibake,
+// so map it to a readable equivalent before drawing.
+const PDF_CHAR_MAP: Record<string, string> = {
+  "\u2192": "->", "\u2190": "<-", "\u2194": "<->", "\u21d2": "=>",
+  "\u2265": ">=", "\u2264": "<=", "\u2260": "!=", "\u2248": "~",
+  "\u2022": "\u2022", "\u2023": "\u2022", "\u25aa": "\u2022", "\u25cf": "\u2022",
+  "\u25a0": "\u2022", "\u25e6": "\u2022", "\u00b7": "\u2022", "\uf0a7": "\u2022",
+  "\uf0b7": "\u2022", "\uf0a8": "\u2022", "\uf076": "\u2022", "\uf0fc": "\u2022",
+  "\u2713": "\u2022", "\u2714": "\u2022", "\u2026": "...", "\u2032": "'",
+  "\u2033": '"', "\u00a0": " ", "\u200b": "", "\ufeff": "",
+};
+
+/** Characters above U+00FF that WinAnsi (and therefore jsPDF) still renders. */
+const WINANSI_EXTRA = new Set(
+  "\u20ac\u201a\u0192\u201e\u2026\u2020\u2021\u02c6\u2030\u0160\u2039\u0152\u017d\u2018\u2019\u201c\u201d\u2022\u2013\u2014\u02dc\u2122\u0161\u203a\u0153\u017e\u0178".split("")
+);
+
+export function pdfSafeText(input: string): string {
+  return Array.from(input || "")
+    .map((ch) => {
+      const code = ch.codePointAt(0)!;
+      if (code <= 0xff) return ch;
+      if (PDF_CHAR_MAP[ch] !== undefined) return PDF_CHAR_MAP[ch];
+      if (WINANSI_EXTRA.has(ch)) return ch;
+      if (code >= 0x2010 && code <= 0x2015) return "-";
+      // Emoji, pictographs, private-use icons: drop them rather than print junk.
+      return "";
+    })
+    .join("")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+
+
 /** Best-effort PDF recreation: absolute positioning from the captured layout. */
 export function downloadTailoredPdf(doc_: FormattedDocument, fileBase: string) {
   const geo = doc_.layout.pages[0] ?? { width: 612, height: 792 };
@@ -41,7 +77,10 @@ export function downloadTailoredPdf(doc_: FormattedDocument, fileBase: string) {
       pdf.setTextColor(17, 17, 17);
 
       const available = contentWidth - line.indent;
-      const wrapped: string[] = pdf.splitTextToSize(line.text, Math.max(80, available));
+      const safe = pdfSafeText(line.text);
+      if (!safe) return;
+      const wrapped: string[] = pdf.splitTextToSize(safe, Math.max(80, available));
+
       let y = line.y + drift;
       wrapped.forEach((seg, i) => {
         if (y > geo.height - doc_.layout.margins.bottom + run.size) {
@@ -65,17 +104,27 @@ export function downloadTailoredPdf(doc_: FormattedDocument, fileBase: string) {
   pdf.save(`${safeName(fileBase)}.pdf`);
 }
 
+/** Symbol-font bullets (Wingdings/Symbol private-use codepoints) render as junk in Word. */
+const docxSafeText = (s: string) =>
+  (s || "").replace(/[\uf000-\uf0ff]/g, "\u2022").replace(/[ \t]{2,}/g, " ");
+
+const docxFont = (font: string) => (/wingding|symbol|webding/i.test(font) ? "Helvetica" : font);
+
 function toParagraph(line: FormattedLine, isFirstOnPage: boolean, pageBreak: boolean): Paragraph {
-  const runs = (line.runs.length ? line.runs : [{ text: line.text, bold: false, italic: false, size: 10, font: "Helvetica" }]).map(
-    (r) =>
-      new TextRun({
-        text: r.text,
-        bold: r.bold,
-        italics: r.italic,
-        size: Math.round(r.size * 2),
-        font: r.font,
-      })
-  );
+  const runs = (line.runs.length ? line.runs : [{ text: line.text, bold: false, italic: false, size: 10, font: "Helvetica" }])
+    .map((r) => ({ ...r, text: docxSafeText(r.text) }))
+    .filter((r) => r.text)
+    .map(
+      (r) =>
+        new TextRun({
+          text: r.text,
+          bold: r.bold,
+          italics: r.italic,
+          size: Math.round(r.size * 2),
+          font: docxFont(r.font),
+        })
+    );
+
   const children: (TextRun | PageBreak)[] = pageBreak ? [new PageBreak(), ...runs] : runs;
   const hanging = line.bullet ? Math.round(line.runs[0]?.size ?? 10) * PT_TO_TWIP * 0.9 : 0;
   return new Paragraph({

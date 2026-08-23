@@ -7,6 +7,7 @@ import {
   BULLET_RE,
   isUsableLayout,
   layoutFromPlainText,
+  mergeWrappedLines,
   type LayoutLine,
   type ResumeLayout,
 } from "./resume-layout";
@@ -66,9 +67,9 @@ export function buildFormattedDocument(
   resume: TailoredResume,
   source: { layout?: unknown; rawText?: string }
 ): FormattedDocument {
-  const layout: ResumeLayout = isUsableLayout(source.layout)
-    ? source.layout
-    : layoutFromPlainText(source.rawText || "");
+  const layout: ResumeLayout = mergeWrappedLines(
+    isUsableLayout(source.layout) ? source.layout : layoutFromPlainText(source.rawText || "")
+  );
 
   const bullets = acceptedBullets(resume);
   const used = new Set<TailoredBullet>();

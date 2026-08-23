@@ -245,3 +245,50 @@ export function isUsableLayout(layout: unknown): layout is ResumeLayout {
   const l = layout as ResumeLayout | null;
   return !!l && (l as any).version === 1 && Array.isArray(l.lines) && l.lines.length > 3;
 }
+
+/**
+ * Merges visually wrapped continuation lines back into one logical line.
+ *
+ * A PDF stores each *visual* row separately, so a bullet that wraps over three
+ * rows arrives as three lines. Without merging, rewriting only replaces the
+ * first row and the leftover rows stay in the document as orphan fragments.
+ */
+export function mergeWrappedLines(layout: ResumeLayout): ResumeLayout {
+  const out: LayoutLine[] = [];
+  for (const line of layout.lines) {
+    const prev = out[out.length - 1];
+    const size = prev?.runs[0]?.size ?? layout.baseSize;
+    const isContinuation =
+      !!prev &&
+      prev.page === line.page &&
+      !prev.heading &&
+      !line.heading &&
+      !line.bullet &&
+      line.align === "left" &&
+      prev.align !== "right" &&
+      line.spaceBefore > 0 &&
+      // only a line that filled its column can have wrapped
+      prev.text.trim().length >= 60 &&
+      line.spaceBefore <= size * 1.75 &&
+      // wrapped rows sit at, or hanging-indented from, the parent line
+      Math.abs(line.indent - prev.indent) <= Math.max(18, size * 1.6) &&
+      // a genuinely new paragraph normally starts a new sentence
+      (!/[.!?:;]$/.test(prev.text.trim()) || /^[a-z(]/.test(line.text.trim()));
+
+    if (isContinuation) {
+      const joiner = /[-\u2013\u2014]$/.test(prev.text) ? "" : " ";
+      prev.text = `${prev.text}${joiner}${line.text}`.replace(/\s+/g, " ").trim();
+      const last = prev.runs[prev.runs.length - 1];
+      line.runs.forEach((r, i) => {
+        const text = i === 0 ? `${joiner}${r.text}` : r.text;
+        if (last && last.bold === r.bold && last.italic === r.italic && last.size === r.size && last.font === r.font) {
+          last.text += text;
+        } else prev.runs.push({ ...r, text });
+      });
+      continue;
+    }
+    out.push({ ...line, runs: line.runs.map((r) => ({ ...r })) });
+  }
+  return { ...layout, lines: out };
+}
+
