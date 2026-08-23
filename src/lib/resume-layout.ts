@@ -267,6 +267,8 @@ export function mergeWrappedLines(layout: ResumeLayout): ResumeLayout {
       line.align === "left" &&
       prev.align !== "right" &&
       line.spaceBefore > 0 &&
+      // only a line that filled its column can have wrapped
+      prev.text.trim().length >= 60 &&
       line.spaceBefore <= size * 1.75 &&
       // wrapped rows sit at, or hanging-indented from, the parent line
       Math.abs(line.indent - prev.indent) <= Math.max(18, size * 1.6) &&
