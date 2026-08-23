@@ -203,14 +203,16 @@ serve(async (req) => {
     // Primary provider: OpenCode Go (OpenAI-compatible).
     // Skipped for the rest of this instance's life once it returns 401/402/403
     // (bad key or no balance) so we don't pay the latency on every call.
-    if (OPENCODE_API_KEY && !opencodeDisabled) {
+    // Also skipped for resume rewrites: glm-5.2 spends its whole token budget on
+    // reasoning_content and returns empty content after ~100s, which blew the
+    // client deadline before any fallback could answer.
+    if (OPENCODE_API_KEY && !opencodeDisabled && !isResumeRewrite) {
       try {
         console.log(JSON.stringify({ requestId, stage: "provider_request", provider: "opencode", model: OPENCODE_MODEL }));
         const res = await fetch(`${OPENCODE_BASE_URL}/chat/completions`, {
           method: "POST",
-          // Resume rewrites are long generations; a short deadline made every
-          // OpenCode call abort and silently fall through to paid fallbacks.
-          signal: AbortSignal.timeout(120_000),
+          signal: AbortSignal.timeout(60_000),
+
           headers: {
             Authorization: `Bearer ${OPENCODE_API_KEY}`,
             "Content-Type": "application/json",
