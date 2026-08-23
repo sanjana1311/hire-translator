@@ -36,24 +36,27 @@ const PDF_CHAR_MAP: Record<string, string> = {
   "\u2033": '"', "\u00a0": " ", "\u200b": "", "\ufeff": "",
 };
 
+/** Characters above U+00FF that WinAnsi (and therefore jsPDF) still renders. */
+const WINANSI_EXTRA = new Set(
+  "\u20ac\u201a\u0192\u201e\u2026\u2020\u2021\u02c6\u2030\u0160\u2039\u0152\u017d\u2018\u2019\u201c\u201d\u2022\u2013\u2014\u02dc\u2122\u0161\u203a\u0153\u017e\u0178".split("")
+);
+
 export function pdfSafeText(input: string): string {
   return Array.from(input || "")
     .map((ch) => {
       const code = ch.codePointAt(0)!;
       if (code <= 0xff) return ch;
       if (PDF_CHAR_MAP[ch] !== undefined) return PDF_CHAR_MAP[ch];
-      if (code >= 0x2018 && code <= 0x201f) return code % 2 === 0 ? "'" : "'";
+      if (WINANSI_EXTRA.has(ch)) return ch;
       if (code >= 0x2010 && code <= 0x2015) return "-";
       // Emoji, pictographs, private-use icons: drop them rather than print junk.
-      if (code >= 0x1f000 || (code >= 0x2190 && code <= 0x2bff) || (code >= 0xe000 && code <= 0xf8ff)) return "";
-      if (code >= 0xfe00 && code <= 0xfe0f) return "";
       return "";
     })
     .join("")
     .replace(/[ \t]{2,}/g, " ")
-    .replace(/\s+([|,.;:])/g, "$1")
     .trim();
 }
+
 
 
 /** Best-effort PDF recreation: absolute positioning from the captured layout. */
