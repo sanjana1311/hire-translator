@@ -211,7 +211,7 @@ serve(async (req) => {
         console.log(JSON.stringify({ requestId, stage: "provider_request", provider: "opencode", model: OPENCODE_MODEL }));
         const res = await fetch(`${OPENCODE_BASE_URL}/chat/completions`, {
           method: "POST",
-          signal: AbortSignal.timeout(isResumeRewrite ? 100_000 : 60_000),
+          signal: AbortSignal.timeout(isResumeRewrite ? 220_000 : 90_000),
 
           headers: {
             Authorization: `Bearer ${OPENCODE_API_KEY}`,
@@ -261,7 +261,7 @@ serve(async (req) => {
       console.log(JSON.stringify({ requestId, stage: "provider_request", provider: "lovable", model: lovableModel }));
       const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
-        signal: AbortSignal.timeout(isResumeRewrite ? 60_000 : 45_000),
+        signal: AbortSignal.timeout(isResumeRewrite ? 80_000 : 45_000),
 
         headers: {
           "Lovable-API-Key": LOVABLE_API_KEY,
@@ -299,7 +299,7 @@ serve(async (req) => {
     if (!text && GROQ_API_KEY) try {
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
-        signal: AbortSignal.timeout(45_000),
+        signal: AbortSignal.timeout(60_000),
         headers: {
           Authorization: `Bearer ${GROQ_API_KEY}`,
           "Content-Type": "application/json",
