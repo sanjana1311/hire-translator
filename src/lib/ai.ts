@@ -1,7 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 
-// Resume rewrites can legitimately run ~2 minutes on the provider chain.
-const AI_REQUEST_TIMEOUT_MS = 170_000;
+// Resume rewrites on OpenCode can legitimately run several minutes; keep the
+// client deadline well above the server-side provider chain budget.
+const AI_REQUEST_TIMEOUT_MS = 330_000;
 
 
 export interface AIRequestContext {
