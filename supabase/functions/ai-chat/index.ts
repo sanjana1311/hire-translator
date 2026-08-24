@@ -200,18 +200,18 @@ serve(async (req) => {
     // OPENCODE_MODEL_V2 wins: the Go router only serves a subset of Zen models.
     const OPENCODE_MODEL = Deno.env.get("OPENCODE_MODEL_V2") || Deno.env.get("OPENCODE_MODEL") || "glm-5.2";
 
-    // Primary provider: OpenCode Go (OpenAI-compatible).
+    // Primary provider: OpenCode Go (OpenAI-compatible) — used for EVERY feature,
+    // including resume rewrites, so we don't spend Lovable credits.
     // Skipped for the rest of this instance's life once it returns 401/402/403
     // (bad key or no balance) so we don't pay the latency on every call.
-    // Also skipped for resume rewrites: glm-5.2 spends its whole token budget on
-    // reasoning_content and returns empty content after ~100s, which blew the
-    // client deadline before any fallback could answer.
-    if (OPENCODE_API_KEY && !opencodeDisabled && !isResumeRewrite) {
+    // For rewrites we explicitly turn reasoning off: glm-5.2 otherwise spends the
+    // whole token budget on reasoning_content and returns empty content.
+    if (OPENCODE_API_KEY && !opencodeDisabled) {
       try {
         console.log(JSON.stringify({ requestId, stage: "provider_request", provider: "opencode", model: OPENCODE_MODEL }));
         const res = await fetch(`${OPENCODE_BASE_URL}/chat/completions`, {
           method: "POST",
-          signal: AbortSignal.timeout(60_000),
+          signal: AbortSignal.timeout(isResumeRewrite ? 100_000 : 60_000),
 
           headers: {
             Authorization: `Bearer ${OPENCODE_API_KEY}`,
@@ -222,8 +222,13 @@ serve(async (req) => {
             temperature,
             max_tokens: maxOutputTokens,
             messages,
+            // Unknown fields are ignored by routers that don't support them.
+            reasoning_effort: "none",
+            thinking: { type: "disabled" },
+            chat_template_kwargs: { thinking: false },
           }),
         });
+
         if (res.ok) {
           const responseBody = await res.text();
           console.log(JSON.stringify({ requestId, stage: "provider_response", provider: "opencode", model: OPENCODE_MODEL, status: res.status, body: redact(responseBody) }));
