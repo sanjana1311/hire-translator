@@ -437,6 +437,9 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
   const [filterLocation, setFilterLocation] = useState<string>("all");
   const [filterAge, setFilterAge] = useState<string>("all");
   const [showFilters, setShowFilters] = useState(false);
+  const [sortBy, setSortBy] = useState<"newest" | "match">("newest");
+  const [showMore, setShowMore] = useState(false);
+
   const [collapsedFamilies, setCollapsedFamilies] = useState<Set<string>>(new Set());
 
   const toggleFamily = (key: string) => {
