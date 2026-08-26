@@ -1161,6 +1161,8 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
                 <option value="must">Must Apply</option>
                 <option value="tweak">Needs Tweaking</option>
                 <option value="low">Low Alignment</option>
+                <option value="unscored">Not scored yet</option>
+
               </select>
             </div>
             <div>
