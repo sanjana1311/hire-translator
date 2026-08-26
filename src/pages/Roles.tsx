@@ -904,19 +904,20 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
   // Main list view
   return (
     <div className="max-w-[960px] mx-auto px-6 py-10">
-      <div className="flex items-start justify-between mb-1">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight mb-0.5">Today's Roles</h1>
-          <p className="text-xs text-muted-foreground mb-5">
-            {isRunning ? `Analyzing ${jobs.length} roles…` : `${jobs.length} roles ready · click to review your tailored resume`}
-            {aiRemaining !== null && (
-              <span className="ml-2 text-muted-foreground/60">· {aiRemaining}/{aiLimit} AI calls left today</span>
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight mb-0.5">Imported Roles</h1>
+          <p className="text-xs text-muted-foreground">
+            {isRunning ? `Analyzing ${jobs.length} roles…` : `${jobs.length} imported`}
+            {newBatchIds.size > 0 && (
+              <span className="ml-2 text-foreground/70 font-medium">· {newBatchIds.size} new this sync</span>
             )}
             {lastSyncedAt && (
               <span className="ml-2 text-muted-foreground/60">
-                · Last synced {(() => {
+                · Synced {(() => {
                   const diff = Date.now() - new Date(lastSyncedAt).getTime();
                   const mins = Math.floor(diff / 60000);
+                  if (mins < 2) return "just now";
                   if (mins < 60) return `${mins}m ago`;
                   const hrs = Math.floor(mins / 60);
                   if (hrs < 24) return `${hrs}h ago`;
@@ -924,30 +925,83 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
                 })()}
               </span>
             )}
+            {aiRemaining !== null && (
+              <span className="ml-2 text-muted-foreground/60">· {aiRemaining}/{aiLimit} AI calls left today</span>
+            )}
           </p>
         </div>
-        {isRunning ? (
-          <div className="flex items-center gap-3">
-            <Spinner size={13} />
-            <div>
-              <div className="flex justify-between mb-1">
-                <span className="animate-pulse-dot text-[11px] text-muted-foreground">Analyzing {doneCount}/{jobs.length}…</span>
-                <span className="text-[11px] text-muted-foreground/60 ml-2.5">{pct}%</span>
-              </div>
-              <div className="bg-secondary rounded-full h-1 w-[140px] overflow-hidden">
-                <div className="bg-foreground h-1 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+
+        <div className="flex items-center gap-2 shrink-0">
+          {isRunning && (
+            <div className="flex items-center gap-2.5 mr-1">
+              <Spinner size={13} />
+              <div>
+                <div className="flex justify-between mb-1">
+                  <span className="animate-pulse-dot text-[11px] text-muted-foreground">Analyzing {doneCount}/{jobs.length}…</span>
+                  <span className="text-[11px] text-muted-foreground/60 ml-2.5">{pct}%</span>
+                </div>
+                <div className="bg-secondary rounded-full h-1 w-[140px] overflow-hidden">
+                  <div className="bg-foreground h-1 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+                </div>
               </div>
             </div>
+          )}
+
+          {syncStatus === "never_synced" || syncStatus === "idle" || syncStatus === "no_token" ? (
+            <button
+              onClick={connectGmail}
+              className="text-xs font-medium px-3.5 py-2 rounded-lg bg-foreground text-background hover:opacity-90 transition-opacity"
+            >
+              Connect Gmail →
+            </button>
+          ) : (
+            <button
+              onClick={() => triggerSync(false)}
+              disabled={gmailLoading}
+              className="text-xs font-medium px-3.5 py-2 rounded-lg bg-foreground text-background hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {gmailLoading ? "Syncing…" : "Sync Gmail ↻"}
+            </button>
+          )}
+
+          <div className="relative">
+            <button
+              onClick={() => setShowMore(v => !v)}
+              aria-label="More actions"
+              className="text-xs font-medium px-2.5 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+            >
+              <MoreHorizontal className="w-3.5 h-3.5" />
+            </button>
+            {showMore && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowMore(false)} />
+                <div className="absolute right-0 mt-1.5 z-20 w-52 apple-card p-1 shadow-lg">
+                  <button
+                    onClick={() => { setShowMore(false); triggerSync(false, 30); }}
+                    disabled={gmailLoading}
+                    className="w-full text-left text-xs px-3 py-2 rounded-md hover:bg-secondary transition-colors disabled:opacity-50"
+                  >
+                    Deep scan last 30 days
+                  </button>
+                  <button
+                    onClick={() => { setShowMore(false); signOut(); }}
+                    className="w-full text-left text-xs px-3 py-2 rounded-md hover:bg-secondary transition-colors"
+                  >
+                    Reconnect / sign out
+                  </button>
+                  <button
+                    onClick={() => { setShowMore(false); handleClearAllScores(); }}
+                    className="w-full text-left text-xs px-3 py-2 rounded-md text-destructive hover:bg-destructive/10 transition-colors"
+                  >
+                    Clear all scores
+                  </button>
+                </div>
+              </>
+            )}
           </div>
-        ) : (
-          <button
-            onClick={handleClearAllScores}
-            className="text-[11px] font-medium px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors shrink-0"
-          >
-            Clear all scores
-          </button>
-        )}
+        </div>
       </div>
+
 
       {/* Stale alert — job alerts sitting unapplied for 10+ days */}
       {freshnessCounts.stale > 0 && (
