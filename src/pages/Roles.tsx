@@ -1022,86 +1022,45 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
       )}
 
 
-
-      {/* Gmail Sync Status Bar */}
-      <div className="mb-5 apple-card px-5 py-3.5 flex items-center justify-between">
-        {syncStatus === "never_synced" || syncStatus === "idle" ? (
-          <>
+      {/* Gmail sync status — only surfaces when something needs attention */}
+      {(syncStatus === "syncing" || syncStatus === "error" || syncStatus === "no_token" || syncStatus === "never_synced") && (
+        <div className="mb-5 apple-card px-5 py-3 flex items-center justify-between gap-3">
+          {syncStatus === "syncing" ? (
             <div className="flex items-center gap-2.5">
-              <div className="w-2 h-2 rounded-full bg-muted-foreground/30" />
-              <span className="text-xs text-muted-foreground">Connect Gmail to import more job alerts</span>
+              <Spinner size={12} />
+              <span className="text-xs text-muted-foreground animate-pulse">Syncing your Gmail job alerts…</span>
             </div>
-            <button onClick={connectGmail} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-foreground text-background hover:opacity-90 transition-opacity">
-              Connect Gmail →
-            </button>
-          </>
-        ) : syncStatus === "syncing" ? (
-          <div className="flex items-center gap-2.5">
-            <Spinner size={12} />
-            <span className="text-xs text-muted-foreground animate-pulse">Syncing your Gmail job alerts…</span>
-          </div>
-        ) : syncStatus === "success" ? (
-          <>
-            <div className="flex items-center gap-2.5">
-              <div className="w-2 h-2 rounded-full bg-success" />
-              <span className="text-xs text-muted-foreground">
-                Last synced {lastSyncedAt ? (() => {
-                  const diff = Date.now() - new Date(lastSyncedAt).getTime();
-                  const mins = Math.floor(diff / 60000);
-                  if (mins < 2) return "just now";
-                  if (mins < 60) return `${mins}m ago`;
-                  const hrs = Math.floor(mins / 60);
-                  if (hrs < 24) return `${hrs}h ago`;
-                  return `${Math.floor(hrs / 24)}d ago`;
-                })() : "never"} · {jobsImportedCount} jobs imported
-              </span>
-            </div>
-            <div className="flex gap-2 shrink-0">
-              <button
-                onClick={() => triggerSync(false, 30)}
-                disabled={gmailLoading}
-                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
-                title="Rescan the last 30 days — picks up older applications and intro calls"
-              >
-                Deep scan 30d
-              </button>
+          ) : syncStatus === "error" ? (
+            <>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-2 h-2 rounded-full bg-destructive shrink-0" />
+                <span className="text-xs text-destructive truncate">Sync failed — tap to retry</span>
+              </div>
               <button
                 onClick={() => triggerSync(false)}
                 disabled={gmailLoading}
-                className="text-xs font-medium px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50"
+                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-destructive/20 bg-destructive/5 text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50 shrink-0"
               >
-                Refresh ↻
+                Retry
               </button>
-            </div>
-
-          </>
-        ) : syncStatus === "error" ? (
-          <>
+            </>
+          ) : syncStatus === "no_token" ? (
+            <>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-2 h-2 rounded-full bg-warning shrink-0" />
+                <span className="text-xs text-muted-foreground">Gmail access not granted — sign out and back in, and tick the Gmail permission.</span>
+              </div>
+              <button onClick={signOut} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors shrink-0">Sign out</button>
+            </>
+          ) : (
             <div className="flex items-center gap-2.5">
-              <div className="w-2 h-2 rounded-full bg-destructive" />
-              <span className="text-xs text-destructive">Sync failed — tap to retry</span>
+              <div className="w-2 h-2 rounded-full bg-muted-foreground/30" />
+              <span className="text-xs text-muted-foreground">Connect Gmail to import job alerts automatically</span>
             </div>
-            <button
-              onClick={() => triggerSync(false)}
-              disabled={gmailLoading}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-destructive/20 bg-destructive/5 text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
-            >
-              Retry
-            </button>
-          </>
-        ) : syncStatus === "no_token" ? (
-          <>
-            <div className="flex items-center gap-2.5 flex-1 mr-3">
-              <div className="w-2 h-2 rounded-full bg-warning" />
-              <span className="text-xs text-muted-foreground">Gmail access not granted. Sign out and sign back in — make sure to check the Gmail permission on the Google screen.</span>
-            </div>
-            <div className="flex gap-2 shrink-0">
-              <button onClick={connectGmail} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-foreground text-background hover:opacity-90 transition-opacity">Reconnect Gmail</button>
-              <button onClick={signOut} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors">Sign out</button>
-            </div>
-          </>
-        ) : null}
-      </div>
+          )}
+        </div>
+      )}
+
 
       <GmailSyncSummary report={syncReport} counts={syncCounts} errors={syncErrors} syncedAt={syncReportAt} loading={gmailLoading} error={syncError} onRetry={() => triggerSync(false)} />
 
