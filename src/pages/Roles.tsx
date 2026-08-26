@@ -468,23 +468,62 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
     [jobs]
   );
 
+  // Jobs that arrived in the most recent import batch (within 15 min of the newest import)
+  const newBatchIds = useMemo(() => {
+    if (classifiedJobs.length === 0) return new Set<string>();
+    const times = classifiedJobs.map(j => new Date(j.imported_at).getTime()).filter(t => !Number.isNaN(t));
+    if (times.length === 0) return new Set<string>();
+    const newest = Math.max(...times);
+    // Only treat as "this sync" if the batch landed in the last 48h
+    if (Date.now() - newest > 48 * 60 * 60 * 1000) return new Set<string>();
+    const cutoff = newest - 15 * 60 * 1000;
+    return new Set(
+      classifiedJobs.filter(j => new Date(j.imported_at).getTime() >= cutoff).map(j => j.id)
+    );
+  }, [classifiedJobs]);
+
   const filteredJobs = useMemo(() => {
-    return classifiedJobs.filter(job => {
+    const list = classifiedJobs.filter(job => {
       if (filterFamily !== "all" && job.roleFamily !== filterFamily) return false;
       if (filterBucket !== "all") {
         const r = results[job.id];
-        if (!r || r.bucket !== filterBucket) return false;
+        if (filterBucket === "unscored") {
+          if (r) return false;
+        } else if (!r || r.bucket !== filterBucket) return false;
       }
       if (filterCompany !== "all" && job.company !== filterCompany) return false;
       if (filterLocation !== "all" && (job.location || "Remote") !== filterLocation) return false;
       if (filterAge !== "all" && job.freshness.level !== filterAge) return false;
       return true;
     });
-  }, [classifiedJobs, filterFamily, filterBucket, filterCompany, filterLocation, filterAge, results]);
+
+    return list.sort((a, b) => {
+      if (sortBy === "match") {
+        const sa = results[a.id]?.score ?? -1;
+        const sb = results[b.id]?.score ?? -1;
+        if (sb !== sa) return sb - sa;
+      }
+      return new Date(b.imported_at).getTime() - new Date(a.imported_at).getTime();
+    });
+  }, [classifiedJobs, filterFamily, filterBucket, filterCompany, filterLocation, filterAge, results, sortBy]);
+
+  const bucketGroupsOf = useCallback((list: typeof filteredJobs) => ({
+    must: list.filter(j => results[j.id]?.bucket === "must"),
+    tweak: list.filter(j => results[j.id]?.bucket === "tweak"),
+    low: list.filter(j => results[j.id]?.bucket === "low"),
+    unscored: list.filter(j => !results[j.id]),
+  }), [results]);
+
+  const newGroup = useMemo(() => {
+    const list = filteredJobs.filter(j => newBatchIds.has(j.id));
+    if (list.length === 0 || list.length === filteredJobs.length) return null;
+    return { familyKey: "__new" as const, label: "New this sync", jobs: list, bucketGroups: bucketGroupsOf(list) };
+  }, [filteredJobs, newBatchIds, bucketGroupsOf]);
 
   const groupedData = useMemo(() => {
+    const rest = newGroup ? filteredJobs.filter(j => !newBatchIds.has(j.id)) : filteredJobs;
     const familyMap: Record<string, typeof filteredJobs> = {};
-    for (const job of filteredJobs) {
+    for (const job of rest) {
       const key = job.roleFamily;
       if (!familyMap[key]) familyMap[key] = [];
       familyMap[key].push(job);
@@ -495,23 +534,21 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
       (a, b) => familyOrder.indexOf(a) - familyOrder.indexOf(b)
     );
 
-    return sortedFamilies.map(familyKey => {
+    const families = sortedFamilies.map(familyKey => {
       const familyJobs = familyMap[familyKey];
-      const bucketGroups = {
-        must: familyJobs.filter(j => results[j.id]?.bucket === "must"),
-        tweak: familyJobs.filter(j => results[j.id]?.bucket === "tweak"),
-        low: familyJobs.filter(j => results[j.id]?.bucket === "low"),
-        unscored: familyJobs.filter(j => !results[j.id]),
-      };
-      return { familyKey: familyKey as RoleFamilyKey, label: getRoleFamilyLabel(familyKey as RoleFamilyKey), jobs: familyJobs, bucketGroups };
+      return { familyKey: familyKey as RoleFamilyKey, label: getRoleFamilyLabel(familyKey as RoleFamilyKey), jobs: familyJobs, bucketGroups: bucketGroupsOf(familyJobs) };
     });
-  }, [filteredJobs, results]);
+
+    return newGroup ? [newGroup as any, ...families] : families;
+  }, [filteredJobs, results, newGroup, newBatchIds, bucketGroupsOf]);
 
   const buckets = {
     must: jobs.filter(j => results[j.id]?.bucket === "must"),
     tweak: jobs.filter(j => results[j.id]?.bucket === "tweak"),
     low: jobs.filter(j => results[j.id]?.bucket === "low"),
+    unscored: jobs.filter(j => !results[j.id]),
   };
+
 
   const freshnessCounts = useMemo(() => {
     const counts: Record<FreshnessLevel, number> = { applied: 0, fresh: 0, aging: 0, stale: 0 };
