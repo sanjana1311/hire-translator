@@ -23,7 +23,7 @@ import {
 } from "@/data/seed";
 import { classifyRole, getRoleFamilyLabel, ROLE_FAMILIES, type RoleFamilyKey } from "@/lib/role-classifier";
 import { getFreshness, FRESHNESS_STYLES, STALE_AFTER_DAYS, AGING_AFTER_DAYS, type FreshnessLevel } from "@/lib/job-freshness";
-import { ChevronDown, ChevronRight, SlidersHorizontal, X, Trash2, AlertTriangle, Clock, CheckCircle2 } from "lucide-react";
+import { ChevronDown, ChevronRight, SlidersHorizontal, X, Trash2, AlertTriangle, Clock, CheckCircle2, MoreHorizontal, Sparkles } from "lucide-react";
 
 const parseStoredResume = (value: string): TailoredResume | null => {
   try {
@@ -437,6 +437,9 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
   const [filterLocation, setFilterLocation] = useState<string>("all");
   const [filterAge, setFilterAge] = useState<string>("all");
   const [showFilters, setShowFilters] = useState(false);
+  const [sortBy, setSortBy] = useState<"newest" | "match">("newest");
+  const [showMore, setShowMore] = useState(false);
+
   const [collapsedFamilies, setCollapsedFamilies] = useState<Set<string>>(new Set());
 
   const toggleFamily = (key: string) => {
@@ -465,23 +468,62 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
     [jobs]
   );
 
+  // Jobs that arrived in the most recent import batch (within 15 min of the newest import)
+  const newBatchIds = useMemo(() => {
+    if (classifiedJobs.length === 0) return new Set<string>();
+    const times = classifiedJobs.map(j => new Date(j.imported_at).getTime()).filter(t => !Number.isNaN(t));
+    if (times.length === 0) return new Set<string>();
+    const newest = Math.max(...times);
+    // Only treat as "this sync" if the batch landed in the last 48h
+    if (Date.now() - newest > 48 * 60 * 60 * 1000) return new Set<string>();
+    const cutoff = newest - 15 * 60 * 1000;
+    return new Set(
+      classifiedJobs.filter(j => new Date(j.imported_at).getTime() >= cutoff).map(j => j.id)
+    );
+  }, [classifiedJobs]);
+
   const filteredJobs = useMemo(() => {
-    return classifiedJobs.filter(job => {
+    const list = classifiedJobs.filter(job => {
       if (filterFamily !== "all" && job.roleFamily !== filterFamily) return false;
       if (filterBucket !== "all") {
         const r = results[job.id];
-        if (!r || r.bucket !== filterBucket) return false;
+        if (filterBucket === "unscored") {
+          if (r) return false;
+        } else if (!r || r.bucket !== filterBucket) return false;
       }
       if (filterCompany !== "all" && job.company !== filterCompany) return false;
       if (filterLocation !== "all" && (job.location || "Remote") !== filterLocation) return false;
       if (filterAge !== "all" && job.freshness.level !== filterAge) return false;
       return true;
     });
-  }, [classifiedJobs, filterFamily, filterBucket, filterCompany, filterLocation, filterAge, results]);
+
+    return list.sort((a, b) => {
+      if (sortBy === "match") {
+        const sa = results[a.id]?.score ?? -1;
+        const sb = results[b.id]?.score ?? -1;
+        if (sb !== sa) return sb - sa;
+      }
+      return new Date(b.imported_at).getTime() - new Date(a.imported_at).getTime();
+    });
+  }, [classifiedJobs, filterFamily, filterBucket, filterCompany, filterLocation, filterAge, results, sortBy]);
+
+  const bucketGroupsOf = useCallback((list: typeof filteredJobs) => ({
+    must: list.filter(j => results[j.id]?.bucket === "must"),
+    tweak: list.filter(j => results[j.id]?.bucket === "tweak"),
+    low: list.filter(j => results[j.id]?.bucket === "low"),
+    unscored: list.filter(j => !results[j.id]),
+  }), [results]);
+
+  const newGroup = useMemo(() => {
+    const list = filteredJobs.filter(j => newBatchIds.has(j.id));
+    if (list.length === 0 || list.length === filteredJobs.length) return null;
+    return { familyKey: "__new" as const, label: "New this sync", jobs: list, bucketGroups: bucketGroupsOf(list) };
+  }, [filteredJobs, newBatchIds, bucketGroupsOf]);
 
   const groupedData = useMemo(() => {
+    const rest = newGroup ? filteredJobs.filter(j => !newBatchIds.has(j.id)) : filteredJobs;
     const familyMap: Record<string, typeof filteredJobs> = {};
-    for (const job of filteredJobs) {
+    for (const job of rest) {
       const key = job.roleFamily;
       if (!familyMap[key]) familyMap[key] = [];
       familyMap[key].push(job);
@@ -492,23 +534,21 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
       (a, b) => familyOrder.indexOf(a) - familyOrder.indexOf(b)
     );
 
-    return sortedFamilies.map(familyKey => {
+    const families = sortedFamilies.map(familyKey => {
       const familyJobs = familyMap[familyKey];
-      const bucketGroups = {
-        must: familyJobs.filter(j => results[j.id]?.bucket === "must"),
-        tweak: familyJobs.filter(j => results[j.id]?.bucket === "tweak"),
-        low: familyJobs.filter(j => results[j.id]?.bucket === "low"),
-        unscored: familyJobs.filter(j => !results[j.id]),
-      };
-      return { familyKey: familyKey as RoleFamilyKey, label: getRoleFamilyLabel(familyKey as RoleFamilyKey), jobs: familyJobs, bucketGroups };
+      return { familyKey: familyKey as RoleFamilyKey, label: getRoleFamilyLabel(familyKey as RoleFamilyKey), jobs: familyJobs, bucketGroups: bucketGroupsOf(familyJobs) };
     });
-  }, [filteredJobs, results]);
+
+    return newGroup ? [newGroup as any, ...families] : families;
+  }, [filteredJobs, results, newGroup, newBatchIds, bucketGroupsOf]);
 
   const buckets = {
     must: jobs.filter(j => results[j.id]?.bucket === "must"),
     tweak: jobs.filter(j => results[j.id]?.bucket === "tweak"),
     low: jobs.filter(j => results[j.id]?.bucket === "low"),
+    unscored: jobs.filter(j => !results[j.id]),
   };
+
 
   const freshnessCounts = useMemo(() => {
     const counts: Record<FreshnessLevel, number> = { applied: 0, fresh: 0, aging: 0, stale: 0 };
@@ -864,19 +904,20 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
   // Main list view
   return (
     <div className="max-w-[960px] mx-auto px-6 py-10">
-      <div className="flex items-start justify-between mb-1">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight mb-0.5">Today's Roles</h1>
-          <p className="text-xs text-muted-foreground mb-5">
-            {isRunning ? `Analyzing ${jobs.length} roles…` : `${jobs.length} roles ready · click to review your tailored resume`}
-            {aiRemaining !== null && (
-              <span className="ml-2 text-muted-foreground/60">· {aiRemaining}/{aiLimit} AI calls left today</span>
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight mb-0.5">Imported Roles</h1>
+          <p className="text-xs text-muted-foreground">
+            {isRunning ? `Analyzing ${jobs.length} roles…` : `${jobs.length} imported`}
+            {newBatchIds.size > 0 && (
+              <span className="ml-2 text-foreground/70 font-medium">· {newBatchIds.size} new this sync</span>
             )}
             {lastSyncedAt && (
               <span className="ml-2 text-muted-foreground/60">
-                · Last synced {(() => {
+                · Synced {(() => {
                   const diff = Date.now() - new Date(lastSyncedAt).getTime();
                   const mins = Math.floor(diff / 60000);
+                  if (mins < 2) return "just now";
                   if (mins < 60) return `${mins}m ago`;
                   const hrs = Math.floor(mins / 60);
                   if (hrs < 24) return `${hrs}h ago`;
@@ -884,30 +925,83 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
                 })()}
               </span>
             )}
+            {aiRemaining !== null && (
+              <span className="ml-2 text-muted-foreground/60">· {aiRemaining}/{aiLimit} AI calls left today</span>
+            )}
           </p>
         </div>
-        {isRunning ? (
-          <div className="flex items-center gap-3">
-            <Spinner size={13} />
-            <div>
-              <div className="flex justify-between mb-1">
-                <span className="animate-pulse-dot text-[11px] text-muted-foreground">Analyzing {doneCount}/{jobs.length}…</span>
-                <span className="text-[11px] text-muted-foreground/60 ml-2.5">{pct}%</span>
-              </div>
-              <div className="bg-secondary rounded-full h-1 w-[140px] overflow-hidden">
-                <div className="bg-foreground h-1 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+
+        <div className="flex items-center gap-2 shrink-0">
+          {isRunning && (
+            <div className="flex items-center gap-2.5 mr-1">
+              <Spinner size={13} />
+              <div>
+                <div className="flex justify-between mb-1">
+                  <span className="animate-pulse-dot text-[11px] text-muted-foreground">Analyzing {doneCount}/{jobs.length}…</span>
+                  <span className="text-[11px] text-muted-foreground/60 ml-2.5">{pct}%</span>
+                </div>
+                <div className="bg-secondary rounded-full h-1 w-[140px] overflow-hidden">
+                  <div className="bg-foreground h-1 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+                </div>
               </div>
             </div>
+          )}
+
+          {syncStatus === "never_synced" || syncStatus === "idle" || syncStatus === "no_token" ? (
+            <button
+              onClick={connectGmail}
+              className="text-xs font-medium px-3.5 py-2 rounded-lg bg-foreground text-background hover:opacity-90 transition-opacity"
+            >
+              Connect Gmail →
+            </button>
+          ) : (
+            <button
+              onClick={() => triggerSync(false)}
+              disabled={gmailLoading}
+              className="text-xs font-medium px-3.5 py-2 rounded-lg bg-foreground text-background hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {gmailLoading ? "Syncing…" : "Sync Gmail ↻"}
+            </button>
+          )}
+
+          <div className="relative">
+            <button
+              onClick={() => setShowMore(v => !v)}
+              aria-label="More actions"
+              className="text-xs font-medium px-2.5 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+            >
+              <MoreHorizontal className="w-3.5 h-3.5" />
+            </button>
+            {showMore && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowMore(false)} />
+                <div className="absolute right-0 mt-1.5 z-20 w-52 apple-card p-1 shadow-lg">
+                  <button
+                    onClick={() => { setShowMore(false); triggerSync(false, 30); }}
+                    disabled={gmailLoading}
+                    className="w-full text-left text-xs px-3 py-2 rounded-md hover:bg-secondary transition-colors disabled:opacity-50"
+                  >
+                    Deep scan last 30 days
+                  </button>
+                  <button
+                    onClick={() => { setShowMore(false); signOut(); }}
+                    className="w-full text-left text-xs px-3 py-2 rounded-md hover:bg-secondary transition-colors"
+                  >
+                    Reconnect / sign out
+                  </button>
+                  <button
+                    onClick={() => { setShowMore(false); handleClearAllScores(); }}
+                    className="w-full text-left text-xs px-3 py-2 rounded-md text-destructive hover:bg-destructive/10 transition-colors"
+                  >
+                    Clear all scores
+                  </button>
+                </div>
+              </>
+            )}
           </div>
-        ) : (
-          <button
-            onClick={handleClearAllScores}
-            className="text-[11px] font-medium px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors shrink-0"
-          >
-            Clear all scores
-          </button>
-        )}
+        </div>
       </div>
+
 
       {/* Stale alert — job alerts sitting unapplied for 10+ days */}
       {freshnessCounts.stale > 0 && (
@@ -928,86 +1022,45 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
       )}
 
 
-
-      {/* Gmail Sync Status Bar */}
-      <div className="mb-5 apple-card px-5 py-3.5 flex items-center justify-between">
-        {syncStatus === "never_synced" || syncStatus === "idle" ? (
-          <>
+      {/* Gmail sync status — only surfaces when something needs attention */}
+      {(syncStatus === "syncing" || syncStatus === "error" || syncStatus === "no_token" || syncStatus === "never_synced") && (
+        <div className="mb-5 apple-card px-5 py-3 flex items-center justify-between gap-3">
+          {syncStatus === "syncing" ? (
             <div className="flex items-center gap-2.5">
-              <div className="w-2 h-2 rounded-full bg-muted-foreground/30" />
-              <span className="text-xs text-muted-foreground">Connect Gmail to import more job alerts</span>
+              <Spinner size={12} />
+              <span className="text-xs text-muted-foreground animate-pulse">Syncing your Gmail job alerts…</span>
             </div>
-            <button onClick={connectGmail} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-foreground text-background hover:opacity-90 transition-opacity">
-              Connect Gmail →
-            </button>
-          </>
-        ) : syncStatus === "syncing" ? (
-          <div className="flex items-center gap-2.5">
-            <Spinner size={12} />
-            <span className="text-xs text-muted-foreground animate-pulse">Syncing your Gmail job alerts…</span>
-          </div>
-        ) : syncStatus === "success" ? (
-          <>
-            <div className="flex items-center gap-2.5">
-              <div className="w-2 h-2 rounded-full bg-success" />
-              <span className="text-xs text-muted-foreground">
-                Last synced {lastSyncedAt ? (() => {
-                  const diff = Date.now() - new Date(lastSyncedAt).getTime();
-                  const mins = Math.floor(diff / 60000);
-                  if (mins < 2) return "just now";
-                  if (mins < 60) return `${mins}m ago`;
-                  const hrs = Math.floor(mins / 60);
-                  if (hrs < 24) return `${hrs}h ago`;
-                  return `${Math.floor(hrs / 24)}d ago`;
-                })() : "never"} · {jobsImportedCount} jobs imported
-              </span>
-            </div>
-            <div className="flex gap-2 shrink-0">
-              <button
-                onClick={() => triggerSync(false, 30)}
-                disabled={gmailLoading}
-                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
-                title="Rescan the last 30 days — picks up older applications and intro calls"
-              >
-                Deep scan 30d
-              </button>
+          ) : syncStatus === "error" ? (
+            <>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-2 h-2 rounded-full bg-destructive shrink-0" />
+                <span className="text-xs text-destructive truncate">Sync failed — tap to retry</span>
+              </div>
               <button
                 onClick={() => triggerSync(false)}
                 disabled={gmailLoading}
-                className="text-xs font-medium px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50"
+                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-destructive/20 bg-destructive/5 text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50 shrink-0"
               >
-                Refresh ↻
+                Retry
               </button>
-            </div>
-
-          </>
-        ) : syncStatus === "error" ? (
-          <>
+            </>
+          ) : syncStatus === "no_token" ? (
+            <>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-2 h-2 rounded-full bg-warning shrink-0" />
+                <span className="text-xs text-muted-foreground">Gmail access not granted — sign out and back in, and tick the Gmail permission.</span>
+              </div>
+              <button onClick={signOut} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors shrink-0">Sign out</button>
+            </>
+          ) : (
             <div className="flex items-center gap-2.5">
-              <div className="w-2 h-2 rounded-full bg-destructive" />
-              <span className="text-xs text-destructive">Sync failed — tap to retry</span>
+              <div className="w-2 h-2 rounded-full bg-muted-foreground/30" />
+              <span className="text-xs text-muted-foreground">Connect Gmail to import job alerts automatically</span>
             </div>
-            <button
-              onClick={() => triggerSync(false)}
-              disabled={gmailLoading}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-destructive/20 bg-destructive/5 text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
-            >
-              Retry
-            </button>
-          </>
-        ) : syncStatus === "no_token" ? (
-          <>
-            <div className="flex items-center gap-2.5 flex-1 mr-3">
-              <div className="w-2 h-2 rounded-full bg-warning" />
-              <span className="text-xs text-muted-foreground">Gmail access not granted. Sign out and sign back in — make sure to check the Gmail permission on the Google screen.</span>
-            </div>
-            <div className="flex gap-2 shrink-0">
-              <button onClick={connectGmail} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-foreground text-background hover:opacity-90 transition-opacity">Reconnect Gmail</button>
-              <button onClick={signOut} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors">Sign out</button>
-            </div>
-          </>
-        ) : null}
-      </div>
+          )}
+        </div>
+      )}
+
 
       <GmailSyncSummary report={syncReport} counts={syncCounts} errors={syncErrors} syncedAt={syncReportAt} loading={gmailLoading} error={syncError} onRetry={() => triggerSync(false)} />
 
@@ -1032,6 +1085,15 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
               <X className="w-3 h-3" /> Clear
             </button>
           )}
+          <select
+            value={sortBy}
+            onChange={e => setSortBy(e.target.value as "newest" | "match")}
+            aria-label="Sort roles"
+            className="text-[11px] bg-secondary border border-transparent rounded-lg px-2 py-1.5 text-secondary-foreground font-medium"
+          >
+            <option value="newest">Newest first</option>
+            <option value="match">Best match</option>
+          </select>
           <div className="ml-auto flex flex-wrap items-center gap-1.5">
             {([["must", "hsl(var(--success))", "Must apply", buckets.must.length], ["tweak", "hsl(var(--warning))", "Tweak", buckets.tweak.length], ["low", "hsl(var(--danger))", "Low", buckets.low.length]] as const).map(([k, c, label, n]) => (
               <button
@@ -1043,16 +1105,18 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
                 <span className="text-[11px] text-secondary-foreground font-medium">{label as string} {n as number}</span>
               </button>
             ))}
-            {freshnessCounts.stale > 0 && (
+            {buckets.unscored.length > 0 && (
               <button
-                onClick={() => setFilterAge(filterAge === "stale" ? "all" : "stale")}
-                className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 border transition-colors ${filterAge === "stale" ? "bg-destructive/15 border-destructive/30" : "bg-destructive/[0.06] border-destructive/20 hover:bg-destructive/10"}`}
+                onClick={() => setFilterBucket(filterBucket === "unscored" ? "all" : "unscored")}
+                className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 border border-border transition-colors ${filterBucket === "unscored" ? "bg-foreground/[0.08]" : "hover:bg-secondary"}`}
+                title="Roles you haven't scored yet"
               >
-                <AlertTriangle className="w-3 h-3 text-destructive" />
-                <span className="text-[11px] font-medium text-destructive">Stale {freshnessCounts.stale}</span>
+                <Sparkles className="w-3 h-3 text-muted-foreground" />
+                <span className="text-[11px] text-secondary-foreground font-medium">Unscored {buckets.unscored.length}</span>
               </button>
             )}
           </div>
+
         </div>
 
         {showFilters && (
@@ -1097,6 +1161,8 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
                 <option value="must">Must Apply</option>
                 <option value="tweak">Needs Tweaking</option>
                 <option value="low">Low Alignment</option>
+                <option value="unscored">Not scored yet</option>
+
               </select>
             </div>
             <div>
@@ -1148,7 +1214,11 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
                   {isCollapsed ? <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
                   <h2 className="text-[15px] font-semibold">{label}</h2>
                   <span className="text-[11px] text-muted-foreground font-medium">({familyJobs.length})</span>
+                  {familyKey === ("__new" as any) && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wider rounded-full px-2 py-0.5 bg-foreground text-background">New</span>
+                  )}
                 </button>
+
 
                 {!isCollapsed && (
                   <div className="flex flex-col gap-3 ml-5">
