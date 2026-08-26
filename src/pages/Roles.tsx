@@ -1214,7 +1214,11 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
                   {isCollapsed ? <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
                   <h2 className="text-[15px] font-semibold">{label}</h2>
                   <span className="text-[11px] text-muted-foreground font-medium">({familyJobs.length})</span>
+                  {familyKey === ("__new" as any) && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wider rounded-full px-2 py-0.5 bg-foreground text-background">New</span>
+                  )}
                 </button>
+
 
                 {!isCollapsed && (
                   <div className="flex flex-col gap-3 ml-5">
