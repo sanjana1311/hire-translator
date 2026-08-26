@@ -1085,6 +1085,15 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
               <X className="w-3 h-3" /> Clear
             </button>
           )}
+          <select
+            value={sortBy}
+            onChange={e => setSortBy(e.target.value as "newest" | "match")}
+            aria-label="Sort roles"
+            className="text-[11px] bg-secondary border border-transparent rounded-lg px-2 py-1.5 text-secondary-foreground font-medium"
+          >
+            <option value="newest">Newest first</option>
+            <option value="match">Best match</option>
+          </select>
           <div className="ml-auto flex flex-wrap items-center gap-1.5">
             {([["must", "hsl(var(--success))", "Must apply", buckets.must.length], ["tweak", "hsl(var(--warning))", "Tweak", buckets.tweak.length], ["low", "hsl(var(--danger))", "Low", buckets.low.length]] as const).map(([k, c, label, n]) => (
               <button
@@ -1096,16 +1105,18 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
                 <span className="text-[11px] text-secondary-foreground font-medium">{label as string} {n as number}</span>
               </button>
             ))}
-            {freshnessCounts.stale > 0 && (
+            {buckets.unscored.length > 0 && (
               <button
-                onClick={() => setFilterAge(filterAge === "stale" ? "all" : "stale")}
-                className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 border transition-colors ${filterAge === "stale" ? "bg-destructive/15 border-destructive/30" : "bg-destructive/[0.06] border-destructive/20 hover:bg-destructive/10"}`}
+                onClick={() => setFilterBucket(filterBucket === "unscored" ? "all" : "unscored")}
+                className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 border border-border transition-colors ${filterBucket === "unscored" ? "bg-foreground/[0.08]" : "hover:bg-secondary"}`}
+                title="Roles you haven't scored yet"
               >
-                <AlertTriangle className="w-3 h-3 text-destructive" />
-                <span className="text-[11px] font-medium text-destructive">Stale {freshnessCounts.stale}</span>
+                <Sparkles className="w-3 h-3 text-muted-foreground" />
+                <span className="text-[11px] text-secondary-foreground font-medium">Unscored {buckets.unscored.length}</span>
               </button>
             )}
           </div>
+
         </div>
 
         {showFilters && (
