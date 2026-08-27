@@ -566,6 +566,145 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
     setFilterAge("all");
   };
 
+  // ── Import quality + status derivation ──────────────────────────────────
+  const assessments = useMemo(() => {
+    const map: Record<string, ReturnType<typeof assessJob>> = {};
+    for (const job of jobs) map[job.id] = assessJob(job);
+    return map;
+  }, [jobs]);
+
+  const statusOf = useCallback((job: ImportedJob): RoleStatus => {
+    const score = results[job.id];
+    return deriveRoleStatus({
+      needsReview: (assessments[job.id] ?? assessJob(job)).needsReview,
+      hasScore: !!score && !score.error,
+      hasTailoredResume: !!resumes[job.id],
+      applicationStatus: appStatuses[job.id] ?? null,
+      archived: !!(job as any).archived_at,
+    });
+  }, [results, resumes, assessments, appStatuses]);
+
+  const needsReviewJobs = useMemo(
+    () => jobs.filter(j => (assessments[j.id]?.needsReview ?? false)),
+    [jobs, assessments]
+  );
+
+  /** Roles from the most recent import batch (batch id when present, else a 15-min window). */
+  const latestBatchJobs = useMemo(() => {
+    if (jobs.length === 0) return [] as ImportedJob[];
+    const newest = jobs.reduce((a, b) =>
+      new Date(a.imported_at).getTime() >= new Date(b.imported_at).getTime() ? a : b
+    );
+    if (newest.import_batch_id) return jobs.filter(j => j.import_batch_id === newest.import_batch_id);
+    const cutoff = new Date(newest.imported_at).getTime() - 15 * 60 * 1000;
+    return jobs.filter(j => new Date(j.imported_at).getTime() >= cutoff);
+  }, [jobs]);
+
+  const batchIsToday = useMemo(() => {
+    const first = latestBatchJobs[0];
+    return !!first && new Date(first.imported_at).toDateString() === new Date().toDateString();
+  }, [latestBatchJobs]);
+
+  const relativeSync = useMemo(() => {
+    if (!lastSyncedAt) return null;
+    const mins = Math.floor((Date.now() - new Date(lastSyncedAt).getTime()) / 60000);
+    if (mins < 2) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  }, [lastSyncedAt]);
+
+  const latestIds = useMemo(() => new Set(latestBatchJobs.map(j => j.id)), [latestBatchJobs]);
+  const latestVisible = useMemo(() => filteredJobs.filter(j => latestIds.has(j.id)), [filteredJobs, latestIds]);
+
+  const latestFamilies = useMemo(() => {
+    const familyMap: Record<string, typeof latestVisible> = {};
+    for (const job of latestVisible) {
+      (familyMap[job.roleFamily] ||= []).push(job);
+    }
+    const order = [...ROLE_FAMILIES.map(f => f.key), "other"];
+    return Object.keys(familyMap)
+      .sort((a, b) => order.indexOf(a) - order.indexOf(b))
+      .map(key => {
+        const familyJobs = familyMap[key];
+        return {
+          familyKey: key as RoleFamilyKey,
+          label: getRoleFamilyLabel(key as RoleFamilyKey),
+          jobs: familyJobs,
+          counts: {
+            needsReview: familyJobs.filter(j => statusOf(j) === "needs_review").length,
+            scored: familyJobs.filter(j => !!results[j.id] && !results[j.id].error).length,
+            applied: familyJobs.filter(j => appliedJobs.has(j.id)).length,
+          },
+        };
+      });
+  }, [latestVisible, statusOf, results, appliedJobs]);
+
+  const historyGroups = useMemo(() => {
+    const older = filteredJobs.filter(j => !latestIds.has(j.id));
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const today = startOfDay(new Date());
+    const yesterday = today - 86400000;
+    const weekStart = today - 7 * 86400000;
+    const groups: { label: string; jobs: typeof older }[] = [
+      { label: "Yesterday", jobs: [] },
+      { label: "Earlier this week", jobs: [] },
+      { label: "Older", jobs: [] },
+    ];
+    for (const job of older) {
+      const t = startOfDay(new Date(job.imported_at));
+      if (t >= yesterday) groups[0].jobs.push(job);
+      else if (t >= weekStart) groups[1].jobs.push(job);
+      else groups[2].jobs.push(job);
+    }
+    return groups.filter(g => g.jobs.length > 0);
+  }, [filteredJobs, latestIds]);
+
+  const handleConfirmJob = async (job: ImportedJob) => {
+    const confirmedAt = new Date().toISOString();
+    const { error } = await supabase
+      .from("imported_jobs")
+      .update({ confirmed_at: confirmedAt } as any)
+      .eq("id", job.id);
+    if (error) { toast.error(error.message); return; }
+    setJobs(prev => prev.map(j => (j.id === job.id ? { ...j, confirmed_at: confirmedAt } : j)));
+    setSelected(prev => (prev && prev.id === job.id ? { ...prev, confirmed_at: confirmedAt } : prev));
+    toast.success("Role confirmed — moved out of Needs your review");
+  };
+
+  /** Exactly one next action per role, driven by its current status. */
+  const handleNextAction = (job: ImportedJob) => {
+    switch (statusOf(job)) {
+      case "needs_review":
+        setSelected(job);
+        break;
+      case "confirmed":
+        handleScoreJob(job);
+        break;
+      case "scored":
+        setSelected(job);
+        setRtab("tailored");
+        if (!resumes[job.id]) generateTailoredResume(job);
+        break;
+      case "tailored":
+        handleMarkApplied(job);
+        break;
+      case "applied":
+        navigate("/dashboard/applications");
+        break;
+      case "interviewing":
+        navigate(`/dashboard/prep?jobId=${job.id}`);
+        break;
+      case "rejected":
+        navigate("/dashboard/rejection");
+        break;
+      default:
+        setSelected(job);
+    }
+  };
+
+
 
   const analysisInProgress = aLoading.size > 0;
   const isRunning = aLoading.size > 0 || rLoading.size > 0;
