@@ -24,6 +24,9 @@ import {
 import { classifyRole, getRoleFamilyLabel, ROLE_FAMILIES, type RoleFamilyKey } from "@/lib/role-classifier";
 import { getFreshness, FRESHNESS_STYLES, STALE_AFTER_DAYS, AGING_AFTER_DAYS, type FreshnessLevel } from "@/lib/job-freshness";
 import { ChevronDown, ChevronRight, SlidersHorizontal, X, Trash2, AlertTriangle, Clock, CheckCircle2, MoreHorizontal, Sparkles } from "lucide-react";
+import { assessJob } from "@/lib/job-review";
+import { deriveRoleStatus, statusMeta, ROLE_PROGRESS, type RoleStatus } from "@/lib/role-status";
+import RoleRow, { importedAtLabel } from "@/components/roles/RoleRow";
 
 const parseStoredResume = (value: string): TailoredResume | null => {
   try {
