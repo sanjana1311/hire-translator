@@ -289,20 +289,38 @@ Write email body only:`, 350, "applications");
         </div>
       )}
 
-      {/* Status summary */}
-      <div className="grid grid-cols-5 gap-2 mb-6">
+      {/* Status summary — click a box to filter by that status */}
+      <div className="grid grid-cols-5 gap-2 mb-2">
         {Object.entries(STATUS_META).map(([key, meta]) => {
           const count = applications.filter(a => a.status === key).length;
+          const active = filterStatus === key;
           return (
-            <div key={key} className="apple-card p-3.5">
+            <button
+              key={key}
+              type="button"
+              aria-pressed={active}
+              onClick={() => setFilterStatus(active ? "all" : key)}
+              className="apple-card apple-card-interactive p-3.5 text-left"
+              style={active ? { borderColor: meta.border, background: meta.bg, boxShadow: `0 0 0 1px ${meta.border}` } : undefined}
+            >
               <div className="flex items-center gap-1.5 mb-1">
                 <div className="w-1.5 h-1.5 rounded-full" style={{ background: meta.dot }} />
                 <span className="text-[10.5px] font-semibold" style={{ color: meta.text }}>{meta.label}</span>
               </div>
               <div className="text-2xl font-semibold tabular-nums">{count}</div>
-            </div>
+            </button>
           );
         })}
+      </div>
+      <div className="mb-6 h-5">
+        {filterStatus !== "all" && (
+          <button
+            onClick={() => setFilterStatus("all")}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="w-3 h-3" /> Showing {STATUS_META[filterStatus]?.label ?? filterStatus} only · show all
+          </button>
+        )}
       </div>
 
       {/* Filters */}
