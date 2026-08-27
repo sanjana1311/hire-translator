@@ -65,6 +65,11 @@ export interface ImportedJob {
   tailored_resume: string | null;
   imported_at: string;
   seen: boolean;
+  /** Set when the user confirms an import whose parsed details were unreliable. */
+  confirmed_at?: string | null;
+  /** Identifies which Gmail sync brought this role in. */
+  import_batch_id?: string | null;
+  archived_at?: string | null;
 }
 
 const Roles = () => {
