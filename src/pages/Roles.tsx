@@ -645,6 +645,73 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
               </div>
             </div>
 
+            {/* Progress timeline + next action */}
+            {(() => {
+              const a = assessments[selected.id] ?? assessJob(selected);
+              const st = statusOf(selected);
+              const meta = statusMeta(st);
+              const reachedIdx = ROLE_PROGRESS.indexOf(st === "interviewing" || st === "rejected" ? "applied" : st);
+              return (
+                <div className="apple-card p-5">
+                  <div className="flex items-center justify-between gap-3 mb-4">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[11px] font-medium rounded-md border px-2 py-0.5 ${meta.className}`}>{meta.label}</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        Imported {importedAtLabel(selected.imported_at)}{selected.source ? ` · ${selected.source}` : ""}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleNextAction(selected)}
+                      disabled={aLoading.has(selected.id) || rLoading.has(selected.id)}
+                      className="text-xs font-semibold px-3.5 py-2 rounded-lg bg-foreground text-background hover:opacity-90 transition-opacity disabled:opacity-40"
+                    >
+                      {meta.nextAction}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    {["Imported", ...ROLE_PROGRESS.map(s => statusMeta(s).label)].map((label, i) => {
+                      const done = i === 0 || (reachedIdx >= 0 && i <= reachedIdx + 1);
+                      return (
+                        <div key={label} className="flex items-center gap-1.5 flex-1 last:flex-none">
+                          <span className={`text-[10.5px] font-medium whitespace-nowrap ${done ? "text-foreground" : "text-muted-foreground/50"}`}>{label}</span>
+                          {i < ROLE_PROGRESS.length && (
+                            <span className={`h-px flex-1 ${done ? "bg-foreground/40" : "bg-border"}`} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {st === "needs_review" && (
+                    <div className="mt-4 rounded-xl border border-warning/30 bg-warning/[0.07] p-3">
+                      <p className="text-xs font-medium text-warning mb-1">Job details could not be confirmed</p>
+                      <ul className="text-[11px] text-muted-foreground list-disc pl-4 mb-2.5">
+                        {a.reasons.filter(x => x.severity === "high").map(x => <li key={x.message}>{x.message}</li>)}
+                      </ul>
+                      <button
+                        onClick={() => handleConfirmJob(selected)}
+                        className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-foreground text-background hover:opacity-90 transition-opacity"
+                      >
+                        These details are correct
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Full job description */}
+            {(selected.description || selected.snippet) && (
+              <div className="apple-card p-5">
+                <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Job description</div>
+                <p className="text-xs leading-relaxed text-secondary-foreground whitespace-pre-wrap">
+                  {cleanText(selected.description || selected.snippet || "")}
+                </p>
+              </div>
+            )}
+
+
             {aLoading.has(selected.id) ? (
               <div className="apple-card p-12 text-center">
                 <Spinner size={18} />
