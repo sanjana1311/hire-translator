@@ -87,12 +87,12 @@
     --primary-foreground: 220 10% 6%;
 
     --secondary: 220 8% 14%;
-    --secondary-foreground: 220 5% 65%;
+    --secondary-foreground: 220 8% 78%;
 
     --muted: 220 8% 14%;
-    --muted-foreground: 220 5% 50%;
+    --muted-foreground: 220 7% 63%;
 
-    --accent: 226 65% 58%;
+    --accent: 222 90% 72%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 348 46% 40%;
@@ -102,21 +102,21 @@
     --input: 220 8% 18%;
     --ring: 220 10% 92%;
 
-    --success: 153 40% 38%;
-    --success-bg: 153 25% 12%;
-    --success-border: 153 25% 22%;
+    --success: 152 52% 62%;
+    --success-bg: 153 28% 14%;
+    --success-border: 153 26% 26%;
 
-    --warning: 25 70% 42%;
-    --warning-bg: 25 30% 12%;
-    --warning-border: 25 30% 22%;
+    --warning: 36 88% 64%;
+    --warning-bg: 30 32% 14%;
+    --warning-border: 32 30% 27%;
 
-    --danger: 348 46% 40%;
-    --danger-bg: 348 25% 12%;
-    --danger-border: 348 25% 22%;
+    --danger: 355 78% 70%;
+    --danger-bg: 350 28% 14%;
+    --danger-border: 350 26% 27%;
 
-    --info: 226 65% 58%;
-    --info-bg: 226 30% 12%;
-    --info-border: 226 30% 22%;
+    --info: 219 90% 72%;
+    --info-bg: 222 32% 15%;
+    --info-border: 222 30% 28%;
 
     --shadow-xs: 0 1px 2px 0 hsl(0 0% 0% / 0.15);
     --shadow-sm: 0 1px 3px 0 hsl(0 0% 0% / 0.2), 0 1px 2px -1px hsl(0 0% 0% / 0.15);
