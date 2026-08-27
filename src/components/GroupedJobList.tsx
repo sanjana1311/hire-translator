@@ -16,6 +16,10 @@ interface GroupedJobListProps<T extends Job> {
   renderRight?: (job: T) => React.ReactNode;
   ctaLabel?: string;
   showLocationFilter?: boolean;
+  /** Optional application-status filter (e.g. Interview Prep). */
+  getStatus?: (job: T) => string;
+  statusLabels?: Record<string, string>;
+  statusFilterLabel?: string;
 }
 
 export default function GroupedJobList<T extends Job>({
@@ -24,10 +28,14 @@ export default function GroupedJobList<T extends Job>({
   renderRight,
   ctaLabel = "View →",
   showLocationFilter = true,
+  getStatus,
+  statusLabels,
+  statusFilterLabel = "Application Status",
 }: GroupedJobListProps<T>) {
   const [filterFamily, setFilterFamily] = useState<RoleFamilyKey | "all">("all");
   const [filterCompany, setFilterCompany] = useState<string>("all");
   const [filterLocation, setFilterLocation] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
   const [showFilters, setShowFilters] = useState(false);
   const [collapsedFamilies, setCollapsedFamilies] = useState<Set<string>>(new Set());
 
@@ -52,9 +60,10 @@ export default function GroupedJobList<T extends Job>({
       if (filterFamily !== "all" && job.roleFamily !== filterFamily) return false;
       if (filterCompany !== "all" && job.company !== filterCompany) return false;
       if (filterLocation !== "all" && (job.location || "Remote") !== filterLocation) return false;
+      if (getStatus && filterStatus !== "all" && getStatus(job) !== filterStatus) return false;
       return true;
     });
-  }, [classifiedJobs, filterFamily, filterCompany, filterLocation]);
+  }, [classifiedJobs, filterFamily, filterCompany, filterLocation, filterStatus, getStatus]);
 
   const groupedData = useMemo(() => {
     const familyMap: Record<string, typeof filteredJobs> = {};
@@ -74,12 +83,21 @@ export default function GroupedJobList<T extends Job>({
     }));
   }, [filteredJobs]);
 
-  const activeFilterCount = [filterFamily, filterCompany, filterLocation].filter(v => v !== "all").length;
+  const statusKeys = useMemo(() => {
+    if (!getStatus) return [] as string[];
+    const known = statusLabels ? Object.keys(statusLabels) : [];
+    const present = new Set(jobs.map(j => getStatus(j)));
+    const extra = [...present].filter(k => !known.includes(k));
+    return [...known.filter(k => present.has(k)), ...extra];
+  }, [jobs, getStatus, statusLabels]);
+
+  const activeFilterCount = [filterFamily, filterCompany, filterLocation, getStatus ? filterStatus : "all"].filter(v => v !== "all").length;
 
   const clearFilters = () => {
     setFilterFamily("all");
     setFilterCompany("all");
     setFilterLocation("all");
+    setFilterStatus("all");
   };
 
   if (jobs.length === 0) {
@@ -114,7 +132,22 @@ export default function GroupedJobList<T extends Job>({
         </div>
 
         {showFilters && (
-          <div className={`grid gap-3 apple-card p-4 animate-fade-up ${showLocationFilter ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2"}`}>
+          <div className="grid gap-3 apple-card p-4 animate-fade-up grid-cols-2 sm:grid-cols-3">
+            {getStatus && (
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">{statusFilterLabel}</label>
+                <select
+                  value={filterStatus}
+                  onChange={e => setFilterStatus(e.target.value)}
+                  className="w-full text-xs bg-background border border-border rounded-lg px-2.5 py-2 text-foreground"
+                >
+                  <option value="all">All Statuses</option>
+                  {statusKeys.map(k => (
+                    <option key={k} value={k}>{statusLabels?.[k] ?? k}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div>
               <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">Role Family</label>
               <select

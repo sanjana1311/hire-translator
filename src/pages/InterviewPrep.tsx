@@ -44,6 +44,7 @@ const InterviewPrep = () => {
   const [state, setState] = useState<PrepState>({ company: null, signals: null, alignment: null, behavioral: null, technical: null });
   const [loading, setLoading] = useState({ company: false, signals: false, alignment: false, behavioral: false, technical: false });
   const [mockCompleted, setMockCompleted] = useState(false);
+  const [appStatuses, setAppStatuses] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!profile?.id) return;
@@ -55,6 +56,16 @@ const InterviewPrep = () => {
         .order("imported_at", { ascending: false })
         .limit(50);
       if (data) setJobs(data);
+
+      const { data: apps } = await supabase
+        .from("applications")
+        .select("imported_job_id,status")
+        .eq("profile_id", profile.id);
+      if (apps) {
+        const map: Record<string, string> = {};
+        for (const a of apps as any[]) if (a.imported_job_id) map[a.imported_job_id] = a.status;
+        setAppStatuses(map);
+      }
     };
     load();
   }, [profile?.id]);
@@ -261,6 +272,15 @@ Include 6 questions across categories like: system design, infrastructure, progr
         jobs={jobs}
         onSelect={selectJob}
         ctaLabel="Prep →"
+        getStatus={job => appStatuses[job.id] ?? "not_applied"}
+        statusLabels={{
+          not_applied: "Not applied yet",
+          applied: "Applied",
+          screening: "Screening",
+          interview: "Interview",
+          offer: "Offer",
+          rejected: "Rejected",
+        }}
       />
     </div>
   );

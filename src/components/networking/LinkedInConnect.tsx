@@ -25,10 +25,15 @@ const LinkedInConnect = () => {
       <div className="apple-card p-4">
         <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">LinkedIn (optional)</div>
         <p className="text-xs leading-relaxed text-secondary-foreground">
-          LinkedIn sign-in is not configured for this deployment. Self-hosting? Set <code className="font-mono">LINKEDIN_CLIENT_ID</code>,{" "}
-          <code className="font-mono">LINKEDIN_CLIENT_SECRET</code> and <code className="font-mono">LINKEDIN_REDIRECT_URI</code> in your
-          deployment secrets — see <span className="font-mono">docs/LINKEDIN_OAUTH.md</span>. Everything below works without it using manual
-          LinkedIn search links.
+          <span className="font-semibold text-foreground">You don't need this.</span> Connecting LinkedIn would only let hireOS read your own
+          profile (name and headline) so outreach drafts sound more like you. It never scrapes LinkedIn, never adds connections and never
+          sends messages — that is why every contact below uses a <span className="font-semibold">Manual search</span> link that simply opens
+          LinkedIn in a new tab so you send the request yourself.
+        </p>
+        <p className="text-[11px] leading-relaxed text-muted-foreground mt-2">
+          Sign-in isn't configured on this deployment. Self-hosting? Set <code className="font-mono">LINKEDIN_CLIENT_ID</code>,{" "}
+          <code className="font-mono">LINKEDIN_CLIENT_SECRET</code> and <code className="font-mono">LINKEDIN_REDIRECT_URI</code> — see{" "}
+          <span className="font-mono">docs/LINKEDIN_OAUTH.md</span>.
         </p>
       </div>
     );
@@ -64,7 +69,8 @@ const LinkedInConnect = () => {
       <div>
         <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">LinkedIn (optional)</div>
         <p className="text-xs text-secondary-foreground">
-          Connect LinkedIn to personalize suggestions with your own profile. We never scrape LinkedIn or send messages for you.
+          Optional. Connecting lets hireOS read your own LinkedIn name and headline so outreach drafts sound like you. It never scrapes
+          LinkedIn, adds connections or sends messages — contact links below always open LinkedIn so you act yourself.
         </p>
       </div>
       <button

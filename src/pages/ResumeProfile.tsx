@@ -436,8 +436,15 @@ const ResumeProfile = () => {
         )}
 
         {resume.raw_text && !resume.summary && expEntries.length === 0 && (
-          <Section title="Raw Text">
-            <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono">{resume.raw_text.slice(0, 2000)}</pre>
+          <Section title="Extracted resume text">
+            <>
+              <p className="text-xs text-muted-foreground mb-2">
+                This is the plain text pulled out of your uploaded PDF. It is what the AI reads when scoring and tailoring your
+                resume — nothing is invented beyond it. We show it so you can confirm the parse looks right; if it looks garbled,
+                re-upload or paste your resume text instead.
+              </p>
+              <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono">{resume.raw_text.slice(0, 2000)}</pre>
+            </>
           </Section>
         )}
       </motion.div>

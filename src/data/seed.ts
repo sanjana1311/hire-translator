@@ -24,18 +24,20 @@ export interface Application {
   notes: string;
 }
 
+// Theme-aware tokens — these resolve differently in light and dark mode so
+// badges stay legible in both themes.
 export const STATUS_META: Record<string, { label: string; dot: string; bg: string; border: string; text: string }> = {
-  applied:   { label: "Applied",   dot: "hsl(30 5% 59%)",   bg: "hsl(33 12% 92%)",   border: "hsl(33 12% 85%)",   text: "hsl(30 5% 35%)" },
-  screening: { label: "Screening", dot: "hsl(25 84% 31%)",  bg: "hsl(37 60% 97%)",   border: "hsl(37 40% 80%)",   text: "hsl(25 84% 31%)" },
-  interview: { label: "Interview", dot: "hsl(226 71% 48%)", bg: "hsl(214 100% 97%)",  border: "hsl(213 93% 87%)",  text: "hsl(226 71% 48%)" },
-  offer:     { label: "Offer 🎉",  dot: "hsl(153 40% 30%)", bg: "hsl(150 38% 96%)",   border: "hsl(152 34% 82%)",  text: "hsl(153 40% 30%)" },
-  rejected:  { label: "Rejected",  dot: "hsl(348 46% 28%)", bg: "hsl(0 38% 97%)",     border: "hsl(348 28% 85%)",  text: "hsl(348 46% 28%)" },
+  applied:   { label: "Applied",   dot: "hsl(var(--muted-foreground))", bg: "hsl(var(--secondary))",   border: "hsl(var(--border))",        text: "hsl(var(--secondary-foreground))" },
+  screening: { label: "Screening", dot: "hsl(var(--warning))",          bg: "hsl(var(--warning-bg))",  border: "hsl(var(--warning-border))", text: "hsl(var(--warning))" },
+  interview: { label: "Interview", dot: "hsl(var(--info))",             bg: "hsl(var(--info-bg))",     border: "hsl(var(--info-border))",    text: "hsl(var(--info))" },
+  offer:     { label: "Offer 🎉",  dot: "hsl(var(--success))",          bg: "hsl(var(--success-bg))",  border: "hsl(var(--success-border))", text: "hsl(var(--success))" },
+  rejected:  { label: "Rejected",  dot: "hsl(var(--danger))",           bg: "hsl(var(--danger-bg))",   border: "hsl(var(--danger-border))",  text: "hsl(var(--danger))" },
 };
 
 export const BUCKET_META: Record<string, { label: string; dot: string; text: string; bg: string; border: string }> = {
-  must:  { label: "Must Apply",     dot: "hsl(153 40% 30%)", text: "hsl(153 40% 30%)", bg: "hsl(150 38% 96%)",  border: "hsl(152 34% 82%)" },
-  tweak: { label: "Needs Tweaking", dot: "hsl(25 84% 31%)",  text: "hsl(25 84% 31%)",  bg: "hsl(37 60% 97%)",  border: "hsl(37 40% 80%)" },
-  low:   { label: "Low Alignment",  dot: "hsl(348 46% 28%)", text: "hsl(348 46% 28%)", bg: "hsl(0 38% 97%)",   border: "hsl(348 28% 85%)" },
+  must:  { label: "Must Apply",     dot: "hsl(var(--success))", text: "hsl(var(--success))", bg: "hsl(var(--success-bg))", border: "hsl(var(--success-border))" },
+  tweak: { label: "Needs Tweaking", dot: "hsl(var(--warning))", text: "hsl(var(--warning))", bg: "hsl(var(--warning-bg))", border: "hsl(var(--warning-border))" },
+  low:   { label: "Low Alignment",  dot: "hsl(var(--danger))",  text: "hsl(var(--danger))",  bg: "hsl(var(--danger-bg))",  border: "hsl(var(--danger-border))" },
 };
 
 export function initials(name: string) {
@@ -51,13 +53,13 @@ export function fmtDate(date: string) {
 }
 
 export function scoreColor(score: number) {
-  return score >= 75 ? "hsl(153 40% 30%)" : score >= 40 ? "hsl(25 84% 31%)" : "hsl(348 46% 28%)";
+  return score >= 75 ? "hsl(var(--success))" : score >= 40 ? "hsl(var(--warning))" : "hsl(var(--danger))";
 }
 
 export function scoreBg(score: number) {
-  return score >= 75 ? "hsl(150 38% 96%)" : score >= 40 ? "hsl(37 60% 97%)" : "hsl(0 38% 97%)";
+  return score >= 75 ? "hsl(var(--success-bg))" : score >= 40 ? "hsl(var(--warning-bg))" : "hsl(var(--danger-bg))";
 }
 
 export function scoreBorder(score: number) {
-  return score >= 75 ? "hsl(152 34% 82%)" : score >= 40 ? "hsl(37 40% 80%)" : "hsl(348 28% 85%)";
+  return score >= 75 ? "hsl(var(--success-border))" : score >= 40 ? "hsl(var(--warning-border))" : "hsl(var(--danger-border))";
 }
