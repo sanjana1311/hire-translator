@@ -1461,9 +1461,12 @@ Rules:
   }
 
   // ── Stage: persist ──
+  // One batch id per sync so the UI can show exactly what this run imported.
+  const importBatchId = crypto.randomUUID();
   if (newJobs.length > 0) {
     const rows = newJobs.map((j: any) => ({
       profile_id: profileId,
+      import_batch_id: importBatchId,
       title: j.title,
       company: j.company,
       location: j.location || "",
