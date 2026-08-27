@@ -24,6 +24,9 @@ import {
 import { classifyRole, getRoleFamilyLabel, ROLE_FAMILIES, type RoleFamilyKey } from "@/lib/role-classifier";
 import { getFreshness, FRESHNESS_STYLES, STALE_AFTER_DAYS, AGING_AFTER_DAYS, type FreshnessLevel } from "@/lib/job-freshness";
 import { ChevronDown, ChevronRight, SlidersHorizontal, X, Trash2, AlertTriangle, Clock, CheckCircle2, MoreHorizontal, Sparkles } from "lucide-react";
+import { assessJob } from "@/lib/job-review";
+import { deriveRoleStatus, statusMeta, ROLE_PROGRESS, type RoleStatus } from "@/lib/role-status";
+import RoleRow, { importedAtLabel } from "@/components/roles/RoleRow";
 
 const parseStoredResume = (value: string): TailoredResume | null => {
   try {
@@ -65,6 +68,11 @@ export interface ImportedJob {
   tailored_resume: string | null;
   imported_at: string;
   seen: boolean;
+  /** Set when the user confirms an import whose parsed details were unreliable. */
+  confirmed_at?: string | null;
+  /** Identifies which Gmail sync brought this role in. */
+  import_batch_id?: string | null;
+  archived_at?: string | null;
 }
 
 const Roles = () => {
@@ -81,6 +89,8 @@ const Roles = () => {
   const [rtab, setRtab] = useState("tailored");
   const [copied, setCopied] = useState(false);
   const [appliedJobs, setAppliedJobs] = useState<Set<string>>(new Set());
+  const [appStatuses, setAppStatuses] = useState<Record<string, string>>({});
+  const [showHistory, setShowHistory] = useState(false);
   const [applyLoading, setApplyLoading] = useState(false);
   const [dbLoaded, setDbLoaded] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -123,6 +133,9 @@ const Roles = () => {
         tailored_resume: d.tailored_resume,
         imported_at: d.imported_at,
         seen: d.seen,
+        confirmed_at: d.confirmed_at ?? null,
+        import_batch_id: d.import_batch_id ?? null,
+        archived_at: d.archived_at ?? null,
       }));
       setJobs(mapped);
 
@@ -150,11 +163,15 @@ const Roles = () => {
 
     const { data: apps } = await supabase
       .from("applications")
-      .select("imported_job_id")
+      .select("imported_job_id,status")
       .eq("profile_id", profile.id);
     if (apps) {
       setAppliedJobs(new Set(apps.map(d => d.imported_job_id).filter(Boolean) as string[]));
+      const statusMap: Record<string, string> = {};
+      for (const a of apps as any[]) if (a.imported_job_id) statusMap[a.imported_job_id] = a.status;
+      setAppStatuses(statusMap);
     }
+
 
     setDbLoaded(true);
     setInitialLoading(false);
@@ -566,6 +583,145 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
     setFilterAge("all");
   };
 
+  // ── Import quality + status derivation ──────────────────────────────────
+  const assessments = useMemo(() => {
+    const map: Record<string, ReturnType<typeof assessJob>> = {};
+    for (const job of jobs) map[job.id] = assessJob(job);
+    return map;
+  }, [jobs]);
+
+  const statusOf = useCallback((job: ImportedJob): RoleStatus => {
+    const score = results[job.id];
+    return deriveRoleStatus({
+      needsReview: (assessments[job.id] ?? assessJob(job)).needsReview,
+      hasScore: !!score && !score.error,
+      hasTailoredResume: !!resumes[job.id],
+      applicationStatus: appStatuses[job.id] ?? null,
+      archived: !!(job as any).archived_at,
+    });
+  }, [results, resumes, assessments, appStatuses]);
+
+  const needsReviewJobs = useMemo(
+    () => jobs.filter(j => (assessments[j.id]?.needsReview ?? false)),
+    [jobs, assessments]
+  );
+
+  /** Roles from the most recent import batch (batch id when present, else a 15-min window). */
+  const latestBatchJobs = useMemo(() => {
+    if (jobs.length === 0) return [] as ImportedJob[];
+    const newest = jobs.reduce((a, b) =>
+      new Date(a.imported_at).getTime() >= new Date(b.imported_at).getTime() ? a : b
+    );
+    if (newest.import_batch_id) return jobs.filter(j => j.import_batch_id === newest.import_batch_id);
+    const cutoff = new Date(newest.imported_at).getTime() - 15 * 60 * 1000;
+    return jobs.filter(j => new Date(j.imported_at).getTime() >= cutoff);
+  }, [jobs]);
+
+  const batchIsToday = useMemo(() => {
+    const first = latestBatchJobs[0];
+    return !!first && new Date(first.imported_at).toDateString() === new Date().toDateString();
+  }, [latestBatchJobs]);
+
+  const relativeSync = useMemo(() => {
+    if (!lastSyncedAt) return null;
+    const mins = Math.floor((Date.now() - new Date(lastSyncedAt).getTime()) / 60000);
+    if (mins < 2) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  }, [lastSyncedAt]);
+
+  const latestIds = useMemo(() => new Set(latestBatchJobs.map(j => j.id)), [latestBatchJobs]);
+  const latestVisible = useMemo(() => filteredJobs.filter(j => latestIds.has(j.id)), [filteredJobs, latestIds]);
+
+  const latestFamilies = useMemo(() => {
+    const familyMap: Record<string, typeof latestVisible> = {};
+    for (const job of latestVisible) {
+      (familyMap[job.roleFamily] ||= []).push(job);
+    }
+    const order = [...ROLE_FAMILIES.map(f => f.key), "other"];
+    return Object.keys(familyMap)
+      .sort((a, b) => order.indexOf(a) - order.indexOf(b))
+      .map(key => {
+        const familyJobs = familyMap[key];
+        return {
+          familyKey: key as RoleFamilyKey,
+          label: getRoleFamilyLabel(key as RoleFamilyKey),
+          jobs: familyJobs,
+          counts: {
+            needsReview: familyJobs.filter(j => statusOf(j) === "needs_review").length,
+            scored: familyJobs.filter(j => !!results[j.id] && !results[j.id].error).length,
+            applied: familyJobs.filter(j => appliedJobs.has(j.id)).length,
+          },
+        };
+      });
+  }, [latestVisible, statusOf, results, appliedJobs]);
+
+  const historyGroups = useMemo(() => {
+    const older = filteredJobs.filter(j => !latestIds.has(j.id));
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const today = startOfDay(new Date());
+    const yesterday = today - 86400000;
+    const weekStart = today - 7 * 86400000;
+    const groups: { label: string; jobs: typeof older }[] = [
+      { label: "Yesterday", jobs: [] },
+      { label: "Earlier this week", jobs: [] },
+      { label: "Older", jobs: [] },
+    ];
+    for (const job of older) {
+      const t = startOfDay(new Date(job.imported_at));
+      if (t >= yesterday) groups[0].jobs.push(job);
+      else if (t >= weekStart) groups[1].jobs.push(job);
+      else groups[2].jobs.push(job);
+    }
+    return groups.filter(g => g.jobs.length > 0);
+  }, [filteredJobs, latestIds]);
+
+  const handleConfirmJob = async (job: ImportedJob) => {
+    const confirmedAt = new Date().toISOString();
+    const { error } = await supabase
+      .from("imported_jobs")
+      .update({ confirmed_at: confirmedAt } as any)
+      .eq("id", job.id);
+    if (error) { toast.error(error.message); return; }
+    setJobs(prev => prev.map(j => (j.id === job.id ? { ...j, confirmed_at: confirmedAt } : j)));
+    setSelected(prev => (prev && prev.id === job.id ? { ...prev, confirmed_at: confirmedAt } : prev));
+    toast.success("Role confirmed — moved out of Needs your review");
+  };
+
+  /** Exactly one next action per role, driven by its current status. */
+  const handleNextAction = (job: ImportedJob) => {
+    switch (statusOf(job)) {
+      case "needs_review":
+        setSelected(job);
+        break;
+      case "confirmed":
+        handleScoreJob(job);
+        break;
+      case "scored":
+        setSelected(job);
+        setRtab("tailored");
+        if (!resumes[job.id]) generateTailoredResume(job);
+        break;
+      case "tailored":
+        handleMarkApplied(job);
+        break;
+      case "applied":
+        navigate("/dashboard/applications");
+        break;
+      case "interviewing":
+        navigate(`/dashboard/prep?jobId=${job.id}`);
+        break;
+      case "rejected":
+        navigate("/dashboard/rejection");
+        break;
+      default:
+        setSelected(job);
+    }
+  };
+
+
 
   const analysisInProgress = aLoading.size > 0;
   const isRunning = aLoading.size > 0 || rLoading.size > 0;
@@ -644,6 +800,73 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
                 </button>
               </div>
             </div>
+
+            {/* Progress timeline + next action */}
+            {(() => {
+              const a = assessments[selected.id] ?? assessJob(selected);
+              const st = statusOf(selected);
+              const meta = statusMeta(st);
+              const reachedIdx = ROLE_PROGRESS.indexOf(st === "interviewing" || st === "rejected" ? "applied" : st);
+              return (
+                <div className="apple-card p-5">
+                  <div className="flex items-center justify-between gap-3 mb-4">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[11px] font-medium rounded-md border px-2 py-0.5 ${meta.className}`}>{meta.label}</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        Imported {importedAtLabel(selected.imported_at)}{selected.source ? ` · ${selected.source}` : ""}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleNextAction(selected)}
+                      disabled={aLoading.has(selected.id) || rLoading.has(selected.id)}
+                      className="text-xs font-semibold px-3.5 py-2 rounded-lg bg-foreground text-background hover:opacity-90 transition-opacity disabled:opacity-40"
+                    >
+                      {meta.nextAction}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    {["Imported", ...ROLE_PROGRESS.map(s => statusMeta(s).label)].map((label, i) => {
+                      const done = i === 0 || (reachedIdx >= 0 && i <= reachedIdx + 1);
+                      return (
+                        <div key={label} className="flex items-center gap-1.5 flex-1 last:flex-none">
+                          <span className={`text-[10.5px] font-medium whitespace-nowrap ${done ? "text-foreground" : "text-muted-foreground/50"}`}>{label}</span>
+                          {i < ROLE_PROGRESS.length && (
+                            <span className={`h-px flex-1 ${done ? "bg-foreground/40" : "bg-border"}`} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {st === "needs_review" && (
+                    <div className="mt-4 rounded-xl border border-warning/30 bg-warning/[0.07] p-3">
+                      <p className="text-xs font-medium text-warning mb-1">Job details could not be confirmed</p>
+                      <ul className="text-[11px] text-muted-foreground list-disc pl-4 mb-2.5">
+                        {a.reasons.filter(x => x.severity === "high").map(x => <li key={x.message}>{x.message}</li>)}
+                      </ul>
+                      <button
+                        onClick={() => handleConfirmJob(selected)}
+                        className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-foreground text-background hover:opacity-90 transition-opacity"
+                      >
+                        These details are correct
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Full job description */}
+            {(selected.description || selected.snippet) && (
+              <div className="apple-card p-5">
+                <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Job description</div>
+                <p className="text-xs leading-relaxed text-secondary-foreground whitespace-pre-wrap">
+                  {cleanText(selected.description || selected.snippet || "")}
+                </p>
+              </div>
+            )}
+
 
             {aLoading.has(selected.id) ? (
               <div className="apple-card p-12 text-center">
@@ -904,49 +1127,17 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
   // Main list view
   return (
     <div className="max-w-[960px] mx-auto px-6 py-10">
+      {/* 1 — Header */}
       <div className="flex items-start justify-between gap-4 mb-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight mb-0.5">Imported Roles</h1>
+          <h1 className="text-2xl font-semibold tracking-tight mb-0.5">Roles</h1>
           <p className="text-xs text-muted-foreground">
-            {isRunning ? `Analyzing ${jobs.length} roles…` : `${jobs.length} imported`}
-            {newBatchIds.size > 0 && (
-              <span className="ml-2 text-foreground/70 font-medium">· {newBatchIds.size} new this sync</span>
-            )}
-            {lastSyncedAt && (
-              <span className="ml-2 text-muted-foreground/60">
-                · Synced {(() => {
-                  const diff = Date.now() - new Date(lastSyncedAt).getTime();
-                  const mins = Math.floor(diff / 60000);
-                  if (mins < 2) return "just now";
-                  if (mins < 60) return `${mins}m ago`;
-                  const hrs = Math.floor(mins / 60);
-                  if (hrs < 24) return `${hrs}h ago`;
-                  return `${Math.floor(hrs / 24)}d ago`;
-                })()}
-              </span>
-            )}
-            {aiRemaining !== null && (
-              <span className="ml-2 text-muted-foreground/60">· {aiRemaining}/{aiLimit} AI calls left today</span>
-            )}
+            Review imported roles and track your application progress.
+            {lastSyncedAt && <span className="ml-1.5">Last synced {relativeSync}.</span>}
           </p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {isRunning && (
-            <div className="flex items-center gap-2.5 mr-1">
-              <Spinner size={13} />
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="animate-pulse-dot text-[11px] text-muted-foreground">Analyzing {doneCount}/{jobs.length}…</span>
-                  <span className="text-[11px] text-muted-foreground/60 ml-2.5">{pct}%</span>
-                </div>
-                <div className="bg-secondary rounded-full h-1 w-[140px] overflow-hidden">
-                  <div className="bg-foreground h-1 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
-                </div>
-              </div>
-            </div>
-          )}
-
           {syncStatus === "never_synced" || syncStatus === "idle" || syncStatus === "no_token" ? (
             <button
               onClick={connectGmail}
@@ -1002,28 +1193,29 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
         </div>
       </div>
 
-
-      {/* Stale alert — job alerts sitting unapplied for 10+ days */}
-      {freshnessCounts.stale > 0 && (
-        <div className="mb-4 rounded-xl border border-destructive/20 bg-destructive/[0.06] px-4 py-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
-            <p className="text-xs text-foreground/80 truncate">
-              <span className="font-semibold">{freshnessCounts.stale} role{freshnessCounts.stale === 1 ? "" : "s"}</span> have been sitting for {STALE_AFTER_DAYS}+ days with no application — these postings are likely closed.
-            </p>
-          </div>
-          <button
-            onClick={() => { setFilterAge(filterAge === "stale" ? "all" : "stale"); setShowFilters(false); }}
-            className="text-[11px] font-medium px-3 py-1.5 rounded-lg border border-destructive/25 text-destructive hover:bg-destructive/10 transition-colors shrink-0"
-          >
-            {filterAge === "stale" ? "Show all" : "Review them"}
-          </button>
+      {/* 2 — Import summary */}
+      <div className="apple-card p-4 mb-5">
+        <p className="text-sm font-medium mb-3">
+          {latestBatchJobs.length} role{latestBatchJobs.length === 1 ? "" : "s"} imported {batchIsToday ? "today" : "in the last sync"}.
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          {[
+            ["Imported", syncCounts?.imported ?? latestBatchJobs.length, ""],
+            ["Skipped", syncCounts?.skipped ?? 0, ""],
+            ["Failed", syncCounts?.failed ?? 0, ""],
+            ["Needs review", needsReviewJobs.length, needsReviewJobs.length > 0 ? "text-warning" : ""],
+            ["Last synced", relativeSync ?? "Never", "text-[13px]"],
+          ].map(([label, value, cls]) => (
+            <div key={label as string}>
+              <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">{label as string}</div>
+              <div className={`text-lg font-semibold tabular-nums ${cls as string}`}>{value as any}</div>
+            </div>
+          ))}
         </div>
-      )}
+      </div>
 
-
-      {/* Gmail sync status — only surfaces when something needs attention */}
-      {(syncStatus === "syncing" || syncStatus === "error" || syncStatus === "no_token" || syncStatus === "never_synced") && (
+      {/* Gmail sync status — only when something needs attention */}
+      {(syncStatus === "syncing" || syncStatus === "error" || syncStatus === "no_token") && (
         <div className="mb-5 apple-card px-5 py-3 flex items-center justify-between gap-3">
           {syncStatus === "syncing" ? (
             <div className="flex items-center gap-2.5">
@@ -1032,10 +1224,7 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
             </div>
           ) : syncStatus === "error" ? (
             <>
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-2 h-2 rounded-full bg-destructive shrink-0" />
-                <span className="text-xs text-destructive truncate">Sync failed — tap to retry</span>
-              </div>
+              <span className="text-xs text-destructive truncate">Sync failed — tap to retry</span>
               <button
                 onClick={() => triggerSync(false)}
                 disabled={gmailLoading}
@@ -1044,27 +1233,14 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
                 Retry
               </button>
             </>
-          ) : syncStatus === "no_token" ? (
+          ) : (
             <>
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-2 h-2 rounded-full bg-warning shrink-0" />
-                <span className="text-xs text-muted-foreground">Gmail access not granted — sign out and back in, and tick the Gmail permission.</span>
-              </div>
+              <span className="text-xs text-muted-foreground">Gmail access not granted — sign out and back in, and tick the Gmail permission.</span>
               <button onClick={signOut} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors shrink-0">Sign out</button>
             </>
-          ) : (
-            <div className="flex items-center gap-2.5">
-              <div className="w-2 h-2 rounded-full bg-muted-foreground/30" />
-              <span className="text-xs text-muted-foreground">Connect Gmail to import job alerts automatically</span>
-            </div>
           )}
         </div>
       )}
-
-
-      <GmailSyncSummary report={syncReport} counts={syncCounts} errors={syncErrors} syncedAt={syncReportAt} loading={gmailLoading} error={syncError} onRetry={() => triggerSync(false)} />
-
-
 
       {/* Filters */}
       <div className="mb-5">
@@ -1072,9 +1248,7 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-all duration-200 ${
-              activeFilterCount > 0
-                ? "bg-foreground/[0.06] text-foreground"
-                : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+              activeFilterCount > 0 ? "bg-foreground/[0.06] text-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
             }`}
           >
             <SlidersHorizontal className="w-3 h-3" />
@@ -1116,26 +1290,10 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
               </button>
             )}
           </div>
-
         </div>
 
         {showFilters && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 apple-card p-4 animate-fade-up">
-            <div>
-              <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">Freshness</label>
-              <select
-                value={filterAge}
-                onChange={e => setFilterAge(e.target.value)}
-                className="w-full text-xs bg-background border border-border rounded-lg px-2.5 py-2 text-foreground"
-              >
-                <option value="all">Any age</option>
-                <option value="fresh">Fresh (under {AGING_AFTER_DAYS}d)</option>
-                <option value="aging">Aging ({AGING_AFTER_DAYS}–{STALE_AFTER_DAYS - 1}d)</option>
-                <option value="stale">Stale ({STALE_AFTER_DAYS}d+, not applied)</option>
-                <option value="applied">Applied</option>
-              </select>
-            </div>
-
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 apple-card p-4 animate-fade-up">
             <div>
               <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">Role Family</label>
               <select
@@ -1162,7 +1320,6 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
                 <option value="tweak">Needs Tweaking</option>
                 <option value="low">Low Alignment</option>
                 <option value="unscored">Not scored yet</option>
-
               </select>
             </div>
             <div>
@@ -1195,136 +1352,113 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
         )}
       </div>
 
-      {/* Grouped job list */}
-      {filteredJobs.length === 0 ? (
-        <div className="apple-card border-dashed p-12 text-center">
-          <p className="text-sm text-muted-foreground">No roles match your filters.</p>
-          <button onClick={clearFilters} className="text-xs text-accent hover:underline mt-2">Clear filters</button>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-5">
-          {groupedData.map(({ familyKey, label, jobs: familyJobs, bucketGroups }) => {
-            const isCollapsed = collapsedFamilies.has(familyKey);
-            return (
-              <div key={familyKey}>
-                <button
-                  onClick={() => toggleFamily(familyKey)}
-                  className="flex items-center gap-2 w-full text-left mb-2.5 group"
-                >
-                  {isCollapsed ? <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
-                  <h2 className="text-[15px] font-semibold">{label}</h2>
-                  <span className="text-[11px] text-muted-foreground font-medium">({familyJobs.length})</span>
-                  {familyKey === ("__new" as any) && (
-                    <span className="text-[10px] font-semibold uppercase tracking-wider rounded-full px-2 py-0.5 bg-foreground text-background">New</span>
-                  )}
-                </button>
-
-
-                {!isCollapsed && (
-                  <div className="flex flex-col gap-3 ml-5">
-                    {(["must", "tweak", "low", "unscored"] as const).map(bucketKey => {
-                      const bucketJobs = bucketGroups[bucketKey];
-                      if (bucketJobs.length === 0) return null;
-                      const bm = bucketKey !== "unscored" ? BUCKET_META[bucketKey] : null;
-                      return (
-                        <div key={bucketKey}>
-                          <div className="flex items-center gap-1.5 mb-2">
-                            {bm ? (
-                              <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10.5px] font-semibold" style={{ background: bm.bg, border: `1px solid ${bm.border}`, color: bm.text }}>
-                                <span className="w-1.5 h-1.5 rounded-full" style={{ background: bm.dot }} />
-                                {bm.label} ({bucketJobs.length})
-                              </span>
-                            ) : (
-                              <span className="text-[11px] text-muted-foreground font-medium">Not scored yet ({bucketJobs.length})</span>
-                            )}
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            {bucketJobs.map((job, i) => {
-                              const r = results[job.id];
-                              const f = job.freshness;
-                              return (
-                                <div
-                                  key={job.id}
-                                  onClick={() => setSelected(job)}
-                                  className={`group apple-card apple-card-interactive p-4 grid animate-fade-up ${f.level === "stale" ? "border-destructive/25" : ""}`}
-                                  style={{ gridTemplateColumns: "38px 1fr auto 100px", gap: 12, alignItems: "center", animationDelay: `${i * 0.04}s` }}
-                                >
-                                  <div className="w-[38px] h-[38px] bg-secondary rounded-lg flex items-center justify-center">
-                                    <span className="text-[10px] font-bold text-secondary-foreground">{initials(job.company)}</span>
-                                  </div>
-                                  <div className="min-w-0">
-                                    <div className="flex items-center flex-wrap gap-1.5 mb-0.5">
-                                      <span className={`text-sm font-semibold ${f.level === "stale" ? "opacity-70" : ""}`}>{cleanText(job.title)}</span>
-                                      <span
-                                        className={`inline-flex items-center gap-1 text-[10px] font-medium rounded-md border px-1.5 py-0.5 ${FRESHNESS_STYLES[f.level]}`}
-                                        title={f.hint || ""}
-                                      >
-                                        {f.level === "stale" && <AlertTriangle className="w-2.5 h-2.5" />}
-                                        {f.level === "aging" && <Clock className="w-2.5 h-2.5" />}
-                                        {f.level === "applied" && <CheckCircle2 className="w-2.5 h-2.5" />}
-                                        {f.label}
-                                      </span>
-                                      {job.source && <span className="text-[10px] text-muted-foreground bg-secondary rounded-md px-1.5 py-0.5">{job.source}</span>}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground truncate">{job.company} · {job.location || "Remote"}{job.salary ? ` · ${job.salary}` : ""}</div>
-                                    {f.hint && f.level !== "applied" && (
-                                      <div className={`text-[10.5px] mt-1 ${f.level === "stale" ? "text-destructive" : "text-warning"}`}>{f.hint}</div>
-                                    )}
-                                    {r && (
-                                      <div className="flex flex-wrap gap-0.5 mt-1.5">
-                                        {r.missingKeywords?.slice(0, 4).map(kw => <Tag key={kw}>{kw}</Tag>)}
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); handleDeleteJob(job); }}
-                                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
-                                    title="Delete job"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                  <div className="text-right">
-                                    {aLoading.has(job.id) ? (
-                                      <div className="flex flex-col items-end gap-1">
-                                        <Spinner size={14} />
-                                        <span className="animate-pulse-dot text-[10px] text-muted-foreground">Scoring…</span>
-                                      </div>
-                                    ) : r ? (
-                                      <div className="flex flex-col items-end">
-                                        <div className="text-2xl font-semibold leading-none tabular-nums" style={{ color: scoreColor(r.score) }}>{r.score}</div>
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); handleScoreJob(job, true); }}
-                                          disabled={aLoading.size > 0}
-                                          className="text-[10px] text-muted-foreground hover:text-foreground mt-0.5 underline underline-offset-2 disabled:opacity-40"
-                                        >
-                                          {rLoading.has(job.id) ? "writing…" : "Re-score"}
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); handleScoreJob(job); }}
-                                        disabled={aLoading.size > 0}
-                                        className="text-[11px] font-medium px-3 py-1.5 rounded-lg bg-foreground text-background hover:opacity-90 transition-opacity disabled:opacity-40"
-                                      >
-                                        Score
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+      {/* 3 — Needs your review */}
+      {needsReviewJobs.length > 0 && (
+        <section className="mb-7">
+          <div className="flex items-center gap-2 mb-2.5">
+            <AlertTriangle className="w-4 h-4 text-warning" />
+            <h2 className="text-[15px] font-semibold">Needs your review</h2>
+            <span className="text-[11px] text-muted-foreground font-medium">({needsReviewJobs.length})</span>
+          </div>
+          <p className="text-xs text-muted-foreground mb-2.5">
+            We couldn't confirm the job details for these imports. Confirm or delete them so they stop cluttering your list.
+          </p>
+          <div className="flex flex-col gap-1.5">
+            {needsReviewJobs.map(job => (
+              <RoleRow
+                key={job.id}
+                job={job}
+                assessment={assessments[job.id]}
+                status="needs_review"
+                onOpen={() => setSelected(job)}
+                onAction={() => setSelected(job)}
+              />
+            ))}
+          </div>
+        </section>
       )}
+
+      {/* 4 — Today's imported roles */}
+      <section className="mb-7">
+        <div className="flex items-center gap-2 mb-3">
+          <h2 className="text-[15px] font-semibold">{batchIsToday ? "Today's imported roles" : "Latest imported roles"}</h2>
+          <span className="text-[11px] text-muted-foreground font-medium">({latestVisible.length})</span>
+        </div>
+
+        {latestVisible.length === 0 ? (
+          <div className="apple-card border-dashed p-10 text-center">
+            <p className="text-sm text-muted-foreground">No roles from the latest sync match your filters.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {latestFamilies.map(({ familyKey, label, jobs: familyJobs, counts }) => {
+              const isCollapsed = collapsedFamilies.has(familyKey);
+              return (
+                <div key={familyKey}>
+                  <button onClick={() => toggleFamily(familyKey)} className="flex items-center gap-2 w-full text-left mb-2">
+                    {isCollapsed ? <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
+                    <h3 className="text-sm font-semibold">{label}</h3>
+                    <span className="text-[11px] text-muted-foreground font-medium">
+                      {familyJobs.length} role{familyJobs.length === 1 ? "" : "s"} · {counts.needsReview} needs review · {counts.scored} scored · {counts.applied} applied
+                    </span>
+                  </button>
+                  {!isCollapsed && (
+                    <div className="flex flex-col gap-1.5 ml-5">
+                      {familyJobs.map(job => (
+                        <RoleRow
+                          key={job.id}
+                          job={job}
+                          assessment={assessments[job.id]}
+                          status={statusOf(job)}
+                          score={results[job.id]?.error ? null : results[job.id]?.score}
+                          busy={aLoading.has(job.id) || rLoading.has(job.id)}
+                          onOpen={() => setSelected(job)}
+                          onAction={() => handleNextAction(job)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* 5 — Import history */}
+      {historyGroups.length > 0 && (
+        <section className="mb-6">
+          <button onClick={() => setShowHistory(v => !v)} className="flex items-center gap-2 mb-2.5">
+            {showHistory ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />}
+            <h2 className="text-[15px] font-semibold">Import history</h2>
+            <span className="text-[11px] text-muted-foreground font-medium">({historyGroups.reduce((n, g) => n + g.jobs.length, 0)})</span>
+          </button>
+          {showHistory && (
+            <div className="flex flex-col gap-4">
+              {historyGroups.map(group => (
+                <div key={group.label}>
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">{group.label} ({group.jobs.length})</h3>
+                  <div className="flex flex-col gap-1.5">
+                    {group.jobs.map(job => (
+                      <RoleRow
+                        key={job.id}
+                        job={job}
+                        assessment={assessments[job.id]}
+                        status={statusOf(job)}
+                        score={results[job.id]?.error ? null : results[job.id]?.score}
+                        busy={aLoading.has(job.id) || rLoading.has(job.id)}
+                        onOpen={() => setSelected(job)}
+                        onAction={() => handleNextAction(job)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
 
       {/* Sync Log */}
       {syncLog.length > 0 && import.meta.env.DEV && (

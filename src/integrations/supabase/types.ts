@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -232,12 +232,16 @@ export type Database = {
       imported_jobs: {
         Row: {
           analysis: Json | null
+          archived_at: string | null
           company: string
+          confirmed_at: string | null
           description: string | null
           description_fetched_at: string | null
           id: string
+          import_batch_id: string | null
           imported_at: string
           location: string | null
+          posted_at: string | null
           profile_id: string
           salary: string | null
           seen: boolean
@@ -252,12 +256,16 @@ export type Database = {
         }
         Insert: {
           analysis?: Json | null
+          archived_at?: string | null
           company: string
+          confirmed_at?: string | null
           description?: string | null
           description_fetched_at?: string | null
           id?: string
+          import_batch_id?: string | null
           imported_at?: string
           location?: string | null
+          posted_at?: string | null
           profile_id: string
           salary?: string | null
           seen?: boolean
@@ -272,12 +280,16 @@ export type Database = {
         }
         Update: {
           analysis?: Json | null
+          archived_at?: string | null
           company?: string
+          confirmed_at?: string | null
           description?: string | null
           description_fetched_at?: string | null
           id?: string
+          import_batch_id?: string | null
           imported_at?: string
           location?: string | null
+          posted_at?: string | null
           profile_id?: string
           salary?: string | null
           seen?: boolean
