@@ -123,6 +123,9 @@ const Roles = () => {
         tailored_resume: d.tailored_resume,
         imported_at: d.imported_at,
         seen: d.seen,
+        confirmed_at: d.confirmed_at ?? null,
+        import_batch_id: d.import_batch_id ?? null,
+        archived_at: d.archived_at ?? null,
       }));
       setJobs(mapped);
 
@@ -150,11 +153,15 @@ const Roles = () => {
 
     const { data: apps } = await supabase
       .from("applications")
-      .select("imported_job_id")
+      .select("imported_job_id,status")
       .eq("profile_id", profile.id);
     if (apps) {
       setAppliedJobs(new Set(apps.map(d => d.imported_job_id).filter(Boolean) as string[]));
+      const statusMap: Record<string, string> = {};
+      for (const a of apps as any[]) if (a.imported_job_id) statusMap[a.imported_job_id] = a.status;
+      setAppStatuses(statusMap);
     }
+
 
     setDbLoaded(true);
     setInitialLoading(false);
