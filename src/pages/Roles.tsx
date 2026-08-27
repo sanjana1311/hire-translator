@@ -89,6 +89,8 @@ const Roles = () => {
   const [rtab, setRtab] = useState("tailored");
   const [copied, setCopied] = useState(false);
   const [appliedJobs, setAppliedJobs] = useState<Set<string>>(new Set());
+  const [appStatuses, setAppStatuses] = useState<Record<string, string>>({});
+  const [showHistory, setShowHistory] = useState(false);
   const [applyLoading, setApplyLoading] = useState(false);
   const [dbLoaded, setDbLoaded] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
