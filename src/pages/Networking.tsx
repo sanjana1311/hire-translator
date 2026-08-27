@@ -5,7 +5,6 @@ import { callAI } from "@/lib/ai";
 import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/integrations/supabase/client";
 import GroupedJobList from "@/components/GroupedJobList";
-import LinkedInConnect from "@/components/networking/LinkedInConnect";
 import TargetCard from "@/components/networking/TargetCard";
 import {
   useNetworkingTargets,
@@ -163,8 +162,6 @@ Give 6 suggestions, one per connection type, sorted by relevance descending.`,
           <div className="text-lg font-semibold">{job.title}</div>
           <div className="text-xs text-muted-foreground mt-0.5">{job.location || "Location not listed"}</div>
         </div>
-
-        <div className="mb-3"><LinkedInConnect /></div>
 
         <div className="apple-card p-4 mb-3">
           <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Manual LinkedIn search</div>
