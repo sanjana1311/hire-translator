@@ -53,13 +53,13 @@ export function fmtDate(date: string) {
 }
 
 export function scoreColor(score: number) {
-  return score >= 75 ? "hsl(153 40% 30%)" : score >= 40 ? "hsl(25 84% 31%)" : "hsl(348 46% 28%)";
+  return score >= 75 ? "hsl(var(--success))" : score >= 40 ? "hsl(var(--warning))" : "hsl(var(--danger))";
 }
 
 export function scoreBg(score: number) {
-  return score >= 75 ? "hsl(150 38% 96%)" : score >= 40 ? "hsl(37 60% 97%)" : "hsl(0 38% 97%)";
+  return score >= 75 ? "hsl(var(--success-bg))" : score >= 40 ? "hsl(var(--warning-bg))" : "hsl(var(--danger-bg))";
 }
 
 export function scoreBorder(score: number) {
-  return score >= 75 ? "hsl(152 34% 82%)" : score >= 40 ? "hsl(37 40% 80%)" : "hsl(348 28% 85%)";
+  return score >= 75 ? "hsl(var(--success-border))" : score >= 40 ? "hsl(var(--warning-border))" : "hsl(var(--danger-border))";
 }
