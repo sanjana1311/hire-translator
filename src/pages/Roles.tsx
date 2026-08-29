@@ -73,6 +73,9 @@ export interface ImportedJob {
   /** Identifies which Gmail sync brought this role in. */
   import_batch_id?: string | null;
   archived_at?: string | null;
+  /** Strict validation label written by the Gmail import pipeline. */
+  import_quality?: "valid" | "needs_review" | "invalid_import" | null;
+  import_issues?: string[] | null;
 }
 
 const Roles = () => {
@@ -136,6 +139,8 @@ const Roles = () => {
         confirmed_at: d.confirmed_at ?? null,
         import_batch_id: d.import_batch_id ?? null,
         archived_at: d.archived_at ?? null,
+        import_quality: d.import_quality ?? null,
+        import_issues: Array.isArray(d.import_issues) ? d.import_issues : [],
       }));
       setJobs(mapped);
 
