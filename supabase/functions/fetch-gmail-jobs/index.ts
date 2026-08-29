@@ -1480,8 +1480,14 @@ Rules:
       source: j.source || "",
       snippet: j.snippet || "",
       source_email_subject: j._sourceSubject || null,
+      source_email_id: j._sourceEmailId || null,
+      listing_index: j._listingIndex ?? null,
+      listing_hash: j._listingHash || null,
+      import_quality: j.quality || "valid",
+      import_issues: j.issues ?? [],
       status: "new",
     }));
+
 
     const { error: insertErr } = await adminClient
       .from("imported_jobs")
