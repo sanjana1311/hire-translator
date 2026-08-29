@@ -1071,7 +1071,7 @@ export async function syncGmailJobs(options: {
         continue;
       }
 
-      emails.push({ subject, from, body, bodyText, snippet, report });
+      emails.push({ id: String(msg.id || ""), subject, from, body, bodyText, snippet, report });
     }
   }
 
