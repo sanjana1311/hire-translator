@@ -980,6 +980,7 @@ export async function syncGmailJobs(options: {
 
   // ── Stage: fetch message bodies ──
   type Email = {
+    id: string;
     subject: string;
     from: string;
     body: string;
