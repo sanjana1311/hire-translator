@@ -9,6 +9,7 @@ import { useResume } from "@/hooks/use-resume";
 import { useAIUsage } from "@/hooks/use-ai-usage";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { cleanText } from "@/lib/clean-text";
 import { parseJsonLoose, normalizeAnalysis, failedAnalysis, type ScoreAnalysis } from "@/lib/safe-json";
 import { loadJobScores, saveJobScore, deleteJobScore, mergeScores, removeScore } from "@/lib/job-scores";
@@ -629,7 +630,7 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
       toast.success(
         `Re-checked ${data?.scanned ?? 0} imports — ${data?.valid ?? 0} clean, ${data?.needsReview ?? 0} need review, ${data?.invalid ?? 0} invalid.`
       );
-      await loadJobs();
+      await loadJobsFromDB();
     } catch (e: any) {
       toast.error(e?.message || "Could not re-check your imports.");
     } finally {
@@ -650,7 +651,7 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
       return;
     }
     toast.success(`Archived ${ids.length} invalid import${ids.length === 1 ? "" : "s"} — nothing was deleted.`);
-    await loadJobs();
+    await loadJobsFromDB();
   }, [invalidImportJobs]);
 
   /** Roles from the most recent import batch (batch id when present, else a 15-min window). */
