@@ -239,7 +239,11 @@ export type Database = {
           description_fetched_at: string | null
           id: string
           import_batch_id: string | null
+          import_issues: Json
+          import_quality: string
           imported_at: string
+          listing_hash: string | null
+          listing_index: number | null
           location: string | null
           posted_at: string | null
           profile_id: string
@@ -247,6 +251,7 @@ export type Database = {
           seen: boolean
           snippet: string | null
           source: string | null
+          source_email_id: string | null
           source_email_subject: string | null
           status: string
           tailored_resume: string | null
@@ -263,7 +268,11 @@ export type Database = {
           description_fetched_at?: string | null
           id?: string
           import_batch_id?: string | null
+          import_issues?: Json
+          import_quality?: string
           imported_at?: string
+          listing_hash?: string | null
+          listing_index?: number | null
           location?: string | null
           posted_at?: string | null
           profile_id: string
@@ -271,6 +280,7 @@ export type Database = {
           seen?: boolean
           snippet?: string | null
           source?: string | null
+          source_email_id?: string | null
           source_email_subject?: string | null
           status?: string
           tailored_resume?: string | null
@@ -287,7 +297,11 @@ export type Database = {
           description_fetched_at?: string | null
           id?: string
           import_batch_id?: string | null
+          import_issues?: Json
+          import_quality?: string
           imported_at?: string
+          listing_hash?: string | null
+          listing_index?: number | null
           location?: string | null
           posted_at?: string | null
           profile_id?: string
@@ -295,6 +309,7 @@ export type Database = {
           seen?: boolean
           snippet?: string | null
           source?: string | null
+          source_email_id?: string | null
           source_email_subject?: string | null
           status?: string
           tailored_resume?: string | null

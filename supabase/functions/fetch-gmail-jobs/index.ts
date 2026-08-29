@@ -1,6 +1,14 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { callConfiguredAI } from "../_shared/ai-provider.ts";
+import {
+  extractListingBlocks,
+  listingHash,
+  normalizeText,
+  parseListingsResponse,
+  validateListing,
+  type RawListing,
+} from "./listing.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -598,6 +606,10 @@ function parseCompanyLocation(line: string): { company: string; location: string
   return null;
 }
 
+/**
+ * Pattern fallback: split the email into isolated listing blocks so fields can
+ * never leak across listings, then keep only blocks with a title + company.
+ */
 function fallbackExtractJobsFromEmail(email: {
   subject: string;
   body: string;
@@ -607,79 +619,46 @@ function fallbackExtractJobsFromEmail(email: {
   const { subject, bodyText, snippet } = email;
   const normalized = `${subject}\n${snippet}\n${bodyText}`;
   const source = inferSource(normalized);
-  const allJobUrls = extractJobUrls(normalized);
-  const fallbackUrl = extractFirstJobUrl(normalized);
 
+  const blocks = extractListingBlocks(bodyText);
   const jobs: any[] = [];
   const seen = new Set<string>();
-  let urlIndex = 0;
 
-  const pushJob = (titleRaw: string, companyRaw: string, locationRaw?: string | null) => {
-    const title = cleanTextLine(titleRaw);
-    const company = cleanTextLine(companyRaw);
-    const location = locationRaw ? cleanTextLine(locationRaw) : null;
-
-    const combined = `${title} ${company}`;
-    if (!looksLikeJobTitle(title)) return;
-    if (!company || company.length < 2) return;
-    if (!/[A-Za-z]/.test(company) || !/[A-Z]/.test(company)) return;
-    if (/^(email alert|linkedin|and more|a glance)$/i.test(company)) return;
-    if (/(see all jobs|install linkedin|stay updated|unsubscribe|jobs at a glance|linkedin widgets|connections? you may know)/i.test(combined)) {
-      return;
-    }
-
+  const push = (listing: RawListing) => {
+    const title = normalizeText(listing.title);
+    const company = normalizeText(listing.company);
+    if (!title || !company) return;
     const key = `${title.toLowerCase()}__${company.toLowerCase()}`;
     if (seen.has(key)) return;
     seen.add(key);
-
-    jobs.push({
-      title,
-      company,
-      location,
-      salary: null,
-      url: allJobUrls[urlIndex++] || fallbackUrl,
-      source,
-      snippet: snippet || null,
-    });
+    jobs.push({ ...listing, title, company, source, snippet: snippet || null });
   };
 
-  // LinkedIn structure: title line followed by "Company · Location"
-  const lines = bodyText
-    .split("\n")
-    .map(cleanTextLine)
-    .filter(Boolean);
+  for (const block of blocks) push(block);
 
-  for (let i = 0; i < lines.length - 1; i++) {
-    const titleLine = lines[i];
-    const companyLoc = parseCompanyLocation(lines[i + 1]);
-    if (!companyLoc) continue;
-    pushJob(titleLine, companyLoc.company, companyLoc.location);
-  }
-
-  // Catch repeated "Title at Company" patterns (all matches, not first)
-  const atPattern = /([A-Z][A-Za-z0-9&+\/'(),.\-–—\s]{2,100}?)\s+at\s+([A-Z][A-Za-z0-9&+\/'(),.\-\s]{2,80}?)(?:\s+(?:in|,|·)\s+([A-Za-z0-9,.\-\s]{2,80}))?(?=\s|$|\.)/gi;
-  for (const m of normalized.matchAll(atPattern)) {
-    pushJob(m[1], m[2], m[3] || null);
-  }
-
-  // Subject format: "keyword": Company - Role and more
-  const linkedInSubjectMatch = subject.match(
-    /[“"]?[^:"”]+[”"]?\s*:\s*([A-Z][A-Za-z0-9&+\/'(),.\-\s]{1,80})\s*-\s*([^|]+?)(?:\s+and\s+more)?$/i
-  );
-  if (linkedInSubjectMatch) {
-    pushJob(linkedInSubjectMatch[2], linkedInSubjectMatch[1], null);
-  }
-
-  // Last-resort from subject
+  // Single-job emails: "Role at Company" in the subject line only.
   if (jobs.length === 0) {
-    const cleanedTitle = cleanupJobTitle(subject);
-    if (cleanedTitle) {
-      pushJob(cleanedTitle, source, null);
+    const atMatch = cleanupJobTitle(subject).match(
+      /^(.{3,100}?)\s+at\s+([A-Z][A-Za-z0-9&+\/'(),.\-\s]{1,80})$/i
+    );
+    if (atMatch) {
+      push({ title: atMatch[1], company: atMatch[2], location: null, url: extractFirstJobUrl(normalized) });
+    }
+  }
+
+  // LinkedIn subject format: "keyword": Company - Role and more
+  if (jobs.length === 0) {
+    const m = subject.match(
+      /[“"]?[^:"”]+[”"]?\s*:\s*([A-Z][A-Za-z0-9&+\/'(),.\-\s]{1,80})\s*-\s*([^|]+?)(?:\s+and\s+more)?$/i
+    );
+    if (m) {
+      push({ title: m[2], company: m[1], location: null, url: extractFirstJobUrl(normalized) });
     }
   }
 
   return jobs.slice(0, 25);
 }
+
 
 /** Fetch full job description from a URL */
 async function fetchJobDescription(
@@ -1001,6 +980,7 @@ export async function syncGmailJobs(options: {
 
   // ── Stage: fetch message bodies ──
   type Email = {
+    id: string;
     subject: string;
     from: string;
     body: string;
@@ -1091,7 +1071,7 @@ export async function syncGmailJobs(options: {
         continue;
       }
 
-      emails.push({ subject, from, body, bodyText, snippet, report });
+      emails.push({ id: String(msg.id || ""), subject, from, body, bodyText, snippet, report });
     }
   }
 
@@ -1283,34 +1263,63 @@ export async function syncGmailJobs(options: {
   // ── Stage: extraction ──
   const allExtractedJobs: any[] = [];
   let aiUnavailable = false;
+  let listingsRejected = 0;
+
+  /** Validate raw listings, attach provenance + idempotency metadata. */
+  const acceptListings = async (
+    raws: RawListing[],
+    email: { id: string; subject: string },
+    er: EmailReport
+  ): Promise<number> => {
+    let accepted = 0;
+    for (let index = 0; index < raws.length; index++) {
+      const validated = validateListing(raws[index]);
+      if (!validated) {
+        listingsRejected++;
+        continue;
+      }
+      const hash = await listingHash({
+        sourceEmailId: email.id || null,
+        listingIndex: index,
+        title: validated.title,
+        company: validated.company,
+      });
+      allExtractedJobs.push({
+        ...validated,
+        _sourceSubject: email.subject,
+        _sourceEmailId: email.id || null,
+        _listingIndex: index,
+        _listingHash: hash,
+        _report: er,
+      });
+      accepted++;
+    }
+    er.jobsFound += accepted;
+    return accepted;
+  };
 
   for (const email of relevantEmails) {
     const { subject, body, snippet, report: er } = email;
 
-    const pushFallbackJobs = (reason: string) => {
-      let fallbackJobs: any[] = [];
+    const pushFallbackJobs = async (reason: string) => {
+      let fallbackJobs: RawListing[] = [];
       try {
         fallbackJobs = fallbackExtractJobsFromEmail(email);
-      } catch (e) {
+      } catch {
         fallbackJobs = [];
       }
       er.method = "fallback";
-      if (fallbackJobs.length > 0) {
-        for (const j of fallbackJobs) {
-          j._sourceSubject = subject;
-          j._report = er;
-        }
-        allExtractedJobs.push(...fallbackJobs);
-        er.jobsFound += fallbackJobs.length;
-        er.reason = `AI parse unavailable (${reason}) — rescued ${fallbackJobs.length} job(s) with the pattern parser`;
+      const accepted = await acceptListings(fallbackJobs, email, er);
+      if (accepted > 0) {
+        er.reason = `AI parse unavailable (${reason}) — rescued ${accepted} listing(s) with the block parser`;
       } else {
         er.status = "parse_failed";
-        er.reason = `Could not parse any job from this email (${reason}); pattern parser found no title/company pair`;
+        er.reason = `Could not parse any job from this email (${reason}); no block produced a valid title + company`;
       }
     };
 
     if (aiUnavailable || outOfBudget()) {
-      pushFallbackJobs(outOfBudget() ? "time budget reached" : "AI unavailable");
+      await pushFallbackJobs(outOfBudget() ? "time budget reached" : "AI unavailable");
       continue;
     }
 
@@ -1335,7 +1344,9 @@ For each job found return:
 
 Rules:
 - Only extract real job openings explicitly listed in this email
-- Skip anything that is not a specific open role
+- Never mix fields between listings: title, company and location must all come from the SAME listing
+- Never put a location in the title or company field, and never put a job title in the company field
+- Skip application confirmations, interview invites and newsletters — they are not job listings
 - If a job has no URL still include it with url set to null
 - Return [] if no real job listings are found
 - Never invent or guess any field
@@ -1347,57 +1358,45 @@ Rules:
         requestId,
         messages: [{ role: "user", content: prompt }],
         temperature: 0,
-        maxTokens: 1200,
+        maxTokens: 3000,
       });
       if (!aiResult) {
         aiUnavailable = true;
         noteError(new SyncError("parse", "AI_UNAVAILABLE", "No configured AI provider responded — used the pattern parser instead."));
-        pushFallbackJobs("all configured AI providers failed");
+        await pushFallbackJobs("all configured AI providers failed");
         continue;
       }
-      const raw = aiResult.text;
-      const finishReason = undefined;
 
-      let cleaned = raw.replace(/```json|```/g, "").trim();
-      let repaired = false;
-      if (finishReason === "length" || (!cleaned.endsWith("]") && cleaned.includes("{"))) {
-        repaired = true;
-        const lastCompleteObj = cleaned.lastIndexOf("}");
-        if (lastCompleteObj > 0) {
-          cleaned = cleaned.slice(0, lastCompleteObj + 1);
-          if (!cleaned.endsWith("]")) cleaned += "]";
-          if (!cleaned.startsWith("[")) cleaned = "[" + cleaned;
-        }
-      }
+      const { listings, repaired } = parseListingsResponse(aiResult.text);
+      const accepted = listings.length > 0 ? await acceptListings(listings, email, er) : 0;
 
-      const jobs = JSON.parse(cleaned);
-      if (Array.isArray(jobs) && jobs.length > 0) {
-        for (const j of jobs) {
-          j._sourceSubject = subject;
-          j._report = er;
-        }
-        allExtractedJobs.push(...jobs);
+      if (accepted > 0) {
         er.method = "ai";
-        er.jobsFound += jobs.length;
-        if (repaired) er.reason = "AI response was truncated — repaired and recovered the listings";
+        if (repaired) {
+          er.reason = "AI response was truncated — repaired, re-validated and recovered the listings";
+        }
+      } else if (listings.length > 0) {
+        // Model replied, but nothing survived schema validation → safe fallback.
+        await pushFallbackJobs("AI listings failed schema validation");
       } else {
-        pushFallbackJobs("AI returned no listings");
+        await pushFallbackJobs("AI returned no usable JSON");
       }
     } catch (e) {
-      pushFallbackJobs(`AI response was not usable: ${(e as Error).name}`);
+      await pushFallbackJobs(`AI response was not usable: ${(e as Error).name}`);
       continue;
     }
 
     await new Promise((r) => setTimeout(r, 150));
   }
 
-  // ── Stage: dedupe ──
+
+  // ── Stage: dedupe (idempotent on source email + listing slot) ──
   const normalize = (str: string) => str?.toLowerCase().trim().replace(/\s+/g, " ") || "";
 
   const sixtyDaysAgo = new Date(Date.now() - 60 * 86400000).toISOString();
   const { data: existingJobs, error: existingErr } = await adminClient
     .from("imported_jobs")
-    .select("title, company")
+    .select("title, company, listing_hash")
     .eq("profile_id", profileId)
     .gte("imported_at", sixtyDaysAgo);
 
@@ -1408,26 +1407,23 @@ Rules:
   const existingSet = new Set(
     existingJobs?.map((j: any) => `${normalize(j.title)}__${normalize(j.company)}`) || []
   );
+  const existingHashes = new Set(
+    (existingJobs ?? []).map((j: any) => j.listing_hash).filter(Boolean)
+  );
 
   const seenInBatch = new Set<string>();
+  const seenHashes = new Set<string>();
   const newJobs = allExtractedJobs.filter((j) => {
     const rep: EmailReport | undefined = j._report;
-    if (!j.title || !j.company) {
-      if (rep) {
-        rep.jobsFound = Math.max(0, rep.jobsFound - 1);
-        if (rep.jobsFound === 0 && rep.status !== "rejected") {
-          rep.status = "parse_failed";
-          rep.reason = "Parsed listing was missing a title or company name";
-        }
-      }
-      return false;
-    }
     const key = `${normalize(j.title)}__${normalize(j.company)}`;
-    if (existingSet.has(key) || seenInBatch.has(key)) {
+    const hash: string | null = j._listingHash ?? null;
+
+    if ((hash && (existingHashes.has(hash) || seenHashes.has(hash))) || existingSet.has(key) || seenInBatch.has(key)) {
       if (rep) rep.duplicates += 1;
       return false;
     }
     seenInBatch.add(key);
+    if (hash) seenHashes.add(hash);
     if (rep) rep.jobsImported += 1;
     return true;
   });
@@ -1444,7 +1440,13 @@ Rules:
     }
   }
 
-  log("dedupe", "ok", { extracted: allExtractedJobs.length, newJobs: newJobs.length });
+  log("dedupe", "ok", {
+    extracted: allExtractedJobs.length,
+    newJobs: newJobs.length,
+    listingsRejected,
+    needsReview: newJobs.filter((j) => j.quality === "needs_review").length,
+  });
+
 
   // ── Stage: enrich (best effort, budget-capped) ──
   let enriched = 0;
@@ -1478,8 +1480,14 @@ Rules:
       source: j.source || "",
       snippet: j.snippet || "",
       source_email_subject: j._sourceSubject || null,
+      source_email_id: j._sourceEmailId || null,
+      listing_index: j._listingIndex ?? null,
+      listing_hash: j._listingHash || null,
+      import_quality: j.quality || "valid",
+      import_issues: j.issues ?? [],
       status: "new",
     }));
+
 
     const { error: insertErr } = await adminClient
       .from("imported_jobs")
@@ -1547,7 +1555,83 @@ async function saveSummary(adminClient: any, profileId: string, result: SyncResu
   }
 }
 
+/**
+ * Reversible cleanup pass. Re-runs strict validation over rows that are already
+ * stored and updates their quality label + issue list. Rows are never deleted:
+ * the user archives them from the UI if they want them gone. Also backfills the
+ * idempotency hash so a future sync recognises them instead of re-importing.
+ */
+async function revalidateImportedJobs(adminClient: any, profileId: string) {
+  const { data: rows, error } = await adminClient
+    .from("imported_jobs")
+    .select("id, title, company, location, url, snippet, description, source, salary, source_email_id, listing_index, listing_hash, confirmed_at")
+    .eq("profile_id", profileId)
+    .is("archived_at", null);
+
+  if (error) throw new SyncError("persist", "DB_READ_FAILED", "Could not read your imported jobs for re-validation.");
+
+  let valid = 0;
+  let needsReview = 0;
+  let invalid = 0;
+  let hashesBackfilled = 0;
+
+  for (const row of rows ?? []) {
+    const validated = validateListing({
+      title: row.title,
+      company: row.company,
+      location: row.location,
+      url: row.url,
+      snippet: row.snippet,
+      salary: row.salary,
+      source: row.source,
+    });
+
+    let quality: "valid" | "needs_review" | "invalid_import";
+    let issues: string[];
+
+    if (!validated) {
+      quality = "invalid_import";
+      issues = ["Listing failed strict validation — fields are missing or mixed between listings"];
+      invalid++;
+    } else {
+      quality = validated.quality === "valid" ? "valid" : "needs_review";
+      issues = validated.issues;
+      if (quality === "valid") valid++;
+      else needsReview++;
+    }
+
+    // A role the user already confirmed is trusted regardless of heuristics.
+    if (row.confirmed_at && quality !== "valid") {
+      quality = "valid";
+      issues = [];
+    }
+
+    const update: Record<string, unknown> = { import_quality: quality, import_issues: issues };
+
+    if (!row.listing_hash) {
+      update.listing_hash = await listingHash({
+        sourceEmailId: row.source_email_id ?? null,
+        listingIndex: typeof row.listing_index === "number" ? row.listing_index : 0,
+        title: normalizeText(row.title),
+        company: normalizeText(row.company),
+      });
+      hashesBackfilled++;
+    }
+
+    await adminClient.from("imported_jobs").update(update).eq("id", row.id);
+  }
+
+  return {
+    scanned: (rows ?? []).length,
+    valid,
+    needsReview,
+    invalid,
+    hashesBackfilled,
+  };
+}
+
 // ─── HTTP handler (manual trigger from frontend) ───
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -1595,7 +1679,16 @@ serve(async (req) => {
     } catch {
       body = {};
     }
-    const { providerToken, refreshToken, lookbackDays } = body;
+    const { providerToken, refreshToken, lookbackDays, mode } = body;
+
+    // Reversible cleanup: re-validate rows already in the database and label
+    // them valid / needs_review / invalid_import. Nothing is ever deleted.
+    if (mode === "revalidate") {
+      const summary = await revalidateImportedJobs(adminClient, profileId!);
+      log("revalidate", "ok", summary);
+      return json({ requestId, success: true, mode: "revalidate", ...summary });
+    }
+
     // Deep scan: caller can force a wider window (e.g. 30 days) to pick up
     // older interview/intro-call threads that the incremental window missed.
     const forcedLookback =

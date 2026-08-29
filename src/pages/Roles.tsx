@@ -9,6 +9,7 @@ import { useResume } from "@/hooks/use-resume";
 import { useAIUsage } from "@/hooks/use-ai-usage";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { cleanText } from "@/lib/clean-text";
 import { parseJsonLoose, normalizeAnalysis, failedAnalysis, type ScoreAnalysis } from "@/lib/safe-json";
 import { loadJobScores, saveJobScore, deleteJobScore, mergeScores, removeScore } from "@/lib/job-scores";
@@ -73,6 +74,9 @@ export interface ImportedJob {
   /** Identifies which Gmail sync brought this role in. */
   import_batch_id?: string | null;
   archived_at?: string | null;
+  /** Strict validation label written by the Gmail import pipeline. */
+  import_quality?: "valid" | "needs_review" | "invalid_import" | null;
+  import_issues?: string[] | null;
 }
 
 const Roles = () => {
@@ -136,6 +140,8 @@ const Roles = () => {
         confirmed_at: d.confirmed_at ?? null,
         import_batch_id: d.import_batch_id ?? null,
         archived_at: d.archived_at ?? null,
+        import_quality: d.import_quality ?? null,
+        import_issues: Array.isArray(d.import_issues) ? d.import_issues : [],
       }));
       setJobs(mapped);
 
@@ -605,6 +611,48 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
     () => jobs.filter(j => (assessments[j.id]?.needsReview ?? false)),
     [jobs, assessments]
   );
+
+  const invalidImportJobs = useMemo(
+    () => jobs.filter(j => j.import_quality === "invalid_import" && !j.archived_at && !j.confirmed_at),
+    [jobs]
+  );
+
+  const [recheckingImports, setRecheckingImports] = useState(false);
+
+  /** Re-run strict validation server-side over rows already in the database. */
+  const recheckImports = useCallback(async () => {
+    setRecheckingImports(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("fetch-gmail-jobs", {
+        body: { mode: "revalidate" },
+      });
+      if (error) throw error;
+      toast.success(
+        `Re-checked ${data?.scanned ?? 0} imports — ${data?.valid ?? 0} clean, ${data?.needsReview ?? 0} need review, ${data?.invalid ?? 0} invalid.`
+      );
+      await loadJobsFromDB();
+    } catch (e: any) {
+      toast.error(e?.message || "Could not re-check your imports.");
+    } finally {
+      setRecheckingImports(false);
+    }
+  }, []);
+
+  /** Reversible cleanup — archive, never delete. */
+  const archiveInvalidImports = useCallback(async () => {
+    const ids = invalidImportJobs.map(j => j.id);
+    if (ids.length === 0) return;
+    const { error } = await supabase
+      .from("imported_jobs")
+      .update({ archived_at: new Date().toISOString() })
+      .in("id", ids);
+    if (error) {
+      toast.error("Could not archive those imports.");
+      return;
+    }
+    toast.success(`Archived ${ids.length} invalid import${ids.length === 1 ? "" : "s"} — nothing was deleted.`);
+    await loadJobsFromDB();
+  }, [invalidImportJobs]);
 
   /** Roles from the most recent import batch (batch id when present, else a 15-min window). */
   const latestBatchJobs = useMemo(() => {
@@ -1361,8 +1409,19 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
             <span className="text-[11px] text-muted-foreground font-medium">({needsReviewJobs.length})</span>
           </div>
           <p className="text-xs text-muted-foreground mb-2.5">
-            We couldn't confirm the job details for these imports. Confirm or delete them so they stop cluttering your list.
+            We couldn't confirm the job details for these imports. Re-check them, confirm the good ones, or archive the rest —
+            archiving hides them without deleting anything.
           </p>
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <Button size="sm" variant="outline" onClick={recheckImports} disabled={recheckingImports}>
+              {recheckingImports ? "Re-checking…" : "Re-check imports"}
+            </Button>
+            {invalidImportJobs.length > 0 && (
+              <Button size="sm" variant="ghost" onClick={archiveInvalidImports}>
+                Archive {invalidImportJobs.length} invalid import{invalidImportJobs.length === 1 ? "" : "s"}
+              </Button>
+            )}
+          </div>
           <div className="flex flex-col gap-1.5">
             {needsReviewJobs.map(job => (
               <RoleRow
