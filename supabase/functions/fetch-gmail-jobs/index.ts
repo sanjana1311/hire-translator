@@ -1555,7 +1555,83 @@ async function saveSummary(adminClient: any, profileId: string, result: SyncResu
   }
 }
 
+/**
+ * Reversible cleanup pass. Re-runs strict validation over rows that are already
+ * stored and updates their quality label + issue list. Rows are never deleted:
+ * the user archives them from the UI if they want them gone. Also backfills the
+ * idempotency hash so a future sync recognises them instead of re-importing.
+ */
+async function revalidateImportedJobs(adminClient: any, profileId: string) {
+  const { data: rows, error } = await adminClient
+    .from("imported_jobs")
+    .select("id, title, company, location, url, snippet, description, source, salary, source_email_id, listing_index, listing_hash, confirmed_at")
+    .eq("profile_id", profileId)
+    .is("archived_at", null);
+
+  if (error) throw new SyncError("persist", "DB_READ_FAILED", "Could not read your imported jobs for re-validation.");
+
+  let valid = 0;
+  let needsReview = 0;
+  let invalid = 0;
+  let hashesBackfilled = 0;
+
+  for (const row of rows ?? []) {
+    const validated = validateListing({
+      title: row.title,
+      company: row.company,
+      location: row.location,
+      url: row.url,
+      snippet: row.snippet,
+      salary: row.salary,
+      source: row.source,
+    });
+
+    let quality: "valid" | "needs_review" | "invalid_import";
+    let issues: string[];
+
+    if (!validated) {
+      quality = "invalid_import";
+      issues = ["Listing failed strict validation — fields are missing or mixed between listings"];
+      invalid++;
+    } else {
+      quality = validated.quality === "valid" ? "valid" : "needs_review";
+      issues = validated.issues;
+      if (quality === "valid") valid++;
+      else needsReview++;
+    }
+
+    // A role the user already confirmed is trusted regardless of heuristics.
+    if (row.confirmed_at && quality !== "valid") {
+      quality = "valid";
+      issues = [];
+    }
+
+    const update: Record<string, unknown> = { import_quality: quality, import_issues: issues };
+
+    if (!row.listing_hash) {
+      update.listing_hash = await listingHash({
+        sourceEmailId: row.source_email_id ?? null,
+        listingIndex: typeof row.listing_index === "number" ? row.listing_index : 0,
+        title: normalizeText(row.title),
+        company: normalizeText(row.company),
+      });
+      hashesBackfilled++;
+    }
+
+    await adminClient.from("imported_jobs").update(update).eq("id", row.id);
+  }
+
+  return {
+    scanned: (rows ?? []).length,
+    valid,
+    needsReview,
+    invalid,
+    hashesBackfilled,
+  };
+}
+
 // ─── HTTP handler (manual trigger from frontend) ───
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
