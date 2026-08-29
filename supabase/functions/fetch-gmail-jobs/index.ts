@@ -1390,13 +1390,13 @@ Rules:
   }
 
 
-  // ── Stage: dedupe ──
+  // ── Stage: dedupe (idempotent on source email + listing slot) ──
   const normalize = (str: string) => str?.toLowerCase().trim().replace(/\s+/g, " ") || "";
 
   const sixtyDaysAgo = new Date(Date.now() - 60 * 86400000).toISOString();
   const { data: existingJobs, error: existingErr } = await adminClient
     .from("imported_jobs")
-    .select("title, company")
+    .select("title, company, listing_hash")
     .eq("profile_id", profileId)
     .gte("imported_at", sixtyDaysAgo);
 
@@ -1407,26 +1407,23 @@ Rules:
   const existingSet = new Set(
     existingJobs?.map((j: any) => `${normalize(j.title)}__${normalize(j.company)}`) || []
   );
+  const existingHashes = new Set(
+    (existingJobs ?? []).map((j: any) => j.listing_hash).filter(Boolean)
+  );
 
   const seenInBatch = new Set<string>();
+  const seenHashes = new Set<string>();
   const newJobs = allExtractedJobs.filter((j) => {
     const rep: EmailReport | undefined = j._report;
-    if (!j.title || !j.company) {
-      if (rep) {
-        rep.jobsFound = Math.max(0, rep.jobsFound - 1);
-        if (rep.jobsFound === 0 && rep.status !== "rejected") {
-          rep.status = "parse_failed";
-          rep.reason = "Parsed listing was missing a title or company name";
-        }
-      }
-      return false;
-    }
     const key = `${normalize(j.title)}__${normalize(j.company)}`;
-    if (existingSet.has(key) || seenInBatch.has(key)) {
+    const hash: string | null = j._listingHash ?? null;
+
+    if ((hash && (existingHashes.has(hash) || seenHashes.has(hash))) || existingSet.has(key) || seenInBatch.has(key)) {
       if (rep) rep.duplicates += 1;
       return false;
     }
     seenInBatch.add(key);
+    if (hash) seenHashes.add(hash);
     if (rep) rep.jobsImported += 1;
     return true;
   });
@@ -1443,7 +1440,13 @@ Rules:
     }
   }
 
-  log("dedupe", "ok", { extracted: allExtractedJobs.length, newJobs: newJobs.length });
+  log("dedupe", "ok", {
+    extracted: allExtractedJobs.length,
+    newJobs: newJobs.length,
+    listingsRejected,
+    needsReview: newJobs.filter((j) => j.quality === "needs_review").length,
+  });
+
 
   // ── Stage: enrich (best effort, budget-capped) ──
   let enriched = 0;
