@@ -1603,7 +1603,16 @@ serve(async (req) => {
     } catch {
       body = {};
     }
-    const { providerToken, refreshToken, lookbackDays } = body;
+    const { providerToken, refreshToken, lookbackDays, mode } = body;
+
+    // Reversible cleanup: re-validate rows already in the database and label
+    // them valid / needs_review / invalid_import. Nothing is ever deleted.
+    if (mode === "revalidate") {
+      const summary = await revalidateImportedJobs(adminClient, profileId!);
+      log("revalidate", "ok", summary);
+      return json({ requestId, success: true, mode: "revalidate", ...summary });
+    }
+
     // Deep scan: caller can force a wider window (e.g. 30 days) to pick up
     // older interview/intro-call threads that the incremental window missed.
     const forcedLookback =
