@@ -32,6 +32,9 @@ export interface ReviewableJob {
   description?: string | null;
   snippet?: string | null;
   confirmed_at?: string | null;
+  /** Server-side import validation label set during Gmail sync. */
+  import_quality?: "valid" | "needs_review" | "invalid_import" | null;
+  import_issues?: string[] | null;
 }
 
 const ROLE_TOKENS = [
@@ -131,6 +134,24 @@ export function assessJob(job: ReviewableJob): ReviewAssessment {
   const descriptionComplete = description.length >= 200;
   if (!descriptionComplete) {
     reasons.push({ field: "description", severity: "low", message: "Job description is incomplete" });
+  }
+
+  // ── Server-side import validation (authoritative) ──
+  const quality = job.import_quality ?? null;
+  if (quality === "invalid_import" || quality === "needs_review") {
+    for (const issue of job.import_issues ?? []) {
+      reasons.push({ field: "title", severity: "high", message: issue });
+    }
+    if ((job.import_issues ?? []).length === 0) {
+      reasons.push({
+        field: "title",
+        severity: "high",
+        message:
+          quality === "invalid_import"
+            ? "Import failed validation — fields may be mixed between listings"
+            : "Import needs review",
+      });
+    }
   }
 
   const confirmed = !!job.confirmed_at;
