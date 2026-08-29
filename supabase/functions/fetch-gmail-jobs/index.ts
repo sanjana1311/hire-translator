@@ -598,6 +598,10 @@ function parseCompanyLocation(line: string): { company: string; location: string
   return null;
 }
 
+/**
+ * Pattern fallback: split the email into isolated listing blocks so fields can
+ * never leak across listings, then keep only blocks with a title + company.
+ */
 function fallbackExtractJobsFromEmail(email: {
   subject: string;
   body: string;
@@ -607,79 +611,46 @@ function fallbackExtractJobsFromEmail(email: {
   const { subject, bodyText, snippet } = email;
   const normalized = `${subject}\n${snippet}\n${bodyText}`;
   const source = inferSource(normalized);
-  const allJobUrls = extractJobUrls(normalized);
-  const fallbackUrl = extractFirstJobUrl(normalized);
 
+  const blocks = extractListingBlocks(bodyText);
   const jobs: any[] = [];
   const seen = new Set<string>();
-  let urlIndex = 0;
 
-  const pushJob = (titleRaw: string, companyRaw: string, locationRaw?: string | null) => {
-    const title = cleanTextLine(titleRaw);
-    const company = cleanTextLine(companyRaw);
-    const location = locationRaw ? cleanTextLine(locationRaw) : null;
-
-    const combined = `${title} ${company}`;
-    if (!looksLikeJobTitle(title)) return;
-    if (!company || company.length < 2) return;
-    if (!/[A-Za-z]/.test(company) || !/[A-Z]/.test(company)) return;
-    if (/^(email alert|linkedin|and more|a glance)$/i.test(company)) return;
-    if (/(see all jobs|install linkedin|stay updated|unsubscribe|jobs at a glance|linkedin widgets|connections? you may know)/i.test(combined)) {
-      return;
-    }
-
+  const push = (listing: RawListing) => {
+    const title = normalizeText(listing.title);
+    const company = normalizeText(listing.company);
+    if (!title || !company) return;
     const key = `${title.toLowerCase()}__${company.toLowerCase()}`;
     if (seen.has(key)) return;
     seen.add(key);
-
-    jobs.push({
-      title,
-      company,
-      location,
-      salary: null,
-      url: allJobUrls[urlIndex++] || fallbackUrl,
-      source,
-      snippet: snippet || null,
-    });
+    jobs.push({ ...listing, title, company, source, snippet: snippet || null });
   };
 
-  // LinkedIn structure: title line followed by "Company · Location"
-  const lines = bodyText
-    .split("\n")
-    .map(cleanTextLine)
-    .filter(Boolean);
+  for (const block of blocks) push(block);
 
-  for (let i = 0; i < lines.length - 1; i++) {
-    const titleLine = lines[i];
-    const companyLoc = parseCompanyLocation(lines[i + 1]);
-    if (!companyLoc) continue;
-    pushJob(titleLine, companyLoc.company, companyLoc.location);
-  }
-
-  // Catch repeated "Title at Company" patterns (all matches, not first)
-  const atPattern = /([A-Z][A-Za-z0-9&+\/'(),.\-–—\s]{2,100}?)\s+at\s+([A-Z][A-Za-z0-9&+\/'(),.\-\s]{2,80}?)(?:\s+(?:in|,|·)\s+([A-Za-z0-9,.\-\s]{2,80}))?(?=\s|$|\.)/gi;
-  for (const m of normalized.matchAll(atPattern)) {
-    pushJob(m[1], m[2], m[3] || null);
-  }
-
-  // Subject format: "keyword": Company - Role and more
-  const linkedInSubjectMatch = subject.match(
-    /[“"]?[^:"”]+[”"]?\s*:\s*([A-Z][A-Za-z0-9&+\/'(),.\-\s]{1,80})\s*-\s*([^|]+?)(?:\s+and\s+more)?$/i
-  );
-  if (linkedInSubjectMatch) {
-    pushJob(linkedInSubjectMatch[2], linkedInSubjectMatch[1], null);
-  }
-
-  // Last-resort from subject
+  // Single-job emails: "Role at Company" in the subject line only.
   if (jobs.length === 0) {
-    const cleanedTitle = cleanupJobTitle(subject);
-    if (cleanedTitle) {
-      pushJob(cleanedTitle, source, null);
+    const atMatch = cleanupJobTitle(subject).match(
+      /^(.{3,100}?)\s+at\s+([A-Z][A-Za-z0-9&+\/'(),.\-\s]{1,80})$/i
+    );
+    if (atMatch) {
+      push({ title: atMatch[1], company: atMatch[2], location: null, url: extractFirstJobUrl(normalized) });
+    }
+  }
+
+  // LinkedIn subject format: "keyword": Company - Role and more
+  if (jobs.length === 0) {
+    const m = subject.match(
+      /[“"]?[^:"”]+[”"]?\s*:\s*([A-Z][A-Za-z0-9&+\/'(),.\-\s]{1,80})\s*-\s*([^|]+?)(?:\s+and\s+more)?$/i
+    );
+    if (m) {
+      push({ title: m[2], company: m[1], location: null, url: extractFirstJobUrl(normalized) });
     }
   }
 
   return jobs.slice(0, 25);
 }
+
 
 /** Fetch full job description from a URL */
 async function fetchJobDescription(
