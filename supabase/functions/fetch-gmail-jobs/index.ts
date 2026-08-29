@@ -1,6 +1,14 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { callConfiguredAI } from "../_shared/ai-provider.ts";
+import {
+  extractListingBlocks,
+  listingHash,
+  normalizeText,
+  parseListingsResponse,
+  validateListing,
+  type RawListing,
+} from "./listing.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
