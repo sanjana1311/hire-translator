@@ -1263,34 +1263,63 @@ export async function syncGmailJobs(options: {
   // ── Stage: extraction ──
   const allExtractedJobs: any[] = [];
   let aiUnavailable = false;
+  let listingsRejected = 0;
+
+  /** Validate raw listings, attach provenance + idempotency metadata. */
+  const acceptListings = async (
+    raws: RawListing[],
+    email: { id: string; subject: string },
+    er: EmailReport
+  ): Promise<number> => {
+    let accepted = 0;
+    for (let index = 0; index < raws.length; index++) {
+      const validated = validateListing(raws[index]);
+      if (!validated) {
+        listingsRejected++;
+        continue;
+      }
+      const hash = await listingHash({
+        sourceEmailId: email.id || null,
+        listingIndex: index,
+        title: validated.title,
+        company: validated.company,
+      });
+      allExtractedJobs.push({
+        ...validated,
+        _sourceSubject: email.subject,
+        _sourceEmailId: email.id || null,
+        _listingIndex: index,
+        _listingHash: hash,
+        _report: er,
+      });
+      accepted++;
+    }
+    er.jobsFound += accepted;
+    return accepted;
+  };
 
   for (const email of relevantEmails) {
     const { subject, body, snippet, report: er } = email;
 
-    const pushFallbackJobs = (reason: string) => {
-      let fallbackJobs: any[] = [];
+    const pushFallbackJobs = async (reason: string) => {
+      let fallbackJobs: RawListing[] = [];
       try {
         fallbackJobs = fallbackExtractJobsFromEmail(email);
-      } catch (e) {
+      } catch {
         fallbackJobs = [];
       }
       er.method = "fallback";
-      if (fallbackJobs.length > 0) {
-        for (const j of fallbackJobs) {
-          j._sourceSubject = subject;
-          j._report = er;
-        }
-        allExtractedJobs.push(...fallbackJobs);
-        er.jobsFound += fallbackJobs.length;
-        er.reason = `AI parse unavailable (${reason}) — rescued ${fallbackJobs.length} job(s) with the pattern parser`;
+      const accepted = await acceptListings(fallbackJobs, email, er);
+      if (accepted > 0) {
+        er.reason = `AI parse unavailable (${reason}) — rescued ${accepted} listing(s) with the block parser`;
       } else {
         er.status = "parse_failed";
-        er.reason = `Could not parse any job from this email (${reason}); pattern parser found no title/company pair`;
+        er.reason = `Could not parse any job from this email (${reason}); no block produced a valid title + company`;
       }
     };
 
     if (aiUnavailable || outOfBudget()) {
-      pushFallbackJobs(outOfBudget() ? "time budget reached" : "AI unavailable");
+      await pushFallbackJobs(outOfBudget() ? "time budget reached" : "AI unavailable");
       continue;
     }
 
@@ -1315,7 +1344,9 @@ For each job found return:
 
 Rules:
 - Only extract real job openings explicitly listed in this email
-- Skip anything that is not a specific open role
+- Never mix fields between listings: title, company and location must all come from the SAME listing
+- Never put a location in the title or company field, and never put a job title in the company field
+- Skip application confirmations, interview invites and newsletters — they are not job listings
 - If a job has no URL still include it with url set to null
 - Return [] if no real job listings are found
 - Never invent or guess any field
@@ -1327,49 +1358,37 @@ Rules:
         requestId,
         messages: [{ role: "user", content: prompt }],
         temperature: 0,
-        maxTokens: 1200,
+        maxTokens: 3000,
       });
       if (!aiResult) {
         aiUnavailable = true;
         noteError(new SyncError("parse", "AI_UNAVAILABLE", "No configured AI provider responded — used the pattern parser instead."));
-        pushFallbackJobs("all configured AI providers failed");
+        await pushFallbackJobs("all configured AI providers failed");
         continue;
       }
-      const raw = aiResult.text;
-      const finishReason = undefined;
 
-      let cleaned = raw.replace(/```json|```/g, "").trim();
-      let repaired = false;
-      if (finishReason === "length" || (!cleaned.endsWith("]") && cleaned.includes("{"))) {
-        repaired = true;
-        const lastCompleteObj = cleaned.lastIndexOf("}");
-        if (lastCompleteObj > 0) {
-          cleaned = cleaned.slice(0, lastCompleteObj + 1);
-          if (!cleaned.endsWith("]")) cleaned += "]";
-          if (!cleaned.startsWith("[")) cleaned = "[" + cleaned;
-        }
-      }
+      const { listings, repaired } = parseListingsResponse(aiResult.text);
+      const accepted = listings.length > 0 ? await acceptListings(listings, email, er) : 0;
 
-      const jobs = JSON.parse(cleaned);
-      if (Array.isArray(jobs) && jobs.length > 0) {
-        for (const j of jobs) {
-          j._sourceSubject = subject;
-          j._report = er;
-        }
-        allExtractedJobs.push(...jobs);
+      if (accepted > 0) {
         er.method = "ai";
-        er.jobsFound += jobs.length;
-        if (repaired) er.reason = "AI response was truncated — repaired and recovered the listings";
+        if (repaired) {
+          er.reason = "AI response was truncated — repaired, re-validated and recovered the listings";
+        }
+      } else if (listings.length > 0) {
+        // Model replied, but nothing survived schema validation → safe fallback.
+        await pushFallbackJobs("AI listings failed schema validation");
       } else {
-        pushFallbackJobs("AI returned no listings");
+        await pushFallbackJobs("AI returned no usable JSON");
       }
     } catch (e) {
-      pushFallbackJobs(`AI response was not usable: ${(e as Error).name}`);
+      await pushFallbackJobs(`AI response was not usable: ${(e as Error).name}`);
       continue;
     }
 
     await new Promise((r) => setTimeout(r, 150));
   }
+
 
   // ── Stage: dedupe ──
   const normalize = (str: string) => str?.toLowerCase().trim().replace(/\s+/g, " ") || "";
