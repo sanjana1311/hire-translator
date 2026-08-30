@@ -25,7 +25,7 @@ import {
 import { classifyRole, getRoleFamilyLabel, ROLE_FAMILIES, type RoleFamilyKey } from "@/lib/role-classifier";
 import { getFreshness, FRESHNESS_STYLES, STALE_AFTER_DAYS, AGING_AFTER_DAYS, type FreshnessLevel } from "@/lib/job-freshness";
 import { ChevronDown, ChevronRight, SlidersHorizontal, X, Trash2, AlertTriangle, Clock, CheckCircle2, MoreHorizontal, Sparkles } from "lucide-react";
-import { assessJob } from "@/lib/job-review";
+import { assessJob, confirmationBlockers } from "@/lib/job-review";
 import { deriveRoleStatus, statusMeta, ROLE_PROGRESS, type RoleStatus } from "@/lib/role-status";
 import RoleRow, { importedAtLabel } from "@/components/roles/RoleRow";
 
@@ -727,6 +727,13 @@ Your previous reply was cut off before the JSON closed. Reply again with ONLY th
   }, [filteredJobs, latestIds]);
 
   const handleConfirmJob = async (job: ImportedJob) => {
+    // A malformed record must never become a confirmed role — confirming hides
+    // it from review permanently and would feed bad data into scoring/tailoring.
+    const blockers = confirmationBlockers(job);
+    if (blockers.length > 0) {
+      toast.error(`Fix this role before confirming: ${blockers[0]}`);
+      return;
+    }
     const confirmedAt = new Date().toISOString();
     const { error } = await supabase
       .from("imported_jobs")
