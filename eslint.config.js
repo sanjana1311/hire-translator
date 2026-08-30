@@ -5,7 +5,16 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist"] },
+  {
+    // `supabase/functions` is Deno code with its own runtime and globals, and
+    // `src/integrations/supabase/types.ts` is generated — neither is linted here.
+    ignores: [
+      "dist",
+      "supabase/functions/**",
+      "src/integrations/supabase/types.ts",
+      "tailwind.config.ts",
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],
