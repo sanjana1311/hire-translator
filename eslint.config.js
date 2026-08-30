@@ -12,6 +12,7 @@ export default tseslint.config(
       "dist",
       "supabase/functions/**",
       "src/integrations/supabase/types.ts",
+      "src/integrations/supabase/previewAuthStorage.ts",
       "tailwind.config.ts",
     ],
   },
