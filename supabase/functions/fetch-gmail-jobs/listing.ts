@@ -55,9 +55,12 @@ const LOCATION_HINT = /(remote|hybrid|on[- ]?site|,\s*[A-Z]{2}\b|united states|i
  * A bare human name ("Priya Sharma", "John A. Smith") with no role vocabulary.
  * These come from LinkedIn networking blocks and must never become a job title.
  */
+const COMPANY_WORD =
+  /\b(inc|llc|ltd|corp|corporation|company|co|group|labs?|technologies|technology|systems|solutions|services|health|bank|university|college|school|studio|media|partners|holdings|capital|ventures|consulting|industries|networks|software|digital|global|international|foundation|institute|hospital|clinic|energy|motors|logistics|staffing|recruiting|agency)\b/i;
+
 export function looksLikePersonName(value: string): boolean {
   const v = normalizeText(value);
-  if (!v || TITLE_KEYWORDS.test(v)) return false;
+  if (!v || TITLE_KEYWORDS.test(v) || COMPANY_WORD.test(v)) return false;
   return /^[A-Z][a-z'’\-]{1,15}(?: [A-Z]\.?)? [A-Z][a-z'’\-]{1,20}(?: (?:Jr|Sr|II|III)\.?)?$/.test(v);
 }
 
