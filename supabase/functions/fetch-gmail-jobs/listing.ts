@@ -145,6 +145,14 @@ export function validateListing(raw: RawListing): ValidatedListing | null {
   if (!/[A-Za-z]/.test(title) || !/[A-Za-z]/.test(company)) return null;
   // A title that is really a location means the fields were shifted.
   if (LOCATION_PATTERN.test(title)) return null;
+  // Social chrome and newsletter fragments are never roles.
+  if (SOCIAL_CHROME.test(title) || SOCIAL_CHROME.test(company)) return null;
+  if (NEWSLETTER_CONTENT.test(title)) return null;
+  // A person's name in the title slot means a networking block was parsed.
+  if (looksLikePersonName(title)) return null;
+  // A title with no role vocabulary and no structure is not a job title.
+  if (!TITLE_KEYWORDS.test(title) && !/[a-z]/.test(title)) return null;
+
 
   // ── Soft issues (import, but flag for review) ────────────────
   if (title.includes(" · ")) issues.push("Title contains a separator — fields may be mixed");
