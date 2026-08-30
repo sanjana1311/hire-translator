@@ -36,6 +36,9 @@ export default tseslint.config(
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-unused-expressions": "warn",
       "@typescript-eslint/no-empty-object-type": "warn",
+      // `?url` worker imports have no types; `@ts-expect-error` would itself be
+      // reported as unused because the error only exists outside the IDE.
+      "@typescript-eslint/ban-ts-comment": "warn",
     },
   },
 );

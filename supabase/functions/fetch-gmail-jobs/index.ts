@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { callConfiguredAI } from "../_shared/ai-provider.ts";
 import {
+  classifyEmail,
   extractListingBlocks,
   listingHash,
   normalizeText,
@@ -1214,8 +1215,19 @@ export async function syncGmailJobs(options: {
 
 
   // ── Stage: relevance pre-filter ──
+  // Two gates: `classifyEmail` throws out newsletters, networking digests,
+  // course/billing promotions and confirmations up front; `looksLikeJobEmail`
+  // then requires at least one concrete job signal in the body.
   const relevantEmails = emails.filter((e) => {
     if (applicationEmailSet.has(e)) return false;
+
+    const relevance = classifyEmail({ from: e.from, subject: e.subject, body: `${e.snippet}\n${e.bodyText || e.body}` });
+    if (!relevance.isJobAlert) {
+      e.report.status = "rejected";
+      e.report.reason = relevance.reason;
+      return false;
+    }
+
     const isJobEmail = looksLikeJobEmail(`${e.from} ${e.subject} ${e.snippet} ${e.body}`);
     if (!isJobEmail) {
       e.report.status = "rejected";

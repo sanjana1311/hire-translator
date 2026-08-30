@@ -31,6 +31,18 @@ const BOILERPLATE =
 const APPLICATION_CONFIRMATION =
   /(your application (was|has been) (sent|submitted|received)|thank you for applying|application received|we received your application|application confirmation)/i;
 
+/**
+ * Social / networking / newsletter chrome that repeatedly leaked into imports as
+ * fake roles: "38 connections", "1 company alum", "The Batch #53",
+ * "This email was sent to ...".
+ */
+const SOCIAL_CHROME =
+  /^(\d+\s*(?:\+)?\s*(?:connections?|followers?|company alums?|alumni|mutual(?: connections?)?|school alums?|new jobs?|people)\b|this email was sent to\b|sent to you because\b|you are receiving this\b|view (?:in browser|online)\b|add to (?:your )?address book\b|©|copyright\b)/i;
+
+/** Newsletter / course / event content that is never a job listing. */
+const NEWSLETTER_CONTENT =
+  /(\bthe batch\b|\bnewsletter\b|\bissue\s*#?\d+|\b#\d{1,4}\s*[:–—-]|\bwebinar\b|\bmasterclass\b|\bbootcamp\b|\bcohort\b|\benroll(?:ment)?\b|\bcurriculum\b|\bregister (?:now|today)\b|\bearly bird\b|\b\d{1,3}%\s*off\b|\bsale ends\b|\bfree trial\b|\bwatch the (?:replay|recording)\b|\bread more\b|\bin this issue\b)/i;
+
 const TITLE_KEYWORDS =
   /(manager|engineer|analyst|developer|designer|scientist|architect|specialist|director|coordinator|consultant|lead|intern|internship|operations|product|program|project|technician|administrator|recruiter|account executive|associate|officer|supervisor|strategist|controller|accountant|nurse|attorney|counsel)/i;
 
@@ -38,6 +50,20 @@ const LOCATION_PATTERN =
   /^(remote|hybrid|on[- ]?site|anywhere|[A-Za-z .'\-]+,\s*(?:[A-Z]{2}|[A-Za-z .'\-]{3,})(?:\s*\((?:remote|hybrid|on[- ]?site)\))?|[A-Za-z .'\-]{2,40}\s*\((?:remote|hybrid|on[- ]?site)\))$/i;
 
 const LOCATION_HINT = /(remote|hybrid|on[- ]?site|,\s*[A-Z]{2}\b|united states|india|canada|united kingdom)/i;
+
+/**
+ * A bare human name ("Priya Sharma", "John A. Smith") with no role vocabulary.
+ * These come from LinkedIn networking blocks and must never become a job title.
+ */
+const COMPANY_WORD =
+  /\b(inc|llc|ltd|corp|corporation|company|co|group|labs?|technologies|technology|systems|solutions|services|health|bank|university|college|school|studio|media|partners|holdings|capital|ventures|consulting|industries|networks|software|digital|global|international|foundation|institute|hospital|clinic|energy|motors|logistics|staffing|recruiting|agency)\b/i;
+
+export function looksLikePersonName(value: string): boolean {
+  const v = normalizeText(value);
+  if (!v || TITLE_KEYWORDS.test(v) || COMPANY_WORD.test(v)) return false;
+  return /^[A-Z][a-z'’\-]{1,15}(?: [A-Z]\.?)? [A-Z][a-z'’\-]{1,20}(?: (?:Jr|Sr|II|III)\.?)?$/.test(v);
+}
+
 
 export function normalizeText(value: unknown): string {
   if (typeof value !== "string") return "";
@@ -122,11 +148,25 @@ export function validateListing(raw: RawListing): ValidatedListing | null {
   if (!/[A-Za-z]/.test(title) || !/[A-Za-z]/.test(company)) return null;
   // A title that is really a location means the fields were shifted.
   if (LOCATION_PATTERN.test(title)) return null;
+  // Social chrome and newsletter fragments are never roles.
+  if (SOCIAL_CHROME.test(title) || SOCIAL_CHROME.test(company)) return null;
+  if (NEWSLETTER_CONTENT.test(title)) return null;
+  // A person's name in the title slot means a networking block was parsed.
+  if (looksLikePersonName(title)) return null;
+  // A title with no role vocabulary and no structure is not a job title.
+  if (!TITLE_KEYWORDS.test(title) && !/[a-z]/.test(title)) return null;
+
 
   // ── Soft issues (import, but flag for review) ────────────────
   if (title.includes(" · ")) issues.push("Title contains a separator — fields may be mixed");
-  if (!TITLE_KEYWORDS.test(title) && title.split(" ").length < 2) {
-    issues.push("Title does not look like a job title");
+  if (!TITLE_KEYWORDS.test(title)) {
+    issues.push("Title does not contain recognisable role vocabulary");
+  }
+  if (NEWSLETTER_CONTENT.test(company)) {
+    issues.push("Company looks like newsletter or course content");
+  }
+  if (looksLikePersonName(company)) {
+    issues.push("Company name looks like a person's name");
   }
   if (LOCATION_PATTERN.test(company)) {
     issues.push("Company name looks like a location");
@@ -281,4 +321,78 @@ export function extractListingBlocks(bodyText: string): RawListing[] {
   }
 
   return listings.slice(0, 25);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Email-level relevance classification
+// ─────────────────────────────────────────────────────────────
+
+export type EmailRelevance = {
+  isJobAlert: boolean;
+  /** Human-readable reason, always present when isJobAlert is false. */
+  reason: string;
+  category: "job_alert" | "newsletter" | "networking" | "promotion" | "confirmation" | "no_signal";
+};
+
+/** Newsletters and content digests — never contain applyable roles. */
+const NEWSLETTER_SUBJECT =
+  /(\bthe batch\b|\bnewsletter\b|\bweekly (?:digest|roundup|recap|reading)\b|\bdaily (?:digest|brief|briefing)\b|\bissue\s*#?\d+\b|\bwhat we(?:'|’)?re reading\b|\bin case you missed\b|\bblog (?:post|update)\b|\bpodcast\b|\brelease notes\b|\bproduct update\b)/i;
+
+/** Social graph noise from LinkedIn and friends. */
+const NETWORKING_SUBJECT =
+  /(people you may know|you have \d+ new invitation|invitation to connect|wants to connect|viewed your profile|\d+ (?:people|others) viewed|endorsed you|congratulate\b|work anniversary|started a new position|is now following|new follower|added you|profile views?\b|who(?:'|’)?s viewed)/i;
+
+/** Courses, bootcamps, webinars, sales. */
+const PROMOTION_SUBJECT =
+  /(\bbootcamp\b|\bmasterclass\b|\bwebinar\b|\bcohort\b|\benroll(?:ment)?\b|\bcertification (?:program|course)\b|\bearly bird\b|\b\d{1,3}%\s*off\b|\bsale ends\b|\blimited (?:time|seats)\b|\bregister (?:now|today)\b|\bfree trial\b|\bupgrade (?:to|your) (?:premium|pro)\b|\brenew your\b|\byour invoice\b|\breceipt for\b)/i;
+
+const APPLICATION_CONFIRMATION_SUBJECT = APPLICATION_CONFIRMATION;
+
+/** Strong evidence that an email really advertises open roles. */
+const JOB_ALERT_SIGNAL =
+  /(\bjob alert\b|\bnew jobs?\b|\bjobs? for you\b|\bjob recommendations?\b|\bhiring\b|\bwe(?:'|’)?re hiring\b|\bopen (?:role|position)s?\b|\bapply now\b|\bview job\b|\bjob matches?\b|\brecommended (?:for you|jobs?)\b|\bnew opportunit(?:y|ies)\b|\bmatching your\b)/i;
+
+const JOB_ALERT_DOMAIN =
+  /(linkedin\.com|indeed\.com|glassdoor\.com|ziprecruiter\.com|greenhouse\.io|lever\.co|myworkdayjobs\.com|smartrecruiters\.com|ashbyhq\.com|workable\.com|jobvite\.com|icims\.com|dice\.com|monster\.com|simplyhired\.com|builtin\.com|wellfound\.com|angel\.co|handshake|otta\.com)/i;
+
+/**
+ * Decide whether an email should reach the listing parser at all.
+ *
+ * Ordering matters: a LinkedIn networking digest also mentions "jobs", so the
+ * disqualifying categories are checked against the subject first, and only an
+ * explicit job-alert subject can rescue an email from them.
+ */
+export function classifyEmail(email: { from?: string; subject?: string; body?: string }): EmailRelevance {
+  const from = normalizeText(email.from).toLowerCase();
+  const subject = normalizeText(email.subject);
+  const body = normalizeText(email.body).slice(0, 4000);
+  const subjectHasJobAlert = JOB_ALERT_SIGNAL.test(subject);
+
+  if (APPLICATION_CONFIRMATION_SUBJECT.test(subject)) {
+    return { isJobAlert: false, category: "confirmation", reason: "Application confirmation, not a job alert" };
+  }
+  if (NEWSLETTER_SUBJECT.test(subject) && !subjectHasJobAlert) {
+    return { isJobAlert: false, category: "newsletter", reason: `Newsletter or content digest ("${subject.slice(0, 60)}")` };
+  }
+  if (NETWORKING_SUBJECT.test(subject) && !subjectHasJobAlert) {
+    return { isJobAlert: false, category: "networking", reason: `Social/networking notification ("${subject.slice(0, 60)}")` };
+  }
+  if (PROMOTION_SUBJECT.test(subject) && !subjectHasJobAlert) {
+    return { isJobAlert: false, category: "promotion", reason: `Course, event or billing promotion ("${subject.slice(0, 60)}")` };
+  }
+
+  const haystack = `${from} ${subject} ${body}`;
+  if (subjectHasJobAlert) return { isJobAlert: true, category: "job_alert", reason: "" };
+  if (JOB_ALERT_DOMAIN.test(from) && JOB_ALERT_SIGNAL.test(haystack)) {
+    return { isJobAlert: true, category: "job_alert", reason: "" };
+  }
+  if (JOB_ALERT_SIGNAL.test(body) && /https?:\/\/[^\s]*(?:\/jobs?\/|\/careers?\/|\/apply)/i.test(body)) {
+    return { isJobAlert: true, category: "job_alert", reason: "" };
+  }
+
+  return {
+    isJobAlert: false,
+    category: "no_signal",
+    reason: "No job-alert signals found (no apply/view job link or hiring language)",
+  };
 }

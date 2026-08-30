@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useGmailConnection } from "@/hooks/use-gmail-connection";
 
 export interface RejectionEvent {
   id: string;
@@ -27,32 +28,29 @@ export function useRejectionEvents(profileId: string | null) {
   const [loading, setLoading] = useState(false);
   const [syncState, setSyncState] = useState<RejectionSyncState>("idle");
   const [syncError, setSyncError] = useState<string | null>(null);
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
-  const [gmailConnected, setGmailConnected] = useState(false);
   const [lastScanCount, setLastScanCount] = useState<number | null>(null);
+
+  // Shared connection/sync state — same source as Roles and Applications.
+  const gmail = useGmailConnection(profileId);
+  const gmailConnected = gmail.connected;
+  const lastSyncedAt = gmail.lastRejectionSyncAt;
 
   const load = useCallback(async () => {
     if (!profileId) return;
-    const [{ data: evts }, { data: meta }] = await Promise.all([
-      supabase
-        .from("rejection_events")
-        .select("*")
-        .eq("profile_id", profileId)
-        .order("received_at", { ascending: false }),
-      supabase
-        .from("gmail_sync_metadata")
-        .select("last_rejection_sync_at, refresh_token, enabled")
-        .eq("profile_id", profileId)
-        .maybeSingle(),
-    ]);
+    const { data: evts } = await supabase
+      .from("rejection_events")
+      .select("*")
+      .eq("profile_id", profileId)
+      .order("received_at", { ascending: false });
     setEvents((evts ?? []) as RejectionEvent[]);
-    setLastSyncedAt((meta as any)?.last_rejection_sync_at ?? null);
-    setGmailConnected(Boolean((meta as any)?.refresh_token && (meta as any)?.enabled));
-  }, [profileId]);
+    await gmail.refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileId, gmail.refresh]);
 
   useEffect(() => {
     load();
   }, [load]);
+
 
   const sync = useCallback(
     async (days = 30) => {
@@ -65,7 +63,7 @@ export function useRejectionEvents(profileId: string | null) {
         if (error) throw new Error(error.message);
         if (data?.notConnected) {
           setSyncState("not_connected");
-          setGmailConnected(false);
+          await gmail.refresh();
           return;
         }
         if (data?.tokenExpired) {
@@ -142,7 +140,7 @@ export function useRejectionEvents(profileId: string | null) {
     if (error) return toast.error(error.message);
     await supabase.from("rejection_events").delete().eq("profile_id", profileId);
     await load();
-    setGmailConnected(false);
+          await gmail.refresh();
     toast.success("Gmail disconnected and synced email data deleted.");
   }, [profileId, load]);
 

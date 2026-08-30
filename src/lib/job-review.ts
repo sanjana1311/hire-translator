@@ -160,6 +160,22 @@ export function assessJob(job: ReviewableJob): ReviewAssessment {
   return { needsReview, reasons, titleConfident, companyConfident, locationConfident, descriptionComplete };
 }
 
+/**
+ * A role may only be confirmed once its structural fields are trustworthy.
+ * Confirming hides a role from "Needs your review" forever, so a record with a
+ * junk title or a company that is really a location must be fixed first.
+ */
+export function confirmationBlockers(job: ReviewableJob): string[] {
+  const a = assessJob({ ...job, confirmed_at: null });
+  return a.reasons
+    .filter((r) => r.severity === "high" && (r.field === "title" || r.field === "company"))
+    .map((r) => r.message);
+}
+
+export function canConfirmJob(job: ReviewableJob): boolean {
+  return confirmationBlockers(job).length === 0;
+}
+
 /** Title safe to render in a list — never leaks malformed email text. */
 export function displayTitle(job: ReviewableJob, assessment?: ReviewAssessment): string {
   const a = assessment ?? assessJob(job);
