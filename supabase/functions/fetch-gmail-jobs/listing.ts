@@ -156,8 +156,14 @@ export function validateListing(raw: RawListing): ValidatedListing | null {
 
   // ── Soft issues (import, but flag for review) ────────────────
   if (title.includes(" · ")) issues.push("Title contains a separator — fields may be mixed");
-  if (!TITLE_KEYWORDS.test(title) && title.split(" ").length < 2) {
-    issues.push("Title does not look like a job title");
+  if (!TITLE_KEYWORDS.test(title)) {
+    issues.push("Title does not contain recognisable role vocabulary");
+  }
+  if (NEWSLETTER_CONTENT.test(company)) {
+    issues.push("Company looks like newsletter or course content");
+  }
+  if (looksLikePersonName(company)) {
+    issues.push("Company name looks like a person's name");
   }
   if (LOCATION_PATTERN.test(company)) {
     issues.push("Company name looks like a location");
