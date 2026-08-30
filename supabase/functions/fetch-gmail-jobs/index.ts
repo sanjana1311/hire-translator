@@ -1215,8 +1215,19 @@ export async function syncGmailJobs(options: {
 
 
   // ── Stage: relevance pre-filter ──
+  // Two gates: `classifyEmail` throws out newsletters, networking digests,
+  // course/billing promotions and confirmations up front; `looksLikeJobEmail`
+  // then requires at least one concrete job signal in the body.
   const relevantEmails = emails.filter((e) => {
     if (applicationEmailSet.has(e)) return false;
+
+    const relevance = classifyEmail({ from: e.from, subject: e.subject, body: `${e.snippet}\n${e.bodyText || e.body}` });
+    if (!relevance.isJobAlert) {
+      e.report.status = "rejected";
+      e.report.reason = relevance.reason;
+      return false;
+    }
+
     const isJobEmail = looksLikeJobEmail(`${e.from} ${e.subject} ${e.snippet} ${e.body}`);
     if (!isJobEmail) {
       e.report.status = "rejected";
