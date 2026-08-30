@@ -63,7 +63,7 @@ export function useRejectionEvents(profileId: string | null) {
         if (error) throw new Error(error.message);
         if (data?.notConnected) {
           setSyncState("not_connected");
-          setGmailConnected(false);
+          await gmail.refresh();
           return;
         }
         if (data?.tokenExpired) {
@@ -140,7 +140,7 @@ export function useRejectionEvents(profileId: string | null) {
     if (error) return toast.error(error.message);
     await supabase.from("rejection_events").delete().eq("profile_id", profileId);
     await load();
-    setGmailConnected(false);
+          await gmail.refresh();
     toast.success("Gmail disconnected and synced email data deleted.");
   }, [profileId, load]);
 
