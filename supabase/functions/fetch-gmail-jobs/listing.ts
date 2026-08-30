@@ -319,3 +319,77 @@ export function extractListingBlocks(bodyText: string): RawListing[] {
 
   return listings.slice(0, 25);
 }
+
+// ─────────────────────────────────────────────────────────────
+// Email-level relevance classification
+// ─────────────────────────────────────────────────────────────
+
+export type EmailRelevance = {
+  isJobAlert: boolean;
+  /** Human-readable reason, always present when isJobAlert is false. */
+  reason: string;
+  category: "job_alert" | "newsletter" | "networking" | "promotion" | "confirmation" | "no_signal";
+};
+
+/** Newsletters and content digests — never contain applyable roles. */
+const NEWSLETTER_SUBJECT =
+  /(\bthe batch\b|\bnewsletter\b|\bweekly (?:digest|roundup|recap|reading)\b|\bdaily (?:digest|brief|briefing)\b|\bissue\s*#?\d+\b|\bwhat we(?:'|’)?re reading\b|\bin case you missed\b|\bblog (?:post|update)\b|\bpodcast\b|\brelease notes\b|\bproduct update\b)/i;
+
+/** Social graph noise from LinkedIn and friends. */
+const NETWORKING_SUBJECT =
+  /(people you may know|you have \d+ new invitation|invitation to connect|wants to connect|viewed your profile|\d+ (?:people|others) viewed|endorsed you|congratulate\b|work anniversary|started a new position|is now following|new follower|added you|profile views?\b|who(?:'|’)?s viewed)/i;
+
+/** Courses, bootcamps, webinars, sales. */
+const PROMOTION_SUBJECT =
+  /(\bbootcamp\b|\bmasterclass\b|\bwebinar\b|\bcohort\b|\benroll(?:ment)?\b|\bcertification (?:program|course)\b|\bearly bird\b|\b\d{1,3}%\s*off\b|\bsale ends\b|\blimited (?:time|seats)\b|\bregister (?:now|today)\b|\bfree trial\b|\bupgrade (?:to|your) (?:premium|pro)\b|\brenew your\b|\byour invoice\b|\breceipt for\b)/i;
+
+const APPLICATION_CONFIRMATION_SUBJECT = APPLICATION_CONFIRMATION;
+
+/** Strong evidence that an email really advertises open roles. */
+const JOB_ALERT_SIGNAL =
+  /(\bjob alert\b|\bnew jobs?\b|\bjobs? for you\b|\bjob recommendations?\b|\bhiring\b|\bwe(?:'|’)?re hiring\b|\bopen (?:role|position)s?\b|\bapply now\b|\bview job\b|\bjob matches?\b|\brecommended (?:for you|jobs?)\b|\bnew opportunit(?:y|ies)\b|\bmatching your\b)/i;
+
+const JOB_ALERT_DOMAIN =
+  /(linkedin\.com|indeed\.com|glassdoor\.com|ziprecruiter\.com|greenhouse\.io|lever\.co|myworkdayjobs\.com|smartrecruiters\.com|ashbyhq\.com|workable\.com|jobvite\.com|icims\.com|dice\.com|monster\.com|simplyhired\.com|builtin\.com|wellfound\.com|angel\.co|handshake|otta\.com)/i;
+
+/**
+ * Decide whether an email should reach the listing parser at all.
+ *
+ * Ordering matters: a LinkedIn networking digest also mentions "jobs", so the
+ * disqualifying categories are checked against the subject first, and only an
+ * explicit job-alert subject can rescue an email from them.
+ */
+export function classifyEmail(email: { from?: string; subject?: string; body?: string }): EmailRelevance {
+  const from = normalizeText(email.from).toLowerCase();
+  const subject = normalizeText(email.subject);
+  const body = normalizeText(email.body).slice(0, 4000);
+  const subjectHasJobAlert = JOB_ALERT_SIGNAL.test(subject);
+
+  if (APPLICATION_CONFIRMATION_SUBJECT.test(subject)) {
+    return { isJobAlert: false, category: "confirmation", reason: "Application confirmation, not a job alert" };
+  }
+  if (NEWSLETTER_SUBJECT.test(subject) && !subjectHasJobAlert) {
+    return { isJobAlert: false, category: "newsletter", reason: `Newsletter or content digest ("${subject.slice(0, 60)}")` };
+  }
+  if (NETWORKING_SUBJECT.test(subject) && !subjectHasJobAlert) {
+    return { isJobAlert: false, category: "networking", reason: `Social/networking notification ("${subject.slice(0, 60)}")` };
+  }
+  if (PROMOTION_SUBJECT.test(subject) && !subjectHasJobAlert) {
+    return { isJobAlert: false, category: "promotion", reason: `Course, event or billing promotion ("${subject.slice(0, 60)}")` };
+  }
+
+  const haystack = `${from} ${subject} ${body}`;
+  if (subjectHasJobAlert) return { isJobAlert: true, category: "job_alert", reason: "" };
+  if (JOB_ALERT_DOMAIN.test(from) && JOB_ALERT_SIGNAL.test(haystack)) {
+    return { isJobAlert: true, category: "job_alert", reason: "" };
+  }
+  if (JOB_ALERT_SIGNAL.test(body) && /https?:\/\/[^\s]*(?:\/jobs?\/|\/careers?\/|\/apply)/i.test(body)) {
+    return { isJobAlert: true, category: "job_alert", reason: "" };
+  }
+
+  return {
+    isJobAlert: false,
+    category: "no_signal",
+    reason: "No job-alert signals found (no apply/view job link or hiring language)",
+  };
+}
