@@ -31,6 +31,18 @@ const BOILERPLATE =
 const APPLICATION_CONFIRMATION =
   /(your application (was|has been) (sent|submitted|received)|thank you for applying|application received|we received your application|application confirmation)/i;
 
+/**
+ * Social / networking / newsletter chrome that repeatedly leaked into imports as
+ * fake roles: "38 connections", "1 company alum", "The Batch #53",
+ * "This email was sent to ...".
+ */
+const SOCIAL_CHROME =
+  /^(\d+\s*(?:\+)?\s*(?:connections?|followers?|company alums?|alumni|mutual(?: connections?)?|school alums?|new jobs?|people)\b|this email was sent to\b|sent to you because\b|you are receiving this\b|view (?:in browser|online)\b|add to (?:your )?address book\b|©|copyright\b)/i;
+
+/** Newsletter / course / event content that is never a job listing. */
+const NEWSLETTER_CONTENT =
+  /(\bthe batch\b|\bnewsletter\b|\bissue\s*#?\d+|\b#\d{1,4}\s*[:–—-]|\bwebinar\b|\bmasterclass\b|\bbootcamp\b|\bcohort\b|\benroll(?:ment)?\b|\bcurriculum\b|\bregister (?:now|today)\b|\bearly bird\b|\b\d{1,3}%\s*off\b|\bsale ends\b|\bfree trial\b|\bwatch the (?:replay|recording)\b|\bread more\b|\bin this issue\b)/i;
+
 const TITLE_KEYWORDS =
   /(manager|engineer|analyst|developer|designer|scientist|architect|specialist|director|coordinator|consultant|lead|intern|internship|operations|product|program|project|technician|administrator|recruiter|account executive|associate|officer|supervisor|strategist|controller|accountant|nurse|attorney|counsel)/i;
 
@@ -38,6 +50,17 @@ const LOCATION_PATTERN =
   /^(remote|hybrid|on[- ]?site|anywhere|[A-Za-z .'\-]+,\s*(?:[A-Z]{2}|[A-Za-z .'\-]{3,})(?:\s*\((?:remote|hybrid|on[- ]?site)\))?|[A-Za-z .'\-]{2,40}\s*\((?:remote|hybrid|on[- ]?site)\))$/i;
 
 const LOCATION_HINT = /(remote|hybrid|on[- ]?site|,\s*[A-Z]{2}\b|united states|india|canada|united kingdom)/i;
+
+/**
+ * A bare human name ("Priya Sharma", "John A. Smith") with no role vocabulary.
+ * These come from LinkedIn networking blocks and must never become a job title.
+ */
+export function looksLikePersonName(value: string): boolean {
+  const v = normalizeText(value);
+  if (!v || TITLE_KEYWORDS.test(v)) return false;
+  return /^[A-Z][a-z'’\-]{1,15}(?: [A-Z]\.?)? [A-Z][a-z'’\-]{1,20}(?: (?:Jr|Sr|II|III)\.?)?$/.test(v);
+}
+
 
 export function normalizeText(value: unknown): string {
   if (typeof value !== "string") return "";
