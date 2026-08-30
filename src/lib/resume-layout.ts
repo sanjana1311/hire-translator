@@ -73,7 +73,7 @@ function familyOf(raw: string): string {
  */
 export async function extractPdfLayout(file: File | ArrayBuffer): Promise<ResumeLayout> {
   const pdfjsLib: any = await import("pdfjs-dist");
-  // @ts-ignore vite worker url import
+  // @ts-expect-error vite worker url import
   const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
   pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
