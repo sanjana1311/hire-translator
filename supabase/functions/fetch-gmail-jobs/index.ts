@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { callAI } from "../_shared/ai.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -522,9 +523,6 @@ export async function syncGmailJobs(options: {
   }
 
   // Step 4 — AI extraction (one call per email)
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-
   const allExtractedJobs: any[] = [];
   let aiUnavailable = false;
 
@@ -580,39 +578,11 @@ Rules:
     }
 
     try {
-      const aiRes = await fetch(
-        "https://ai.gateway.lovable.dev/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "google/gemini-2.5-flash-lite",
-            temperature: 0.0,
-            max_tokens: 1200,
-            messages: [{ role: "user", content: prompt }],
-          }),
-        }
-      );
-
-      if (!aiRes.ok) {
-        const status = aiRes.status;
-        if (status === 429) {
-          console.warn("Rate limited, pausing...");
-          await new Promise((r) => setTimeout(r, 2000));
-        } else if (status === 402) {
-          aiUnavailable = true;
-          console.warn("AI unavailable (402). Falling back to parser for all remaining emails.");
-        } else {
-          console.error("AI error:", status);
-        }
-        pushFallbackJobs();
-        continue;
-      }
-
-      const aiData = await aiRes.json();
+      const aiData = await callAI({
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.0,
+        maxTokens: 1200,
+      });
       const raw = aiData.choices?.[0]?.message?.content || "";
       const finishReason = aiData.choices?.[0]?.finish_reason;
       console.log(
@@ -655,6 +625,7 @@ Rules:
       }
     } catch (e) {
       console.error("AI extraction error for email:", subject, e);
+      aiUnavailable = true;
       pushFallbackJobs();
       continue;
     }

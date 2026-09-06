@@ -1,200 +1,59 @@
 import { motion } from "framer-motion";
-import { ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ArrowRight, Check, CheckCircle2, CircleAlert, FileText, Github, LayoutDashboard, Link2, ListChecks, Menu, Sparkles, Upload, X } from "lucide-react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
 import ThemeToggle from "@/components/ThemeToggle";
-import { useToast } from "@/hooks/use-toast";
+
+const GITHUB_URL = "https://github.com/sanjana1311/hire-translator";
+
+const workflow = [
+  { icon: Upload, title: "Upload your resume", description: "Parse your experience, skills, and achievements once." },
+  { icon: Link2, title: "Import roles", description: "Bring in openings from Gmail, LinkedIn, Indeed, or CSV." },
+  { icon: Sparkles, title: "Tailor with evidence", description: "Match requirements to real proof from your resume." },
+  { icon: ListChecks, title: "Track progress", description: "Keep every application, reply, and next step in view." },
+];
+
+function DashboardPreview() {
+  const roles = ["Senior ML Engineer", "Staff Software Engineer", "ML Engineer", "Data Scientist"];
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_70px_-28px_rgba(55,65,120,0.35)]">
+      <div className="flex min-h-[460px]">
+        <aside className="hidden w-[150px] shrink-0 border-r border-slate-100 bg-slate-50/70 p-3 sm:block">
+          <div className="mb-8 px-1 text-[13px] font-semibold tracking-tight text-slate-900"><span className="text-indigo-500">hire</span>OS</div>
+          <div className="space-y-1 text-[10px] text-slate-500">{["Overview", "Roles", "Applications", "Resume", "Tailoring", "Imports"].map((item, i) => <div key={item} className={`flex items-center gap-2 rounded-md px-2 py-2 ${i === 0 ? "bg-indigo-100/80 font-medium text-indigo-700" : ""}`}><span className={`h-1.5 w-1.5 rounded-full ${i === 0 ? "bg-indigo-500" : "bg-slate-300"}`} />{item}</div>)}</div>
+          <div className="mt-28 flex items-center gap-2 px-1 text-[10px] text-slate-500"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-[8px]">SR</span>Sanjana</div>
+        </aside>
+        <div className="min-w-0 flex-1 p-4 sm:p-5">
+          <div className="mb-4 flex items-center justify-between"><div><p className="text-[9px] uppercase tracking-[0.16em] text-slate-400">Overview</p><h3 className="mt-1 text-base font-semibold tracking-tight text-slate-900">Your search at a glance</h3></div><div className="h-6 w-6 rounded-full border border-slate-200 bg-slate-50" /></div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-slate-100 p-3"><div className="flex items-center justify-between text-[10px] text-slate-500"><span>Resume score</span><span className="text-emerald-600">Strong match</span></div><div className="mt-3 flex items-end gap-1"><span className="text-3xl font-semibold tracking-tight text-slate-900">86</span><span className="mb-1 text-[10px] text-slate-400">/100</span></div><div className="mt-3 h-1.5 rounded-full bg-slate-100"><div className="h-full w-[86%] rounded-full bg-emerald-500" /></div></div>
+            <div className="rounded-xl border border-slate-100 p-3"><div className="text-[10px] text-slate-500">Applications</div><div className="mt-3 space-y-2 text-[10px]"><div className="flex justify-between"><span className="text-slate-500">In progress</span><b>8</b></div><div className="flex justify-between"><span className="text-indigo-600">Interview</span><b className="text-indigo-600">4</b></div><div className="flex justify-between"><span className="text-emerald-600">Offer</span><b className="text-emerald-600">1</b></div></div></div>
+          </div>
+          <div className="mt-3 rounded-xl border border-slate-100 p-3"><div className="mb-3 flex items-center justify-between"><span className="text-[10px] font-medium text-slate-700">Recent roles</span><span className="text-[9px] text-indigo-500">View all</span></div><div className="grid grid-cols-[1.5fr_1fr_.5fr_.7fr] gap-2 border-b border-slate-100 pb-2 text-[8px] uppercase tracking-wide text-slate-400"><span>Role</span><span>Company</span><span>Fit</span><span>Status</span></div>{roles.map((role, i) => <div key={role} className="grid grid-cols-[1.5fr_1fr_.5fr_.7fr] gap-2 py-2 text-[9px] text-slate-600"><span className="truncate">{role}</span><span>{["Acme AI", "Northwind", "Rocket Labs", "DataCo"][i]}</span><span className={i < 2 ? "text-emerald-600" : "text-amber-600"}>{92 - i * 10}</span><span className="truncate rounded bg-slate-50 px-1 text-slate-500">{i === 2 ? "Interview" : "In progress"}</span></div>)}</div>
+          <div className="mt-3 rounded-xl border border-slate-100 p-3"><div className="mb-3 text-[10px] font-medium text-slate-700">Application timeline</div><div className="relative flex justify-between px-1 text-[8px] text-slate-400"><div className="absolute left-3 right-3 top-1.5 h-px bg-indigo-200" />{["Applied", "Screen", "Technical", "Onsite", "Decision"].map((step, i) => <div key={step} className="relative z-10 flex flex-col items-center gap-1"><span className={`h-3 w-3 rounded-full border-2 ${i < 4 ? "border-indigo-500 bg-indigo-500" : "border-slate-300 bg-white"}`} />{step}</div>)}</div></div>
+          <div className="mt-3 flex gap-2 text-[9px]"><div className="flex-1 rounded-lg border border-slate-100 p-2"><span className="text-slate-400">LinkedIn</span><b className="ml-2 text-emerald-600">Imported</b></div><div className="flex-1 rounded-lg border border-slate-100 p-2"><span className="text-slate-400">Gmail</span><b className="ml-2 text-emerald-600">Imported</b></div></div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const Index = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const [submitted, setSubmitted] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({ full_name: "", email: "" });
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) navigate("/dashboard", { replace: true });
-    });
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) navigate("/dashboard", { replace: true });
-    });
-    return () => subscription.unsubscribe();
-  }, [navigate]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.full_name.trim() || !form.email.trim()) {
-      toast({ title: "Please fill in your name and email", variant: "destructive" });
-      return;
-    }
-    setLoading(true);
-    try {
-      // Submit to Formspree
-      const res = await fetch("https://formspree.io/f/mpqyjpej", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: form.full_name.trim(), email: form.email.trim() }),
-      });
-      if (!res.ok) throw new Error("Submission failed");
-
-      // Also store in DB
-      await supabase.from("access_requests" as any).insert({
-        full_name: form.full_name.trim(),
-        email: form.email.trim(),
-      } as any);
-
-      setSubmitted(true);
-    } catch (err: any) {
-      toast({ title: "Something went wrong", description: err.message, variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Nav */}
-      <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border h-[52px] px-7 flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center mr-1.5"
-            style={{ background: 'linear-gradient(135deg, #9B59B6, #E84393)' }}
-          >
-            <span className="text-white text-[9px] font-bold tracking-tight">hO</span>
-          </div>
-          <div className="flex flex-col leading-none">
-            <span
-              className="font-serif italic text-[15px] font-semibold bg-clip-text text-transparent"
-              style={{ backgroundImage: 'linear-gradient(135deg, #9B59B6, #E84393)' }}
-            >
-              hireOS
-            </span>
-            <span className="text-[9px] text-muted-foreground tracking-wide">AI-native career platform</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <ThemeToggle />
-          <Button variant="ghost" size="sm" className="text-xs" onClick={() => navigate("/auth")}>
-            Log in
-          </Button>
-        </div>
-      </nav>
-
-      {/* Hero */}
-      <section className="relative pt-24 pb-20 px-7 overflow-hidden bg-gradient-hero">
-        <div className="max-w-2xl mx-auto text-center">
-          <motion.div
-            className="inline-block mb-4 px-3 py-1 rounded-full border border-primary/30 bg-primary/5"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.4 }}
-          >
-            <span className="text-xs font-medium text-primary">🚀 Invite-only • Limited early access</span>
-          </motion.div>
-          <motion.h1
-            className="font-serif text-4xl md:text-5xl leading-[1.15] mb-4 text-foreground"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            Your AI career mentor.
-            <br />
-            <span className="italic">Every single day.</span>
-          </motion.h1>
-          <motion.p
-            className="text-muted-foreground text-base mb-8 max-w-lg mx-auto leading-relaxed"
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.15 }}
-          >
-            hireOS scores every role against your resume, drafts tailored resumes, tracks applications, and preps you for interviews — automatically.
-          </motion.p>
-
-          {/* Waitlist Form */}
-          <motion.div
-            className="max-w-md mx-auto"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-          >
-            {submitted ? (
-              <div className="bg-card border border-border rounded-xl p-6 text-center">
-                <CheckCircle2 className="w-10 h-10 text-green-500 mx-auto mb-3" />
-                <h3 className="text-lg font-semibold mb-1">You're on the list! 🎉</h3>
-                <p className="text-sm text-muted-foreground">
-                  We'll reach out when your spot is ready. Keep an eye on your inbox.
-                </p>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="bg-card border border-border rounded-xl p-6 space-y-3 text-left">
-                <h3 className="text-sm font-semibold text-center mb-1">Request Early Access</h3>
-                <p className="text-xs text-muted-foreground text-center mb-3">
-                  We're onboarding users in small batches. Drop your info and we'll invite you soon.
-                </p>
-                <Input
-                  placeholder="Full name *"
-                  value={form.full_name}
-                  onChange={(e) => setForm(f => ({ ...f, full_name: e.target.value }))}
-                  required
-                  maxLength={100}
-                />
-                <Input
-                  type="email"
-                  placeholder="Email *"
-                  value={form.email}
-                  onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
-                  required
-                  maxLength={255}
-                />
-                <Button type="submit" className="w-full rounded-full" disabled={loading}>
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                  Request Access <ArrowRight className="ml-2 w-4 h-4" />
-                </Button>
-              </form>
-            )}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Features grid */}
-      <section className="pb-24 px-7 pt-16">
-        <div className="max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-3">
-          {[
-            { title: "ATS Scoring", desc: "Every role scored 0–100 against your resume in real time." },
-            { title: "Tailored Resumes", desc: "AI rewrites your resume for each specific job description." },
-            { title: "Application Tracker", desc: "Track status, detect recruiter replies, draft follow-ups." },
-            { title: "Networking Intel", desc: "Who to find on LinkedIn, what to say, how to get noticed." },
-            { title: "Interview Prep", desc: "Role-specific questions with hints and live AI feedback." },
-            { title: "Mentor Reports", desc: "Weekly briefings that read like a real career mentor session." },
-          ].map((f, i) => (
-            <motion.div
-              key={f.title}
-              className="bg-card border border-border rounded-xl p-5"
-              initial={{ opacity: 0, y: 10 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4, delay: i * 0.06 }}
-            >
-              <h3 className="text-sm font-semibold mb-1">{f.title}</h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">{f.desc}</p>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="py-8 px-7 border-t border-border">
-        <div className="max-w-3xl mx-auto flex items-center justify-between text-xs text-muted-foreground">
-          <span>© 2026 hireOS</span>
-          <span>AI-powered job search dashboard</span>
-        </div>
-      </footer>
-    </div>
-  );
+  return <div className="landing-page min-h-screen bg-background text-foreground">
+    <header className="sticky top-0 z-50 border-b border-slate-100 bg-white/90 backdrop-blur-md"><div className="mx-auto flex h-[72px] max-w-6xl items-center justify-between px-5 sm:px-8"><a href="#top" className="text-[19px] font-semibold tracking-[-0.06em]"><span className="text-indigo-500">hire</span>OS</a><nav className="hidden items-center gap-8 text-[13px] text-slate-500 md:flex"><a href="#product" className="hover:text-slate-900">Product</a><a href="#workflow" className="hover:text-slate-900">How it works</a><a href="#open-source" className="hover:text-slate-900">Open source</a><a href={`${GITHUB_URL}#readme`} target="_blank" rel="noreferrer" className="hover:text-slate-900">Docs</a></nav><div className="hidden items-center gap-3 md:flex"><ThemeToggle /><Button variant="ghost" size="sm" className="text-xs text-slate-600" onClick={() => navigate("/auth")}>Log in</Button><a href={GITHUB_URL} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 px-3 text-xs font-medium text-slate-700 hover:bg-slate-50"><Github className="h-3.5 w-3.5" />View on GitHub</a></div><button className="md:hidden" aria-label={mobileOpen ? "Close menu" : "Open menu"} onClick={() => setMobileOpen(!mobileOpen)}>{mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}</button></div>{mobileOpen && <div className="border-t border-slate-100 bg-white px-5 py-4 md:hidden"><div className="flex flex-col gap-4 text-sm text-slate-600"><a href="#product" onClick={() => setMobileOpen(false)}>Product</a><a href="#workflow" onClick={() => setMobileOpen(false)}>How it works</a><a href="#open-source" onClick={() => setMobileOpen(false)}>Open source</a><button className="text-left" onClick={() => navigate("/auth")}>Log in</button></div></div>}</header>
+    <main id="top">
+      <section className="mx-auto grid max-w-6xl items-center gap-12 px-5 pb-20 pt-20 sm:px-8 lg:grid-cols-[.8fr_1.2fr] lg:gap-16 lg:pb-28 lg:pt-28"><motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .5 }}><h1 className="max-w-xl text-5xl font-semibold leading-[1.04] tracking-[-0.065em] text-slate-950 sm:text-6xl">Your job search, finally in one place.</h1><p className="mt-6 max-w-md text-[17px] leading-7 text-slate-500">Import roles, score fit, tailor your resume with evidence, and track every application—so you can focus on the right opportunities.</p><div className="mt-8 flex flex-wrap items-center gap-3"><Button onClick={() => navigate("/auth")} className="h-11 rounded-md bg-indigo-600 px-5 text-sm hover:bg-indigo-700">Get started<ArrowRight className="ml-2 h-4 w-4" /></Button><a href={GITHUB_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-2 text-sm font-medium text-indigo-600">View on GitHub<ArrowRight className="h-3.5 w-3.5" /></a></div><div className="mt-12 space-y-4 text-sm text-slate-600"><div className="flex items-start gap-3"><span className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-50 text-indigo-600"><FileText className="h-3 w-3" /></span><div><b className="font-medium text-slate-800">Evidence-first tailoring</b><p className="mt-1 text-xs leading-5 text-slate-500">Match your experience to role requirements with verifiable proof.</p></div></div><div className="flex items-start gap-3"><span className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-50 text-indigo-600"><LayoutDashboard className="h-3 w-3" /></span><div><b className="font-medium text-slate-800">End-to-end tracking</b><p className="mt-1 text-xs leading-5 text-slate-500">See where every application stands and what to do next.</p></div></div></div></motion.div><motion.div id="product" initial={{ opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: .6, delay: .1 }}><DashboardPreview /></motion.div></section>
+      <section id="workflow" className="border-y border-indigo-100 bg-[#f6f7ff] px-5 py-16 sm:px-8 lg:py-20"><div className="mx-auto max-w-6xl"><h2 className="text-2xl font-semibold tracking-[-0.04em] sm:text-3xl">How it works</h2><div className="mt-10 grid gap-8 md:grid-cols-4 md:gap-4">{workflow.map(({ icon: Icon, title, description }, i) => <div key={title} className="relative"><div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full border border-indigo-100 bg-white text-indigo-500 shadow-sm"><Icon className="h-5 w-5" /></div><h3 className="text-sm font-semibold">{title}</h3><p className="mt-2 max-w-[190px] text-xs leading-5 text-slate-500">{description}</p>{i < workflow.length - 1 && <ArrowRight className="absolute right-5 top-5 hidden h-4 w-4 text-indigo-300 md:block" />}</div>)}</div></div></section>
+      <section className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-20 sm:px-8 lg:grid-cols-[.7fr_1.3fr] lg:py-28"><div><h2 className="max-w-sm text-3xl font-semibold leading-tight tracking-[-0.05em]">Everything in context.</h2><p className="mt-5 max-w-sm text-sm leading-6 text-slate-500">hireOS connects roles, your resume, tailored content, and applications—so every decision is informed.</p><div className="mt-7 space-y-4 text-sm text-slate-600">{["Role scoring based on requirements and your experience", "AI tailoring with citations from your resume", "Application timeline with next best action", "All data stays in your environment"].map(item => <div key={item} className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-indigo-500" /><span>{item}</span></div>)}</div></div><div className="rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_24px_70px_-28px_rgba(55,65,120,0.28)]"><div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4"><div className="flex items-center justify-between border-b border-slate-200 pb-4"><div><p className="text-[10px] text-slate-400">← Back to roles</p><h3 className="mt-2 text-base font-semibold">Senior ML Engineer</h3><p className="mt-1 text-[10px] text-slate-500">Acme AI · Remote · Full-time</p></div><div className="flex gap-2"><span className="rounded border border-slate-200 bg-white px-2 py-1 text-[9px] text-slate-500">Share</span><span className="rounded bg-indigo-600 px-2 py-1 text-[9px] text-white">Apply</span></div></div><div className="grid gap-3 pt-4 sm:grid-cols-3">{[{ icon: CircleAlert, title: "Role fit", body: "5 years building ML systems", color: "text-emerald-600" }, { icon: FileText, title: "Top requirements", body: "Machine Learning · Python", color: "text-indigo-600" }, { icon: Sparkles, title: "Tailored summary", body: "Evidence-backed and ready to review", color: "text-amber-600" }].map(({ icon: Icon, title, body, color }) => <div key={title} className="rounded-lg border border-slate-200 bg-white p-3"><div className="flex items-center gap-2 text-[10px] font-medium text-slate-700"><Icon className={`h-3.5 w-3.5 ${color}`} />{title}</div><p className="mt-4 text-[10px] leading-4 text-slate-500">{body}</p><div className="mt-5 h-1 rounded-full bg-slate-100"><div className={`h-full w-2/3 rounded-full ${title === "Role fit" ? "bg-emerald-400" : "bg-indigo-300"}`} /></div></div>)}</div><div className="mt-3 rounded-lg border border-slate-200 bg-white p-3"><div className="mb-4 text-[10px] font-medium">Application timeline</div><div className="flex items-center justify-between text-[9px] text-slate-400"><span className="text-indigo-600">Applied<br />May 12</span><span>Screen<br />—</span><span>Technical<br />—</span><span>Onsite<br />—</span><span>Decision<br />—</span></div><div className="mt-2 h-1 rounded-full bg-indigo-100"><div className="h-full w-1/5 rounded-full bg-indigo-500" /></div></div></div></div></section>
+      <section id="open-source" className="border-y border-indigo-100 bg-[#f6f7ff] px-5 py-16 sm:px-8 lg:py-20"><div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[.75fr_1.25fr] lg:items-center"><div><h2 className="max-w-sm text-3xl font-semibold leading-tight tracking-[-0.05em]">Open source. Evidence first.</h2><p className="mt-5 max-w-sm text-sm leading-6 text-slate-500">Run hireOS with your own Supabase project and AI keys. Your data stays under your control.</p><div className="mt-7 space-y-3 text-sm text-slate-600">{["Self-host on a static host in minutes", "Bring your own Supabase project", "Choose your own OpenCode or Groq keys", "MIT licensed"].map(item => <div key={item} className="flex items-center gap-3"><Check className="h-4 w-4 text-indigo-500" />{item}</div>)}</div><a href={GITHUB_URL} target="_blank" rel="noreferrer" className="mt-8 inline-flex h-10 items-center gap-2 rounded-md border border-indigo-200 bg-white px-4 text-sm font-medium text-indigo-700 hover:bg-indigo-50"><Github className="h-4 w-4" />View on GitHub</a></div><div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"><div className="flex border-b border-slate-200 text-[10px] text-slate-500"><span className="border-b-2 border-indigo-500 px-4 py-3 font-medium text-slate-800">.env.example</span><span className="px-4 py-3">SELF_HOSTING.md</span></div><div className="grid gap-6 p-5 font-mono text-[10px] leading-6 text-slate-500 sm:grid-cols-2"><div><p className="text-slate-400"># Supabase</p><p><span className="text-indigo-600">VITE_SUPABASE_URL</span>=https://your-project.supabase.co</p><p><span className="text-indigo-600">VITE_SUPABASE_PUBLISHABLE_KEY</span>=your-key</p><p className="mt-3 text-slate-400"># AI providers</p><p><span className="text-indigo-600">OPENCODE_GO_API_KEY</span>=your-key</p><p><span className="text-indigo-600">GROQ_API_KEY</span>=optional</p></div><div className="rounded-lg bg-slate-50 p-4 text-[10px] leading-5"><div className="flex items-center gap-2 text-slate-700"><CircleAlert className="h-3.5 w-3.5 text-indigo-500" />Your data stays in your environment.</div><p className="mt-3 text-slate-400">Private resumes. Read-only Gmail access. Your keys never ship to the browser.</p></div></div></div></div></section>
+      <section className="mx-auto max-w-6xl px-5 py-8 sm:px-8"><div className="flex flex-col gap-5 rounded-xl border border-indigo-200 bg-[#f6f7ff] px-5 py-7 sm:flex-row sm:items-center sm:justify-between sm:px-7"><div><h2 className="text-xl font-semibold tracking-[-0.04em]">Ready to take control of your job search?</h2><p className="mt-1 text-sm text-slate-500">Open source. Evidence first.</p></div><div className="flex flex-wrap items-center gap-4"><Button onClick={() => navigate("/auth")} className="h-10 rounded-md bg-indigo-600 px-4 text-sm hover:bg-indigo-700">Get started</Button><a href={GITHUB_URL} target="_blank" rel="noreferrer" className="text-sm font-medium text-indigo-600">View on GitHub →</a></div></div></section>
+    </main>
+    <footer className="mx-auto flex max-w-6xl flex-col gap-3 border-t border-slate-100 px-5 py-8 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-8"><span>© 2026 hireOS · MIT License</span><span>Open-source career tooling for a more intentional search.</span></footer>
+  </div>;
 };
 
 export default Index;

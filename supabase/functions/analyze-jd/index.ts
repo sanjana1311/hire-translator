@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { callAI as callProviderAI } from "../_shared/ai.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,50 +11,25 @@ const corsHeaders = {
 // ─── AI helpers ───────────────────────────────────────────────────────
 
 interface AICallOpts {
-  apiKey: string;
-  model: string;
   temperature: number;
   topP: number;
   system: string;
   user: string;
-  tools?: any[];
-  toolChoice?: any;
+  tools?: unknown[];
+  toolChoice?: unknown;
 }
 
-async function callAI(opts: AICallOpts): Promise<any> {
-  const body: any = {
-    model: opts.model,
-    temperature: opts.temperature,
-    top_p: opts.topP,
+async function runAI(opts: AICallOpts): Promise<any> {
+  const data = await callProviderAI({
     messages: [
       { role: "system", content: opts.system },
       { role: "user", content: opts.user },
     ],
-  };
-  if (opts.tools) {
-    body.tools = opts.tools;
-    body.tool_choice = opts.toolChoice;
-  }
-
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${opts.apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
+    temperature: opts.temperature,
+    topP: opts.topP,
+    tools: opts.tools,
+    toolChoice: opts.toolChoice,
   });
-
-  if (!res.ok) {
-    const status = res.status;
-    const errText = await res.text();
-    if (status === 429) throw { status: 429, message: "Rate limit exceeded. Please try again in a moment." };
-    if (status === 402) throw { status: 402, message: "AI credits exhausted. Please add credits to continue." };
-    console.error("AI gateway error:", status, errText);
-    throw new Error("AI call failed");
-  }
-
-  const data = await res.json();
   const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
   if (toolCall) return JSON.parse(toolCall.function.arguments);
   const raw = data.choices?.[0]?.message?.content || "";
@@ -235,9 +211,6 @@ serve(async (req) => {
     const { workspaceId, step } = await req.json();
     if (!workspaceId) throw new Error("workspaceId required");
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const authHeader = req.headers.get("Authorization");
@@ -264,8 +237,6 @@ serve(async (req) => {
 
     const resumeText = resume?.raw_text || "";
     const jobDescription = ws.job_description || "";
-    const MODEL = "google/gemini-2.5-flash";
-
     // Determine which step to run
     const requestedStep = step || "analyze"; // "analyze" = Steps 1+2 auto, "projects", "tailor"
 
@@ -276,8 +247,8 @@ serve(async (req) => {
       if (!jobDescription.trim()) throw new Error("No job description to analyze");
 
       console.log("Step 1: JD Signal Mining...");
-      const jdSignals = await callAI({
-        apiKey: LOVABLE_API_KEY, model: MODEL, temperature: 0.0, topP: 0.4,
+      const jdSignals = await runAI({
+        temperature: 0.0, topP: 0.4,
         system: `You are a hiring manager signal extractor. Return ONLY valid JSON. No prose. Do not hallucinate.`,
         user: `Extract structured hiring signals from this Job Description.
 
@@ -331,8 +302,8 @@ ${jobDescription}`,
       }
 
       console.log("Step 2: Match Scoring...");
-      const matchScore = await callAI({
-        apiKey: LOVABLE_API_KEY, model: MODEL, temperature: 0.0, topP: 0.4,
+      const matchScore = await runAI({
+        temperature: 0.0, topP: 0.4,
         system: `You are a deterministic resume-job match scoring engine. Be honest. Do not inflate scores. Return ONLY valid JSON.
 
 Scoring rubric:
@@ -395,8 +366,8 @@ ${resumeText}`,
       console.log("Step 3: Project Suggestions...");
       const jdSignals = ws.jd_analysis as any;
 
-      const projectResult = await callAI({
-        apiKey: LOVABLE_API_KEY, model: MODEL, temperature: 0.6, topP: 0.9,
+      const projectResult = await runAI({
+        temperature: 0.6, topP: 0.9,
         system: `You are a portfolio project advisor for software engineers. Suggest realistic, completable projects.
 
 Rules:
@@ -456,8 +427,8 @@ ${JSON.stringify({
       const selectedProjects = (ws.selected_projects as any[]) || [];
 
       console.log("Step 4: Resume Tailoring...");
-      const tailored = await callAI({
-        apiKey: LOVABLE_API_KEY, model: MODEL, temperature: 0.3, topP: 0.85,
+      const tailored = await runAI({
+        temperature: 0.3, topP: 0.85,
         system: `You are a precision resume tailoring engine. You operate under strict truth boundaries.
 
 The base resume is canonical truth. You cannot expand it — only reshape it.

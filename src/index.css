@@ -192,6 +192,67 @@
     background: hsl(var(--background) / 0.78);
   }
 
+  /* Keep public landing pages visually consistent with the HireOS product UI. */
+  .landing-page {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+
+  .landing-page [class*="bg-white"] {
+    background-color: hsl(var(--card));
+  }
+
+  .landing-page [class*="bg-slate-50"],
+  .landing-page [class*="bg-slate-100"],
+  .landing-page [class*="bg-[#f6f7ff]"] {
+    background-color: hsl(var(--secondary));
+  }
+
+  .landing-page [class*="border-slate-"] {
+    border-color: hsl(var(--border));
+  }
+
+  .landing-page [class*="text-slate-400"],
+  .landing-page [class*="text-slate-500"] {
+    color: hsl(var(--muted-foreground));
+  }
+
+  .landing-page [class*="text-slate-600"],
+  .landing-page [class*="text-slate-700"],
+  .landing-page [class*="text-slate-800"],
+  .landing-page [class*="text-slate-900"],
+  .landing-page [class*="text-slate-950"] {
+    color: hsl(var(--foreground));
+  }
+
+  .landing-page [class*="text-indigo-"] {
+    color: hsl(var(--accent));
+  }
+
+  .landing-page [class*="bg-indigo-"] {
+    background-color: hsl(var(--accent));
+  }
+
+  .landing-page [class*="border-indigo-"] {
+    border-color: hsl(var(--info-border));
+  }
+
+  .landing-page [class*="text-emerald-"] {
+    color: hsl(var(--success));
+  }
+
+  .landing-page [class*="bg-emerald-"] {
+    background-color: hsl(var(--success));
+  }
+
+  .landing-page [class*="text-amber-"] {
+    color: hsl(var(--warning));
+  }
+
+  .landing-page [class*="bg-amber-"] {
+    background-color: hsl(var(--warning));
+  }
+
   /* Refined card with shadow */
   .apple-card {
     background: hsl(var(--card));

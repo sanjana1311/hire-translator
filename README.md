@@ -14,11 +14,14 @@ Anyone deploying their own copy must use their own Supabase project and their ow
 
 ### Local setup
 
+For the complete self-hosting, OAuth, and deployment guide, see
+[docs/SELF_HOSTING.md](docs/SELF_HOSTING.md). The short version is:
+
 1. Install Node.js and the project dependencies.
 2. Copy `.env.example` to `.env`.
-3. Create a Supabase project and apply the SQL migrations in `supabase/migrations`.
+3. Create your own Supabase project and apply the SQL migrations in `supabase/migrations`.
 4. Set the frontend values in `.env` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PROJECT_ID`, and `VITE_SUPABASE_PUBLISHABLE_KEY`).
-5. Deploy the Edge Functions and configure their private secrets:
+5. Deploy the Edge Functions and configure their private secrets.
 
 ```bash
 supabase secrets set \
@@ -30,6 +33,12 @@ supabase secrets set \
 `GROQ_API_KEY` is optional. If provided, it is used as a fallback provider. Add Google OAuth or Resend secrets only when enabling those integrations.
 
 Never commit `.env`, service-role keys, provider keys, OAuth secrets, or user resumes. Only the Supabase publishable/anon key belongs in the browser configuration.
+
+### Contributing and security
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development and pull-request
+guidance and [SECURITY.md](SECURITY.md) for handling security reports and
+deployment secrets.
 
 ```bash
 npm install

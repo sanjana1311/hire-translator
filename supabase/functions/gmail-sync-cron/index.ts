@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { callAI } from "../_shared/ai.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -63,9 +64,6 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
     const results: { profileId: string; jobCount: number; error?: string }[] = [];
 
@@ -143,70 +141,61 @@ serve(async (req) => {
         }
 
         // AI extraction
-        const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
-            temperature: 0.2,
-            max_tokens: 4000,
-            tools: [
-              {
-                type: "function",
-                function: {
-                  name: "extract_jobs",
-                  description: "Extract job listings from email content",
-                  parameters: {
-                    type: "object",
-                    properties: {
-                      jobs: {
-                        type: "array",
-                        items: {
-                          type: "object",
-                          properties: {
-                            title: { type: "string" },
-                            company: { type: "string" },
-                            location: { type: "string" },
-                            url: { type: "string" },
-                            source: { type: "string" },
-                            snippet: { type: "string" },
-                          },
-                          required: ["title", "company", "location", "url", "source", "snippet"],
-                          additionalProperties: false,
+        const aiRes = await callAI({
+          temperature: 0.2,
+          maxTokens: 4000,
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "extract_jobs",
+                description: "Extract job listings from email content",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    jobs: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          title: { type: "string" },
+                          company: { type: "string" },
+                          location: { type: "string" },
+                          url: { type: "string" },
+                          source: { type: "string" },
+                          snippet: { type: "string" },
                         },
+                        required: ["title", "company", "location", "url", "source", "snippet"],
+                        additionalProperties: false,
                       },
                     },
-                    required: ["jobs"],
-                    additionalProperties: false,
                   },
+                  required: ["jobs"],
+                  additionalProperties: false,
                 },
               },
-            ],
-            tool_choice: { type: "function", function: { name: "extract_jobs" } },
-            messages: [
-              {
-                role: "system",
-                content: "Extract individual job listings from these job alert emails. Return unique jobs only.",
-              },
-              {
-                role: "user",
-                content: `Extract jobs from these ${emailBodies.length} emails:\n\n${emailBodies.join("\n\n---EMAIL SEPARATOR---\n\n")}`,
-              },
-            ],
-          }),
+            },
+          ],
+          toolChoice: { type: "function", function: { name: "extract_jobs" } },
+          messages: [
+            {
+              role: "system",
+              content: "Extract individual job listings from these job alert emails. Return unique jobs only.",
+            },
+            {
+              role: "user",
+              content: `Extract jobs from these ${emailBodies.length} emails:\n\n${emailBodies.join("\n\n---EMAIL SEPARATOR---\n\n")}`,
+            },
+          ],
         });
 
         let jobs: any[] = [];
-        if (aiRes.ok) {
-          const aiData = await aiRes.json();
-          const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-          if (toolCall?.function?.arguments) {
-            try {
-              jobs = JSON.parse(toolCall.function.arguments).jobs || [];
-            } catch {}
+        const toolCall = aiRes.choices?.[0]?.message?.tool_calls?.[0];
+        if (toolCall?.function?.arguments) {
+          try {
+            jobs = JSON.parse(toolCall.function.arguments).jobs || [];
+          } catch (error) {
+            console.warn("Scheduled job extraction returned invalid tool arguments", error);
           }
         }
 

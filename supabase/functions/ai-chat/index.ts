@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { callAI } from "../_shared/ai.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,44 +9,12 @@ const corsHeaders = {
 };
 
 const DAILY_LIMIT = 10;
-const OPENCODE_GO_MODEL = "kimi-k3";
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
-}
-
-async function callOpenCodeGo(
-  messages: Array<{ role: string; content: string }>,
-  temperature: number,
-  maxTokens: number,
-) {
-  const token = Deno.env.get("OPENCODE_GO_API_KEY");
-  if (!token) return "";
-
-  const res = await fetch("https://opencode.ai/zen/go/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: OPENCODE_GO_MODEL,
-      temperature,
-      max_tokens: maxTokens,
-      messages,
-    }),
-  });
-
-  if (!res.ok) {
-    console.error("OpenCode Go API error:", res.status, await res.text());
-    return "";
-  }
-
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content || "";
 }
 
 serve(async (req) => {
@@ -85,64 +54,9 @@ serve(async (req) => {
     const temperature = feat === "roles" ? 0.7 : 0.3;
     const messages = [{ role: "user", content: prompt }];
     const maxOutputTokens = maxTokens || 1000;
-    let text = "";
-
-    // Primary provider: OpenCode Go subscription.
-    text = await callOpenCodeGo(messages, temperature, maxOutputTokens);
-
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
-
-    if (LOVABLE_API_KEY) {
-      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Lovable-API-Key": LOVABLE_API_KEY,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3.6-flash",
-          temperature,
-          max_tokens: maxOutputTokens,
-          messages,
-        }),
-      });
-
-      if (res.status === 429) return json({ error: "AI rate limit reached. Please retry shortly." }, 429);
-      if (res.status === 402) return json({ error: "AI credits exhausted. Add credits in Settings → Plans & credits." }, 402);
-
-      if (res.ok) {
-        const data = await res.json();
-        text = data.choices?.[0]?.message?.content || "";
-      } else {
-        console.error("AI gateway error:", res.status, await res.text());
-      }
-    }
-
-    if (!text && GROQ_API_KEY) {
-      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${GROQ_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          temperature,
-          top_p: 0.9,
-          max_tokens: maxOutputTokens,
-          messages,
-        }),
-      });
-      if (!res.ok) {
-        console.error("Groq API error:", res.status, await res.text());
-      } else {
-        const data = await res.json();
-        text = data.choices?.[0]?.message?.content || "";
-      }
-    }
-
-    if (!text) return json({ error: "AI provider unavailable. Please try again." }, 502);
+    const response = await callAI({ messages, temperature, maxTokens: maxOutputTokens });
+    const text = response.choices?.[0]?.message?.content || "";
+    if (!text) return json({ error: "AI provider returned an empty response. Please try again." }, 502);
 
     await adminClient.from("ai_usage").insert({ user_id: user.id, feature: feat });
 
