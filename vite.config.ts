@@ -8,8 +8,8 @@ import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/supabase/vite";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const supabaseUrl = env.VITE_SUPABASE_URL || "\"https://nkhothtftipsrvznyurv.supabase.co\"";
-  const supabasePublishableKey = env.VITE_SUPABASE_PUBLISHABLE_KEY || "\"sb_publishable_dBCaDb0wIHPTWqqL0HmXfw_Cqs1YSHp\"";
+  const supabaseUrl = env.VITE_SUPABASE_URL || "https://nkhothtftipsrvznyurv.supabase.co";
+  const supabasePublishableKey = env.VITE_SUPABASE_PUBLISHABLE_KEY || "sb_publishable_dBCaDb0wIHPTWqqL0HmXfw_Cqs1YSHp";
 
   return {
     server: {
