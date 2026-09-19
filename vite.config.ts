@@ -9,7 +9,7 @@ import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/supabase/vite";
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const supabaseUrl = env.VITE_SUPABASE_URL || "https://nkhothtftipsrvznyurv.supabase.co";
-  const supabasePublishableKey = env.VITE_SUPABASE_PUBLISHABLE_KEY || "sb_publishable_dBCaDb0wIHPTWqqL0HmXfw_Cqs1YSHp";
+  const supabasePublishableKey = env.VITE_SUPABASE_PUBLISHABLE_KEY || "sb_publishable_NjnoBmVHhHDulcomf2R9WQ_SNh9pxz5";
 
   return {
     server: {
