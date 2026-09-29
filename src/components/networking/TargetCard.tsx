@@ -12,6 +12,14 @@ interface Props {
   onUpdate: (updates: Partial<NetworkingTarget> & { id: string }) => void;
 }
 
+const connectionTypeTint: Record<string, { bg: string; border: string; text: string }> = {
+  alumni: { bg: "hsl(var(--info-bg))", border: "hsl(var(--info-border))", text: "hsl(var(--info))" },
+  former_colleague: { bg: "hsl(var(--warning-bg))", border: "hsl(var(--warning-border))", text: "hsl(var(--warning))" },
+  team_member: { bg: "hsl(var(--success-bg))", border: "hsl(var(--success-border))", text: "hsl(var(--success))" },
+  hiring_manager: { bg: "hsl(var(--danger-bg))", border: "hsl(var(--danger-border))", text: "hsl(var(--danger))" },
+  recruiter: { bg: "hsl(var(--danger-bg))", border: "hsl(var(--danger-border))", text: "hsl(var(--danger))" },
+};
+
 const statusColor: Record<string, string> = {
   not_contacted: "hsl(30 5% 59%)",
   contacted: "hsl(25 84% 31%)",
@@ -37,9 +45,21 @@ const TargetCard = ({ target: t, rank, onUpdate }: Props) => {
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-0.5">
             <span className="text-sm font-semibold">{t.name || CONNECTION_TYPE_LABEL[t.connection_type] || "Target contact"}</span>
-            <span className="text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">
-              {CONNECTION_TYPE_LABEL[t.connection_type] ?? t.connection_type}
-            </span>
+            {(() => {
+              const tint = connectionTypeTint[t.connection_type];
+              return tint ? (
+                <span
+                  className="text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full border"
+                  style={{ background: tint.bg, borderColor: tint.border, color: tint.text }}
+                >
+                  {CONNECTION_TYPE_LABEL[t.connection_type] ?? t.connection_type}
+                </span>
+              ) : (
+                <span className="text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">
+                  {CONNECTION_TYPE_LABEL[t.connection_type] ?? t.connection_type}
+                </span>
+              );
+            })()}
             <span className="text-[10px] text-muted-foreground">Relevance {t.relevance}/100</span>
           </div>
           <div className="text-xs text-muted-foreground mb-2">

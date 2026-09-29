@@ -18,16 +18,16 @@ const ResumeAlignment = ({ data, loading }: Props) => {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="rounded-lg p-4" style={{ background: "hsl(150 38% 96%)", border: "1px solid hsl(152 34% 82%)" }}>
-          <div className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: "hsl(153 40% 30%)" }}>✓ Strong Matches</div>
+        <div className="rounded-lg p-4" style={{ background: "hsl(var(--success-bg))", border: "1px solid hsl(var(--success-border))" }}>
+          <div className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: "hsl(var(--success))" }}>✓ Strong Matches</div>
           {data.strongMatches.map((s, i) => (
-            <div key={i} className="flex gap-1.5 mb-2 text-xs leading-relaxed"><span className="font-bold shrink-0" style={{ color: "hsl(153 50% 35%)" }}>✓</span>{s}</div>
+            <div key={i} className="flex gap-1.5 mb-2 text-xs leading-relaxed"><span className="font-bold shrink-0" style={{ color: "hsl(var(--success))" }}>✓</span>{s}</div>
           ))}
         </div>
-        <div className="rounded-lg p-4" style={{ background: "hsl(0 38% 97%)", border: "1px solid hsl(348 28% 85%)" }}>
-          <div className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: "hsl(348 46% 28%)" }}>→ Weak Areas</div>
+        <div className="rounded-lg p-4" style={{ background: "hsl(var(--danger-bg))", border: "1px solid hsl(var(--danger-border))" }}>
+          <div className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: "hsl(var(--danger))" }}>→ Weak Areas</div>
           {data.weakAreas.map((s, i) => (
-            <div key={i} className="flex gap-1.5 mb-2 text-xs leading-relaxed"><span className="font-bold shrink-0" style={{ color: "hsl(348 50% 35%)" }}>→</span>{s}</div>
+            <div key={i} className="flex gap-1.5 mb-2 text-xs leading-relaxed"><span className="font-bold shrink-0" style={{ color: "hsl(var(--danger))" }}>→</span>{s}</div>
           ))}
         </div>
       </div>

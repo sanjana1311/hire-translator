@@ -195,6 +195,14 @@ Return ONLY valid JSON matching this schema, no markdown:
             {rows.length} rejected role{rows.length === 1 ? "" : "s"} in the last {days} days · {reviewEvents.length} email
             {reviewEvents.length === 1 ? "" : "s"} to review <AIQuotaBadge feature="rejection" />
           </p>
+          {rows.length > 0 && (
+            <span
+              className="inline-block mt-2 text-[11px] font-semibold px-2.5 py-1 rounded-full border"
+              style={{ background: "hsl(var(--danger-bg))", borderColor: "hsl(var(--danger-border))", color: "hsl(var(--danger))" }}
+            >
+              {rows.length} rejection{rows.length === 1 ? "" : "s"} tracked
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -316,14 +324,14 @@ Return ONLY valid JSON matching this schema, no markdown:
             {rows.map(({ event, app, job }, i) => {
               const ats = job?.analysis?.score ?? job?.analysis?.atsScore;
               return (
-                <div key={event?.id || app?.id || i} className="rounded-xl border border-border p-4">
+                <div key={event?.id || app?.id || i} className="rounded-xl border border-danger/25 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-semibold">{app?.title || event?.role_title}</div>
                       <div className="text-xs text-muted-foreground">{app?.company || event?.company}</div>
                     </div>
                     <div className="text-right shrink-0">
-                      <div className="text-[11px] text-muted-foreground">{fmt(event?.received_at || app?.applied_date)}</div>
+                      <div className="text-[11px] font-medium" style={{ color: "hsl(var(--danger))" }}>{fmt(event?.received_at || app?.applied_date)}</div>
                       {ats != null && <div className="text-[11px] text-muted-foreground">ATS {ats}</div>}
                     </div>
                   </div>

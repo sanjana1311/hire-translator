@@ -163,6 +163,14 @@ Give 6 suggestions, one per connection type, sorted by relevance descending.`,
           <div className="text-xs text-muted-foreground mt-0.5">{job.location || "Location not listed"}</div>
         </div>
 
+        <div className="rounded-xl p-4 mb-3" style={{ background: "hsl(var(--warning-bg))", border: "1px solid hsl(var(--warning-border))" }}>
+          <p className="text-xs font-semibold text-warning mb-1">Manual search — automatic LinkedIn discovery is off</p>
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            LinkedIn sign-in was removed, so hireOS can't pull profiles for you. Use the search links below to find
+            people manually, then paste their profile URL into a suggestion to track outreach here.
+          </p>
+        </div>
+
         <div className="apple-card p-4 mb-3">
           <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Manual LinkedIn search</div>
           <div className="flex flex-wrap gap-2">

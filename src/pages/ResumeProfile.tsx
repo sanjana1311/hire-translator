@@ -316,7 +316,7 @@ const ResumeProfile = () => {
               className="min-h-[200px] text-sm"
             />
             <Button
-              className="mt-4 bg-gradient-primary text-primary-foreground hover:opacity-90 rounded-xl"
+              className="mt-4 text-primary-foreground hover:opacity-90 rounded-xl"
               onClick={handlePasteSubmit}
               disabled={upsert.isPending}
             >
@@ -336,7 +336,7 @@ const ResumeProfile = () => {
             <h1 className="text-2xl font-bold text-foreground">Edit Resume</h1>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" className="rounded-xl" onClick={() => setEditing(false)}>Cancel</Button>
-              <Button size="sm" className="bg-gradient-primary text-primary-foreground rounded-xl" onClick={handleSave} disabled={upsert.isPending}>
+              <Button size="sm" className="text-primary-foreground rounded-xl" onClick={handleSave} disabled={upsert.isPending}>
                 <Save className="w-4 h-4 mr-2" /> {upsert.isPending ? "Saving..." : "Save"}
               </Button>
             </div>
@@ -375,7 +375,7 @@ const ResumeProfile = () => {
                 </>
               ) : (
                 <>
-                  <CheckCircle className="w-3.5 h-3.5 text-green-600" />
+                  <CheckCircle className="w-3.5 h-3.5 text-success" />
                   Parsed and saved
                 </>
               )}
